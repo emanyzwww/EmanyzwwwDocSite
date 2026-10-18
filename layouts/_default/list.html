@@ -1,21 +1,42 @@
 {{ define "main" }}
+{{- $ctx := . -}}
 <div class="layout">
+  <aside class="layout__aside layout__aside--left">
+    {{ partial "widgets.html" $ctx }}
+  </aside>
+
   <div class="layout__main">
     <header class="page-header">
-      <h1 class="page-title">{{ .Title }}</h1>
-      {{- with .Content }}
+      <h1 class="page-title">{{ $ctx.Title }}</h1>
+      {{- with $ctx.Content }}
       <div class="page-description prose">{{ . }}</div>
       {{- end }}
     </header>
 
-    {{- $pages := .RegularPagesRecursive -}} {{- if eq .Kind "section" }}{{ $pages = .Pages }}{{ end
-    -}} {{- with $pages }}
-    <div class="post-list">{{- range . }} {{ partial "post-card.html" . }} {{- end }}</div>
+    {{- $pages := $ctx.RegularPagesRecursive -}}
+    {{- if eq $ctx.Kind "section" }}{{ $pages = $ctx.Pages }}{{ end -}}
+    {{- $paginator := $ctx.Paginate $pages -}}
+
+    {{- if $paginator.Pages }}
+    <div class="timeline">
+      {{- range $paginator.Pages.GroupByDate "2006" }}
+      <section class="tl-year">
+        <h2 class="tl-year__label">
+          <span>{{ .Key }}</span>
+          <span class="tl-year__count">{{ len .Pages }}</span>
+        </h2>
+        <ul class="tl-list">
+          {{- range .Pages }}
+          {{ partial "post-row.html" . }}
+          {{- end }}
+        </ul>
+      </section>
+      {{- end }}
+    </div>
+    {{ partial "pagination.html" $ctx }}
     {{- else }}
     <p class="empty">{{ i18n "noPostsYet" }}</p>
-    {{- end }} {{ partial "pagination.html" . }}
+    {{- end }}
   </div>
-
-  <aside class="layout__aside">{{ partial "widgets.html" . }}</aside>
 </div>
 {{ end }}

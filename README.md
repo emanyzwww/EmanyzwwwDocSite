@@ -247,7 +247,6 @@ content/
   _index.zh-cn.md         首页文字
   posts/                  文章
   about/                  关于页
-  archives/               归档页
   tags/_index.zh-cn.md    标签页标题
 data/
   profile.yaml            个人资料 ← 常改
@@ -255,14 +254,13 @@ data/
 assets/
   css/tokens.css          设计令牌 ← 想换风格改这里
   js/main.js              主题切换、语言菜单、目录高亮、复制代码
+  images/avatar.png       会替换的图片放这里（自动加缓存指纹）
+  favicon.svg
 layouts/
-  _default/               baseof / single / list / term / taxonomy / archives
+  _default/               baseof / single / list / term / taxonomy
   partials/               页头、页脚、图标、组件
   partials/widgets/       侧栏组件（加文件即加组件）
 i18n/                     界面文案
-static/
-  images/avatar.svg       头像占位图
-  favicon.svg
 hugo.toml                 站点配置
 ```
 
@@ -275,9 +273,9 @@ hugo.toml                 站点配置
 - 文章目录，自动高亮当前章节
 - 阅读进度条（有目录的长文章）
 - 代码块一键复制
+- 文章页时间线列表：按年份分组，一行一篇（日期 / 标题 / 摘要 / 时长 / 标签）
 - 文章卡片列表、分页、上一篇/下一篇
-- 标签 / 分类页
-- 归档页（按年份分组）
+- 标签 / 分类页（标签云 + 分组列表）
 - 404 页面
 - RSS、sitemap、robots.txt
 - 自定义 404 与 SEO 元信息（Open Graph）

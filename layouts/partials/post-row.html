@@ -1,0 +1,25 @@
+{{- /* 时间线单行：日期 | 标题 | 文章信息
+   传入一个 Page */ -}}
+{{- $p := . -}}
+<li class="tl__item">
+  <time class="tl__date" datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "01-02" }}</time>
+
+  <span class="tl__main">
+    <a class="tl__title" href="{{ $p.RelPermalink }}">{{ $p.LinkTitle }}</a>
+    {{- with $p.Summary }}
+    <span class="tl__summary">{{ . | plainify | truncate 60 }}</span>
+    {{- end }}
+  </span>
+
+  <span class="tl__meta">
+    {{- with $p.ReadingTime }}
+    <span class="tl__meta-item">{{ . }} {{ i18n "minutesShort" }}</span>
+    {{- end }}
+    {{- with $p.GetTerms "tags" }}
+    <span class="tl__meta-item tl__tags">
+      {{- range $i, $t := . }}{{ if $i }}·{{ end }}<a href="{{ $t.RelPermalink }}">{{ $t.LinkTitle }}</a>{{ end }}
+    </span>
+    {{- end }}
+    {{- if $p.Draft }}<span class="badge">{{ i18n "draft" }}</span>{{ end }}
+  </span>
+</li>
