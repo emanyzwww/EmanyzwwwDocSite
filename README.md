@@ -76,11 +76,36 @@ tags = ['随笔', 'Hugo']
 ![说明](cover.jpg)
 ```
 
+### 换图不生效？放对目录就行
+
+浏览器缓存是按 **URL** 来的。如果图片地址始终是同一个（比如 `/images/avatar.png`），
+你换掉文件内容但没换文件名，浏览器会继续用缓存里的旧图。
+
+本项目已经处理掉了这个问题，规则只有一条：
+
+| 放哪里                  | 换图后是否自动生效                                                           |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `assets/images/xxx.png` | ✅ 会。构建时自动加内容指纹，URL 变成 `avatar.<hash>.png`，内容一变 URL 就变 |
+| `static/images/xxx.png` | ❌ 不会。URL 固定不变，需要手动强制刷新（Ctrl+F5）                           |
+
+所以**会被替换的图片请放在 `assets/images/` 下**，然后照常引用：
+
+```yaml
+# data/profile.yaml
+avatar: /images/avatar.png     # 实际文件在 assets/images/avatar.png
+```
+
+模板里通过 `partials/asset-url.html` 解析，它会自动指纹化；找不到文件时回退到普通路径，
+所以外链（`https://...`）和仍放在 `static/` 的老路径也都能正常工作。
+
+> 正文里的图片（放在 `content/posts/xxx/` 内的）属于页面资源，文件名不变时同样可能被缓存，
+> 需要时改名或用 Ctrl+F5 强制刷新。
+
 ### 本地预览与构建
 
 ```powershell
 hugo server        # 本地预览，改完自动刷新
-hugo --gc --minify # 生成到 public/，用于部署
+pnpm build         # 生成到 public/，用于部署（含清理旧指纹文件）
 ```
 
 ---

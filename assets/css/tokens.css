@@ -157,6 +157,7 @@
   --duration-normal: 200ms;
 
   --z-header: 100;
+  --header-height: 4rem; /* 页头高度，sticky 偏移统一用它 */
 
   /* ---------- 6. 布局令牌 ---------- */
   --layout-max: 82rem; /* 主体最大宽度（原 72rem，加宽） */

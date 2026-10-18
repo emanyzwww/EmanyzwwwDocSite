@@ -1,19 +1,17 @@
 {{ define "main" }}
 {{- $p := . -}}
-{{- /* 文章专属部件（日期、阅读时长、标签、返回列表、上下篇）只对 posts 分区显示；
-       关于页等独立单页不显示这些 */ -}}
+{{- /* 文章专属部件（日期、阅读时长、标签、返回列表、上下篇）只对 posts 分区显示 */ -}}
 {{- $isPost := eq $p.Section "posts" -}}
 {{- /* Fragments.Headings 的顶层是 H1，H2 在其 children 里，所以按目录条目数判断 */ -}}
 {{- $hasToc := and site.Params.toc (not $p.Params.hideToc) -}}
 {{- if $hasToc }}{{ $hasToc = gt (len (findRE "<li" $p.TableOfContents)) 2 }}{{ end -}}
 
-{{- /* 文章页三栏：左 widgets | 正文 | 右目录；独立单页保持两栏 */ -}}
-<div class="layout{{ if $isPost }} layout--three{{ end }}">
-  {{- if $isPost }}
+{{- /* 所有单页统一三栏：左 widgets | 正文 | 右目录
+       （文章页、关于页等都一样，左右侧栏始终存在） */ -}}
+<div class="layout layout--three">
   <aside class="layout__aside layout__aside--left">
     {{ partial "widgets.html" $p }}
   </aside>
-  {{- end }}
 
   <div class="layout__main">
     <article class="post" {{ if $hasToc }}data-article-body{{ end }}>
@@ -64,7 +62,6 @@
     {{- end }}
   </div>
 
-  {{- if $isPost }}
   <aside class="layout__aside layout__aside--right">
     {{- if $hasToc }}
     <div class="card toc" data-toc>
@@ -73,20 +70,16 @@
         {{ $p.TableOfContents }}
       </div>
     </div>
-    {{- end }}
-  </aside>
-  {{- else }}
-  <aside class="layout__aside">
-    {{- if $hasToc }}
-    <div class="card toc" data-toc>
-      <p class="toc__title">{{ partial "icons.html" (dict "name" "list") }}{{ i18n "onThisPage" }}</p>
-      <div class="toc__nav">
-        {{ $p.TableOfContents }}
-      </div>
+    {{- else }}
+    {{- /* 没有目录时右侧栏不空着：显示本站统计，避免视觉上空一大块 */ -}}
+    <div class="card">
+      <p class="card__title">{{ i18n "siteStats" }}</p>
+      <ul class="stat-list">
+        <li><span class="stat-list__label">{{ i18n "totalPosts" }}</span><span class="stat-list__value">{{ len (where site.RegularPages "Section" "posts") }}</span></li>
+        <li><span class="stat-list__label">{{ i18n "totalTags" }}</span><span class="stat-list__value">{{ len site.Taxonomies.tags }}</span></li>
+      </ul>
     </div>
     {{- end }}
-    {{ partial "widgets.html" $p }}
   </aside>
-  {{- end }}
 </div>
 {{ end }}

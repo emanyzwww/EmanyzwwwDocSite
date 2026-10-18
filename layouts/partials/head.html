@@ -51,7 +51,7 @@
 <link rel="alternate" type="{{ .MediaType.Type }}" href="{{ .RelPermalink }}" title="{{ $siteTitle }}">
 {{- end }}
 
-<link rel="icon" href="{{ "favicon.svg" | relURL }}" type="image/svg+xml">
+<link rel="icon" href="{{ partial "asset-url.html" "favicon.svg" }}" type="image/svg+xml">
 <meta property="og:title" content="{{ $fullTitle }}">
 <meta property="og:description" content="{{ $desc }}">
 <meta property="og:type" content="{{ cond .IsPage "article" "website" }}">

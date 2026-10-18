@@ -12,8 +12,10 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
-  overflow-x: hidden;
+  scroll-padding-top: calc(var(--header-height) + var(--space-4));
+  /* 用 clip 而非 hidden：clip 不会创建滚动容器，因此不会破坏 sticky。
+     hidden 会让 html/body 变成滚动容器，导致页头与侧栏的 sticky 全部失效。 */
+  overflow-x: clip;
   /* 常驻预留滚动条空间，避免内容从不足一屏到超出一屏时页面宽度突变而「抽搐」 */
   scrollbar-gutter: stable;
 }
@@ -44,7 +46,8 @@ body {
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  /* 同样用 clip：hidden 会让 body 成为滚动容器，破坏页头与侧栏的 sticky */
+  overflow-x: clip;
   transition:
     background-color var(--duration-normal) var(--ease-out),
     color var(--duration-normal) var(--ease-out);

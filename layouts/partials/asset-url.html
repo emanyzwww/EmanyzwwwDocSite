@@ -1,0 +1,27 @@
+{{- /* 资源地址解析：给图片等静态资源自动加缓存指纹
+   用法：{{ partial "asset-url.html" "images/avatar.png" }}
+
+   规则：
+   1. 外链（http/https）与 data URI 原样返回
+   2. 能在 assets/ 下找到的文件 → 用 Hugo Pipes 指纹化，
+      输出形如 /images/avatar.abc123.png
+      —— 文件内容一变，文件名就变，浏览器强制重新下载
+   3. 找不到则回退到 relURL（兼容仍放在 static/ 的老路径）
+
+   注意：想让「换图但文件名不变」生效，图片必须放在 assets/ 下。
+*/ -}}
+{{- $src := . -}}
+{{- $result := $src -}}
+{{- if $src -}}
+  {{- if or (hasPrefix $src "http://") (hasPrefix $src "https://") (hasPrefix $src "data:") -}}
+    {{- $result = $src -}}
+  {{- else -}}
+    {{- $path := strings.TrimPrefix "/" $src -}}
+    {{- with resources.Get $path -}}
+      {{- $result = (. | fingerprint).RelPermalink -}}
+    {{- else -}}
+      {{- $result = $src | relURL -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- return $result -}}

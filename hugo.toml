@@ -41,7 +41,8 @@ brandName = 'Emanyzwww'
 brandLogo = ''
 # 头像与个人资料都在 data/profile.yaml 里改
 # 首页侧栏组件：按顺序渲染 layouts/partials/widgets/<名字>.html
-widgets = ['profile', 'tags', 'links', 'custom']
+#widgets = ['profile', 'tags', 'links', 'custom']
+widgets = ['profile', 'tags', 'custom']
 toc = true # 文章默认生成目录（较短的文章会自动隐藏）
 showReadingTime = true
 footerText = '' # 页脚附加文字，留空则不显示（旧字段，建议改用下面的 footer 配置）

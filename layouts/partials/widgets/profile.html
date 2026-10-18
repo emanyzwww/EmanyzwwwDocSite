@@ -4,7 +4,7 @@
   {{- $avatar := $profile.avatar -}}
   {{- with $avatar }}
   <div class="profile__avatar">
-    <img src="{{ . | relURL }}" alt="{{ $profile.name | default site.Title }}" loading="lazy" width="80" height="80">
+    <img src="{{ partial "asset-url.html" . }}" alt="{{ $profile.name | default site.Title }}" loading="lazy" width="80" height="80">
   </div>
   {{- end }}
 

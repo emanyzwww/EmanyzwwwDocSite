@@ -47,3 +47,21 @@ other = "This page doesn't exist or has been moved."
 other = "Back to home"
 [dateFormat]
 other = "Jan 2, 2006"
+[siteStats]
+other = "Site stats"
+[totalPosts]
+other = "Posts"
+[totalTags]
+other = "Tags"
+[tagCloud]
+other = "Tag cloud"
+[tagCloudHint]
+other = "Bigger tags mean more posts on that topic"
+[taxonomyOverview]
+other = "{{ .count }} tags in total. Click any tag to see related posts."
+[otherTags]
+other = "Other tags"
+[postsInTag]
+other = "Posts with this tag"
+[recentPosts]
+other = "Recent posts"

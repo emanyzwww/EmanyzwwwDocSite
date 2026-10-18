@@ -47,3 +47,21 @@ other = "这个页面不存在，或者已经被移走了。"
 other = "回到首页"
 [dateFormat]
 other = "2006 年 01 月 02 日"
+[siteStats]
+other = "本站概况"
+[totalPosts]
+other = "文章数"
+[totalTags]
+other = "标签数"
+[tagCloud]
+other = "标签云"
+[tagCloudHint]
+other = "标签越大，代表该主题下的文章越多"
+[taxonomyOverview]
+other = "全站共有 {{ .count }} 个标签，点击任意一个查看相关文章"
+[otherTags]
+other = "其他标签"
+[postsInTag]
+other = "该标签下的文章"
+[recentPosts]
+other = "最近文章"

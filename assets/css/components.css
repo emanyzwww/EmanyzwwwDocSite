@@ -6,6 +6,7 @@
   position: sticky;
   top: 0;
   z-index: var(--z-header);
+  flex-shrink: 0;
   background: color-mix(in srgb, var(--bg-canvas) 85%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: var(--border-width) solid var(--border-subtle);
@@ -16,7 +17,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  min-height: 4rem;
+  min-height: var(--header-height);
 }
 
 /* 右侧区域：导航 + 工具按钮，内部再左右分开 */
