@@ -1,0 +1,52 @@
+{{- /*
+		自定义 RSS 模板：覆盖 Hugo 内嵌模板，对全站所有订阅源生效（首页 / 文章 / 标签 / 英文站）。
+
+		与内嵌模板的差异（解决「阅读器里正文显示成 <p> 左尖括号」的问题）：
+	1. <description> 输出纯文本摘要 —— 内嵌模板把带 HTML 标签的摘要转义后放进来，
+		不渲染 HTML 的阅读器会原样显示「<p>…」；
+			2. 新增 <content:encoded>（RSS content 模块）输出全文 HTML ——
+				绝大多数现代阅读器优先读它，能直接展示完整文章。
+
+				注意：本目录下的文件不要用编辑器「格式化」（会折断 Go 模板的长字符串导致构建失败）。
+				*/}}
+				{{- $pctx := . }}
+				{{- if .IsHome }}{{ $pctx = site }}{{ end }}
+				{{- $pages := slice }}
+				{{- if or $.IsHome $.IsSection }}
+				{{- $pages = $pctx.RegularPages }}
+				{{- else }}
+				{{- $pages = $pctx.Pages }}
+				{{- end }}
+				{{- $limit := site.Config.Services.RSS.Limit }}
+				{{- if ge $limit 1 }}
+				{{- $pages = $pages | first $limit }}
+				{{- end }}
+				{{- printf `<?xml version="1.0" encoding="utf-8" standalone="yes"?>` | safeHTML }}
+				<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+					<channel>
+						<title>{{ if eq .Title site.Title }}{{ site.Title }}{{ else }}{{ with .Title }}{{ . }} on {{ end }}{{ site.Title }}{{ end }}</title>
+						<link>{{ .Permalink }}</link>
+						<description>{{ with site.Params.description }}{{ . | transform.XMLEscape | safeHTML }}{{ else }}Recent content {{ if ne .Title site.Title }}in {{ .Title }} {{ end }}on {{ site.Title }}{{ end }}</description>
+						<generator>Hugo</generator>
+						<language>{{ site.Language.Locale }}</language>
+						{{ with site.Copyright }}<copyright>{{ . }}</copyright>{{ end }}
+						{{ if not .Date.IsZero }}
+						<lastBuildDate>{{ (index $pages.ByLastmod.Reverse 0).Lastmod.Format "Mon, 02 Jan 2006 15:04:05 -0700" | safeHTML }}</lastBuildDate>
+						{{ end }}
+						{{- with .OutputFormats.Get "rss" }}
+						{{ printf "<atom:link href=%q rel=\"self\" type=%q />" .Permalink .MediaType | safeHTML }}
+						{{- end }}
+						{{- range $pages }}
+						<item>
+							<title>{{ .Title }}</title>
+							<link>{{ .Permalink }}</link>
+							<pubDate>{{ .PublishDate.Format "Mon, 02 Jan 2006 15:04:05 -0700" | safeHTML }}</pubDate>
+							<guid>{{ .Permalink }}</guid>
+							<description>{{ with .Description }}{{ . | transform.XMLEscape | safeHTML }}{{ else }}{{ .Summary | plainify | transform.XMLEscape | safeHTML }}{{ end }}</description>
+							{{- with .Content }}
+							<content:encoded>{{ . | transform.XMLEscape | safeHTML }}</content:encoded>
+							{{- end }}
+						</item>
+						{{- end }}
+					</channel>
+				</rss>
