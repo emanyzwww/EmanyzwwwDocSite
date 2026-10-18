@@ -9,7 +9,7 @@
     "format:check": "node scripts/format.js --check",
     "format:md": "node scripts/format.js content data README.md",
     "format:theme": "node scripts/format.js assets",
-    "dev": "hugo server",
+    "dev": "hugo server -D",
     "build": "hugo --gc --minify --cleanDestinationDir",
     "clean": "node -e \"const fs=require('fs');for(const d of ['public','resources'])fs.rmSync(d,{recursive:true,force:true})\""
   },
