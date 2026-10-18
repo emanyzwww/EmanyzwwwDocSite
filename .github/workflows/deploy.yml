@@ -1,0 +1,97 @@
+# =========================================================
+#  推送到 master 后自动构建并发布到 GitHub Pages
+#
+#  要点：
+#  - 不改动 hugo.toml 里的 baseURL（仍是你自己的域名）
+#  - 构建时用 --baseURL 覆盖成 GitHub Pages 的实际地址
+#  - 项目型站点会自动带上 /<仓库名>/ 子路径
+#
+#  首次使用需在仓库里设置一次：
+#    Settings -> Pages -> Build and deployment -> Source 选「GitHub Actions」
+# =========================================================
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  # 也可在 Actions 页面手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署任务，新推送排队而不是打断正在进行的部署
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          # 与本地保持一致，避免 CI 与本地渲染结果不同
+          hugo-version: "0.168.0"
+          extended: true
+
+      # 计算本次部署的 baseURL：
+      #   仓库名形如 xxx.github.io  -> 用户站点，根路径
+      #   其他仓库名                 -> 项目站点，带 /<仓库名>/ 子路径
+      # 若在仓库变量里设置了 HUGO_BASEURL（例如以后绑定自定义域名），则优先使用它
+      - name: Resolve baseURL
+        id: baseurl
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          OVERRIDE: ${{ vars.HUGO_BASEURL }}
+        run: |
+          set -euo pipefail
+          if [ -n "${OVERRIDE}" ]; then
+            URL="${OVERRIDE}"
+          elif [[ "${REPO}" == *.github.io ]]; then
+            URL="https://${OWNER}.github.io/"
+          else
+            URL="https://${OWNER}.github.io/${REPO}/"
+          fi
+          # Hugo 的 baseURL 需要以斜杠结尾
+          if [[ "${URL}" != */ ]]; then URL="${URL}/"; fi
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "本次构建使用 baseURL = ${URL}"
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          hugo \
+            --gc \
+            --minify \
+            --baseURL "${{ steps.baseurl.outputs.url }}"
+          echo "产物文件数：$(find ./public -type f | wc -l)"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

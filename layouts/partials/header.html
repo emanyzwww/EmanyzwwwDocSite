@@ -1,13 +1,13 @@
 {{- /* 品牌名：优先用 params.brandName，其次 params.brand，最后回退到站点标题 */ -}}
 {{- $brand := site.Params.brandName | default site.Params.brand | default site.Title -}}
-{{- /* 品牌 logo 图片：可选，配置 params.brandLogo 指向 static 下的图片 */ -}}
+{{- /* 品牌 logo 图片：可选，配置 params.brandLogo，放在 assets/ 下可自动加缓存指纹 */ -}}
 {{- $brandLogo := site.Params.brandLogo -}}
 <header class="site-header">
   <div class="container site-header__inner">
-    {{- /* 左侧：品牌 */ -}}
-    <a class="site-brand" href="{{ "/" | relLangURL }}">
+    {{- /* 左侧：品牌。用 site.Home.RelPermalink，自动带对语言前缀与 baseURL 子路径 */ -}}
+    <a class="site-brand" href="{{ site.Home.RelPermalink }}">
       {{- if $brandLogo }}
-      <img class="site-brand__logo" src="{{ $brandLogo | relURL }}" alt="{{ $brand }}" width="28" height="28">
+      <img class="site-brand__logo" src="{{ partial "asset-url.html" $brandLogo }}" alt="{{ $brand }}" width="28" height="28">
       {{- end }}
       <span class="site-brand__text">{{ $brand }}</span>
     </a>

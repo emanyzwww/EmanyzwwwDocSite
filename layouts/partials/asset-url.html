@@ -6,7 +6,7 @@
    2. 能在 assets/ 下找到的文件 → 用 Hugo Pipes 指纹化，
       输出形如 /images/avatar.abc123.png
       —— 文件内容一变，文件名就变，浏览器强制重新下载
-   3. 找不到则回退到 relURL（兼容仍放在 static/ 的老路径）
+   3. 找不到则交给 url.html 处理（兼容仍在 static/ 下的老路径）
 
    注意：想让「换图但文件名不变」生效，图片必须放在 assets/ 下。
 */ -}}
@@ -20,7 +20,7 @@
     {{- with resources.Get $path -}}
       {{- $result = (. | fingerprint).RelPermalink -}}
     {{- else -}}
-      {{- $result = $src | relURL -}}
+      {{- $result = partial "url.html" $src -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}

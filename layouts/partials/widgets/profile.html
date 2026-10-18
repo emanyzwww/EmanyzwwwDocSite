@@ -20,9 +20,10 @@
   {{- with $profile.links }}
   <ul class="profile__links">
     {{- range . }}
+    {{- $href := partial "url.html" .url -}}
     <li>
-      <a href="{{ .url }}" title="{{ .label }}" aria-label="{{ .label }}"
-         {{ if hasPrefix .url "http" }}target="_blank" rel="noopener noreferrer"{{ end }}>
+      <a href="{{ $href }}" title="{{ .label }}" aria-label="{{ .label }}"
+         {{ if hasPrefix $href "http" }}target="_blank" rel="noopener noreferrer"{{ end }}>
         {{ partial "icons.html" (dict "name" (.icon | default "link")) }}
       </a>
     </li>

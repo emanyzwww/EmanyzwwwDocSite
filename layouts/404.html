@@ -2,7 +2,7 @@
 <div class="notfound">
     <p class="notfound__code">404</p>
     <p class="notfound__text">{{ i18n "notFoundText" }}</p>
-    <a class="btn btn--accent" href="{{ "/" | relLangURL }}">{{ partial "icons.html" (dict "name" "arrow-left") }}{{
+    <a class="btn btn--accent" href="{{ site.Home.RelPermalink }}">{{ partial "icons.html" (dict "name" "arrow-left") }}{{
     i18n "backHome" }}</a>
 </div>
 {{ end }}

@@ -28,8 +28,9 @@
     {{- if or (gt (len $links) 0) (and .OutputFormats (index .OutputFormats "rss")) }}
     <ul class="site-footer__links">
       {{- range $links }}
+      {{- $href := partial "url.html" .url -}}
       <li>
-        <a href="{{ .url }}"{{ if hasPrefix .url "http" }} target="_blank" rel="noopener noreferrer"{{ end }}>{{ .name }}</a>
+        <a href="{{ $href }}"{{ if hasPrefix $href "http" }} target="_blank" rel="noopener noreferrer"{{ end }}>{{ .name }}</a>
       </li>
       {{- end }}
       {{- with .OutputFormats.Get "rss" }}

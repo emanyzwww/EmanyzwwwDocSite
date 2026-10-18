@@ -46,7 +46,7 @@
 
       {{- if $isPost }}
       <footer class="post-footer">
-        <a class="btn" href="{{ "/posts/" | relLangURL }}">
+        <a class="btn" href="{{ partial "url.html" "/posts/" }}">
           {{ partial "icons.html" (dict "name" "arrow-left") }}
           {{ i18n "backToPosts" }}
         </a>
