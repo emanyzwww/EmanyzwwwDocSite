@@ -1,0 +1,32 @@
+# ==================================================
+#  个人信息 / 首页侧栏组件内容
+# ==================================================
+
+# 头像：放在 static/images/ 下，或者直接填一个外链 URL
+avatar: /images/avatar.png
+
+# 显示名称
+name: Emanyzwww
+
+# 名称下方的一行小字
+tagline: 余晏舟
+
+# 自我介绍，支持完整 Markdown
+bio: |
+  你好，我是一个喜欢把想法写下来的人。
+
+# 社交 / 联系方式
+# icon 可选：github / mail / rss / twitter / link
+links:
+  - label: GitHub
+    url: https://github.com/emanyzwww
+    icon: github
+  - label: Twitter
+    url: https://x.com/emanyzwww
+    icon: twitter
+  - label: 邮箱
+    url: mailto:emanyzwww@gmail.com
+    icon: mail
+  - label: RSS
+    url: /index.xml
+    icon: rss

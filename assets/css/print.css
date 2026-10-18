@@ -1,0 +1,51 @@
+/* =========================================================
+   打印样式
+   ========================================================= */
+
+@media print {
+  .site-header,
+  .site-footer,
+  .layout__aside,
+  .pagination,
+  .post-nav,
+  .skip-link {
+    display: none !important;
+  }
+
+  .layout {
+    display: block;
+    padding: 0;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  .prose a::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.85em;
+    color: #555;
+  }
+
+  .prose pre {
+    background: #f5f5f5;
+    color: #000;
+    border: 1px solid #ddd;
+    box-shadow: none;
+    white-space: pre-wrap;
+  }
+
+  .prose pre code {
+    color: #000;
+  }
+
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  img {
+    break-inside: avoid;
+  }
+}

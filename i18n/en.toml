@@ -1,0 +1,49 @@
+[skipToContent]
+other = "Skip to main content"
+[mainNav]
+other = "Main navigation"
+[toggleTheme]
+other = "Toggle theme"
+[switchLanguage]
+other = "Switch language"
+[onThisPage]
+other = "On this page"
+[tags]
+other = "Tags"
+[links]
+other = "Links"
+[draft]
+other = "Draft"
+[minutesShort]
+other = "min"
+[backToPosts]
+other = "Back to posts"
+[allPosts]
+other = "View all posts"
+[previousPost]
+other = "Previous"
+[nextPost]
+other = "Next"
+[postNav]
+other = "Post navigation"
+[pagination]
+other = "Pagination"
+[previousPage]
+other = "Previous page"
+[nextPage]
+other = "Next page"
+[noPostsYet]
+other = "No posts yet."
+[noPostsInTerm]
+other = "No posts with this tag yet."
+[termCount]
+one = "{{ .count }} post"
+other = "{{ .count }} posts"
+[noTerms]
+other = "Nothing here yet."
+[notFoundText]
+other = "This page doesn't exist or has been moved."
+[backHome]
+other = "Back to home"
+[dateFormat]
+other = "Jan 2, 2006"

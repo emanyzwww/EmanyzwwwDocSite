@@ -1,0 +1,16 @@
+layouts/
+
+# 构建产物与缓存
+public/
+resources/
+node_modules/
+
+# 原样输出
+static/
+
+# 依赖锁文件
+pnpm-lock.yaml
+
+# 工具配置
+.dsh/
+.idea/

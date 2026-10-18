@@ -1,0 +1,21 @@
+{{ define "main" }}
+<div class="layout">
+  <div class="layout__main">
+    <header class="page-header">
+      <h1 class="page-title">{{ .Title }}</h1>
+      {{- with .Content }}
+      <div class="page-description prose">{{ . }}</div>
+      {{- end }}
+    </header>
+
+    {{- $pages := .RegularPagesRecursive -}} {{- if eq .Kind "section" }}{{ $pages = .Pages }}{{ end
+    -}} {{- with $pages }}
+    <div class="post-list">{{- range . }} {{ partial "post-card.html" . }} {{- end }}</div>
+    {{- else }}
+    <p class="empty">{{ i18n "noPostsYet" }}</p>
+    {{- end }} {{ partial "pagination.html" . }}
+  </div>
+
+  <aside class="layout__aside">{{ partial "widgets.html" . }}</aside>
+</div>
+{{ end }}

@@ -1,0 +1,22 @@
+{
+  "name": "emanyzwww-doc-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hugo 静态站点：内容与主题格式化",
+  "type": "module",
+  "scripts": {
+    "format": "node scripts/format.js",
+    "format:check": "node scripts/format.js --check",
+    "format:md": "node scripts/format.js content data README.md",
+    "format:theme": "node scripts/format.js assets",
+    "dev": "hugo server",
+    "build": "hugo --gc --minify",
+    "clean": "node -e \"const fs=require('fs');for(const d of ['public','resources'])fs.rmSync(d,{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "oxfmt": "^0.73.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

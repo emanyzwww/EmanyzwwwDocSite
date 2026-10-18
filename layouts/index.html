@@ -1,0 +1,36 @@
+{{ define "main" }}
+{{- /* 首页：有 _index.md 时用它的正文，否则给个默认招呼 */ -}}
+<div class="layout">
+    <div class="layout__main">
+        <header class="page-header">
+            <h1 class="page-title">{{ .Title | default site.Title }}</h1>
+            {{- with .Content }}
+            <div class="prose">{{ . }}</div>
+            {{- else }}
+            <p class="page-description">{{ site.Params.description }}</p>
+            {{- end }}
+        </header>
+
+        {{- $posts := where site.RegularPages "Section" "posts" -}}
+        {{- if not $posts }}{{ $posts = site.RegularPages }}{{ end -}}
+
+        {{- with $posts }}
+        <div class="post-list">
+            {{- range first (site.Params.homePostCount | default 5) . }}
+            {{ partial "post-card.html" . }}
+            {{- end }}
+        </div>
+        <div style="margin-top: var(--space-6)">
+            <a class="btn" href="{{ "/posts/" | relLangURL }}">{{ i18n "allPosts" }}{{ partial "icons.html" (dict "name"
+            "arrow-right") }}</a>
+        </div>
+        {{- else }}
+        <p class="empty">{{ i18n "noPostsYet" }}</p>
+        {{- end }}
+    </div>
+
+    <aside class="layout__aside">
+        {{ partial "widgets.html" . }}
+    </aside>
+</div>
+{{ end }}

@@ -1,0 +1,166 @@
+/* =========================================================
+   Design Tokens — 全部设计变量都在这里
+   想调配色、圆角、间距、字号，改这一个文件即可，
+   其余样式一律只引用变量，不写死具体数值。
+   ========================================================= */
+
+/* ---------- 1. 原始色板（primitive） ---------- */
+:root {
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* 中性色阶 */
+  --gray-25: #fcfcfd;
+  --gray-50: #f8f9fa;
+  --gray-100: #f1f2f4;
+  --gray-200: #e4e6eb;
+  --gray-300: #d3d6db;
+  --gray-400: #a9aeb8;
+  --gray-500: #7c828d;
+  --gray-600: #5c626d;
+  --gray-700: #3f444d;
+  --gray-800: #272b31;
+  --gray-900: #181b20;
+  --gray-950: #0f1115;
+
+  /* 强调色：蓝 */
+  --blue-50: #eef4ff;
+  --blue-100: #dbe7ff;
+  --blue-200: #bcd2ff;
+  --blue-300: #92b5ff;
+  --blue-400: #6691fb;
+  --blue-500: #4571f0;
+  --blue-600: #3358d9;
+  --blue-700: #2946ae;
+  --blue-800: #253c8a;
+  --blue-900: #23366e;
+
+  /* 语义色 */
+  --green-500: #2e9e6b;
+  --red-500: #d9534f;
+  --amber-500: #c98a13;
+}
+
+/* ---------- 2. 语义层（semantic） ---------- */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-canvas: var(--gray-50);
+  --bg-surface: var(--color-white);
+  --bg-surface-alt: var(--gray-100);
+  --bg-inset: var(--gray-100);
+  --bg-code: var(--gray-900);
+
+  --fg-default: var(--gray-900);
+  --fg-muted: var(--gray-600);
+  --fg-subtle: var(--gray-500);
+  --fg-invert: var(--color-white);
+
+  --border-subtle: var(--gray-200);
+  --border-strong: var(--gray-300);
+
+  --accent: var(--blue-600);
+  --accent-hover: var(--blue-700);
+  --accent-soft: var(--blue-50);
+  --accent-border: var(--blue-200);
+
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-md: 0 2px 8px -1px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.04);
+  --shadow-lg: 0 8px 24px -4px rgb(16 24 40 / 0.12), 0 2px 6px -2px rgb(16 24 40 / 0.06);
+
+  --ring: 0 0 0 3px rgb(69 113 240 / 0.35);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-canvas: var(--gray-950);
+  --bg-surface: #16191e;
+  --bg-surface-alt: #1c2027;
+  --bg-inset: #21252c;
+  --bg-code: #0d1014;
+
+  --fg-default: #e6e8ec;
+  --fg-muted: #a2a8b3;
+  --fg-subtle: #7c828d;
+  --fg-invert: var(--gray-950);
+
+  --border-subtle: #272b32;
+  --border-strong: #343943;
+
+  --accent: var(--blue-300);
+  --accent-hover: var(--blue-200);
+  --accent-soft: rgb(69 113 240 / 0.14);
+  --accent-border: rgb(69 113 240 / 0.32);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 2px 8px -1px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.6);
+
+  --ring: 0 0 0 3px rgb(146 181 255 / 0.4);
+}
+
+/* ---------- 3. 排版令牌 ---------- */
+:root {
+  --font-sans:
+    'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'SFMono-Regular', monospace;
+
+  --text-xs: 0.78rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.25rem;
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.7;
+  --leading-loose: 1.9;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.015em;
+  --tracking-wide: 0.02em;
+
+  /* ---------- 4. 间距令牌（4px 基准） ---------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* ---------- 5. 圆角 / 描边 / 动效 ---------- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  --border-width: 1px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+
+  --z-header: 100;
+
+  /* ---------- 6. 布局令牌 ---------- */
+  --layout-max: 82rem; /* 主体最大宽度（原 72rem，加宽） */
+  --layout-measure: 44rem; /* 正文最佳阅读宽度 */
+  --layout-gap: var(--space-8);
+  --aside-width: 16rem; /* 左右侧栏宽度 */
+}

@@ -1,0 +1,46 @@
+{{ define "main" }}
+<div class="layout">
+  <div class="layout__main">
+    {{- if eq .Kind "term" }}
+    {{- /* 单个标签页：列出带该标签的文章 */ -}}
+    <header class="page-header">
+      <h1 class="page-title">{{ .Title }}</h1>
+      {{- $count := len .Pages }}
+      {{- if gt $count 0 }}
+      <p class="page-description">{{ i18n "termCount" (dict "count" $count) }}</p>
+      {{- end }}
+    </header>
+    {{- with .Pages }}
+    <div class="post-list">
+      {{- range . }}
+      {{ partial "post-card.html" . }}
+      {{- end }}
+    </div>
+    {{- else }}
+    <p class="empty">{{ i18n "noPostsInTerm" }}</p>
+    {{- end }}
+    {{- else }}
+    {{- /* 标签总览页：列出所有标签 */ -}}
+    <header class="page-header">
+      <h1 class="page-title">{{ .Title }}</h1>
+      {{- with .Content }}
+      <div class="prose">{{ . }}</div>
+      {{- end }}
+    </header>
+    {{- with .Data.Terms }}
+    <ul class="tag-list tag-list--large">
+      {{- range .ByCount }}
+      <li>
+        <a class="tag" href="{{ .Page.RelPermalink }}">{{ .Page.LinkTitle }} <span class="tag__count">{{ .Count }}</span></a>
+      </li>
+      {{- end }}
+    </ul>
+    {{- else }}
+    <p class="empty">{{ i18n "noTerms" }}</p>
+    {{- end }}
+    {{- end }}
+  </div>
+
+  <aside class="layout__aside">{{ partial "widgets.html" . }}</aside>
+</div>
+{{ end }}

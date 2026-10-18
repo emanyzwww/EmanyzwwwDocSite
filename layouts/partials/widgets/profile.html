@@ -1,0 +1,33 @@
+{{- $profile := hugo.Data.profile -}}
+{{- if $profile }}
+<section class="card profile">
+  {{- $avatar := $profile.avatar -}}
+  {{- with $avatar }}
+  <div class="profile__avatar">
+    <img src="{{ . | relURL }}" alt="{{ $profile.name | default site.Title }}" loading="lazy" width="80" height="80">
+  </div>
+  {{- end }}
+
+  <h2 class="profile__name">{{ $profile.name | default site.Title }}</h2>
+  {{- with $profile.tagline }}
+  <p class="profile__tagline">{{ . }}</p>
+  {{- end }}
+
+  {{- with $profile.bio }}
+  <div class="profile__bio">{{ . | markdownify }}</div>
+  {{- end }}
+
+  {{- with $profile.links }}
+  <ul class="profile__links">
+    {{- range . }}
+    <li>
+      <a href="{{ .url }}" title="{{ .label }}" aria-label="{{ .label }}"
+         {{ if hasPrefix .url "http" }}target="_blank" rel="noopener noreferrer"{{ end }}>
+        {{ partial "icons.html" (dict "name" (.icon | default "link")) }}
+      </a>
+    </li>
+    {{- end }}
+  </ul>
+  {{- end }}
+</section>
+{{- end }}

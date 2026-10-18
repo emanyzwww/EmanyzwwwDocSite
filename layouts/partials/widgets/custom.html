@@ -1,0 +1,9 @@
+{{- /* 自定义组件：在 data/widgets.yaml 里随便加，无需改模板 */ -}} {{- range hugo.Data.widgets -}}
+{{- if ne .enabled false }}
+<section class="card" {{ with .id }} id="{{ . }}" {{ end }}>
+  {{- with .title }}
+  <p class="card__title">{{ . }}</p>
+  {{- end }}
+  <div class="widget__body widget__prose">{{ .content | markdownify }}</div>
+</section>
+{{- end }} {{- end }}

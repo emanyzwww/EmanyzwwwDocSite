@@ -1,0 +1,36 @@
+{{- $sites := hugo.Sites -}}
+{{- if gt (len $sites) 1 -}}
+{{- $current := site.Language -}}
+<div class="lang-switch" data-lang-switch>
+  <button class="lang-switch__trigger" type="button" aria-haspopup="true" aria-expanded="false"
+          aria-label="{{ i18n "switchLanguage" }}">
+    {{ partial "icons.html" (dict "name" "globe") }}
+    <span class="lang-switch__label">{{ $current.Label | default $current.Lang }}</span>
+    {{ partial "icons.html" (dict "name" "chevron-down") }}
+  </button>
+  <ul class="lang-switch__menu">
+    {{- range $sites -}}
+      {{- $lang := .Language -}}
+      {{- $isCurrent := eq $lang.Lang $current.Lang -}}
+      {{- $url := "" -}}
+      {{- if $isCurrent -}}
+        {{- $url = $.RelPermalink -}}
+      {{- else -}}
+        {{- range $.AllTranslations -}}
+          {{- if eq .Language.Lang $lang.Lang -}}{{- $url = .RelPermalink -}}{{- end -}}
+        {{- end -}}
+        {{- if not $url -}}
+          {{- $url = "/" | relLangURL -}}
+        {{- end -}}
+      {{- end -}}
+    <li>
+      {{- if $isCurrent }}
+      <span aria-current="true">{{ $lang.Label | default $lang.Lang }}</span>
+      {{- else }}
+      <a href="{{ $url }}" hreflang="{{ $lang.Lang }}" lang="{{ $lang.Lang }}">{{ $lang.Label | default $lang.Lang }}</a>
+      {{- end }}
+    </li>
+    {{- end }}
+  </ul>
+</div>
+{{- end -}}

@@ -1,0 +1,41 @@
+{{- /* 页脚可自定义：
+   - params.footer.copyright：完整版权文本（可选，覆盖默认的「© 年 站名」）
+   - params.footer.links：链接列表，每项 { name, url }
+   - params.footer.text：附加说明文字，支持 Markdown
+   - params.since：版权起始年份
+*/ -}}
+{{- $footer := site.Params.footer -}}
+<footer class="site-footer">
+  <div class="container site-footer__inner">
+    {{- if and $footer $footer.copyright }}
+    <p class="site-footer__copyright">{{ $footer.copyright | safeHTML }}</p>
+    {{- else }}
+    <p class="site-footer__copyright">
+      © {{ if and site.Params.since (lt (int site.Params.since) (int now.Year)) }}{{ site.Params.since }}–{{ now.Year }}{{ else }}{{ now.Year }}{{ end }} {{ site.Title }}
+    </p>
+    {{- end }}
+
+    {{- if and $footer $footer.text }}
+    <p class="site-footer__text">{{ $footer.text | markdownify }}</p>
+    {{- else if site.Params.footerText }}
+    <p class="site-footer__text">{{ site.Params.footerText | markdownify }}</p>
+    {{- end }}
+
+    {{- /* 链接列表：优先 footer.links，其次 footerText（旧字段），最后补 RSS 和 Hugo */ -}}
+    {{- $links := slice -}}
+    {{- if and $footer $footer.links }}{{ $links = $footer.links }}{{ end -}}
+
+    {{- if or (gt (len $links) 0) (and .OutputFormats (index .OutputFormats "rss")) }}
+    <ul class="site-footer__links">
+      {{- range $links }}
+      <li>
+        <a href="{{ .url }}"{{ if hasPrefix .url "http" }} target="_blank" rel="noopener noreferrer"{{ end }}>{{ .name }}</a>
+      </li>
+      {{- end }}
+      {{- with .OutputFormats.Get "rss" }}
+      <li><a href="{{ .RelPermalink }}">RSS</a></li>
+      {{- end }}
+    </ul>
+    {{- end }}
+  </div>
+</footer>
