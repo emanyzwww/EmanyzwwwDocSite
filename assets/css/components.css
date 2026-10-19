@@ -130,20 +130,42 @@
     margin-left: auto;
     flex-shrink: 0;
   }
-  .lang-switch__trigger {
-    padding-inline: var(--space-2);
-  }
-  .lang-switch__trigger .lang-switch__label {
-    display: none;
-  }
-  .theme-toggle,
-  .lang-switch__trigger {
-    width: 2.25rem;
-    justify-content: center;
-  }
 }
 
-/* ---------- 主题切换按钮 ---------- */
+/* ---------- 页头圆形工具按钮（主题切换 / 语言切换） ---------- */
+/* 两者共用同一套几何参数：尺寸、圆角、描边、悬停表现完全一致，
+   这样桌面端与移动端都只是「一个圆里一个图标」，不会再出现内容撑出按钮的情况。 */
+.theme-toggle,
+.lang-switch__trigger {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: var(--border-width) solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--fg-muted);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.theme-toggle:hover,
+.lang-switch__trigger:hover,
+.lang-switch[data-open='true'] .lang-switch__trigger {
+  color: var(--fg-default);
+  border-color: var(--border-strong);
+}
+
+.theme-toggle svg,
+.lang-switch__trigger svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* ---------- 主题切换按钮：按当前主题显示对应图标 ---------- */
 .theme-toggle svg[data-theme-icon] {
   display: none;
 }
@@ -157,30 +179,6 @@
   display: inline-block;
 }
 
-.theme-toggle {
-  width: 2.25rem;
-  height: 2.25rem;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-full);
-  border: var(--border-width) solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--fg-muted);
-  transition:
-    color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
-}
-
-.theme-toggle:hover {
-  color: var(--fg-default);
-  border-color: var(--border-strong);
-}
-
-.theme-toggle svg {
-  width: 1.1rem;
-  height: 1.1rem;
-}
-
 /* SVG 图标尺寸（覆盖 .icon 的 1em，页头用固定值） */
 .site-header .icon {
   width: 1.05rem;
@@ -190,33 +188,6 @@
 /* ---------- 语言切换 ---------- */
 .lang-switch {
   position: relative;
-}
-
-.lang-switch__trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  height: 2.25rem;
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-full);
-  border: var(--border-width) solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  transition:
-    color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
-}
-
-.lang-switch__trigger:hover {
-  color: var(--fg-default);
-  border-color: var(--border-strong);
-}
-
-.lang-switch__trigger svg {
-  width: 0.9rem;
-  height: 0.9rem;
 }
 
 .lang-switch__menu {
@@ -251,8 +222,8 @@
 .lang-switch__menu span {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  justify-content: flex-start;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--fg-muted);
@@ -263,6 +234,12 @@
 .lang-switch__menu a:hover {
   color: var(--fg-default);
   background: var(--bg-surface-alt);
+}
+
+.lang-switch__menu svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
 }
 
 .lang-switch__menu span[aria-current='true'] {

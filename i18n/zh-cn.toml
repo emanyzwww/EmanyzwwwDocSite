@@ -6,6 +6,8 @@ other = "主导航"
 other = "切换明暗主题"
 [switchLanguage]
 other = "切换语言"
+[switchLanguageCurrent]
+other = "切换语言，当前为 {{ .language }}"
 [onThisPage]
 other = "本页目录"
 [tags]

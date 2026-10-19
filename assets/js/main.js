@@ -49,10 +49,12 @@
       function close() {
         root.setAttribute('data-open', 'false')
         trigger.setAttribute('aria-expanded', 'false')
+        trigger.setAttribute('aria-pressed', 'false')
       }
       function open() {
         root.setAttribute('data-open', 'true')
         trigger.setAttribute('aria-expanded', 'true')
+        trigger.setAttribute('aria-pressed', 'true')
       }
 
       trigger.addEventListener('click', function (e) {
@@ -60,12 +62,20 @@
         root.getAttribute('data-open') === 'true' ? close() : open()
       })
 
+      // 初始状态与 aria-expanded 保持一致，避免读屏读到的按下态是空的
+      close()
+
       document.addEventListener('click', function (e) {
         if (!root.contains(e.target)) close()
       })
 
       document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') close()
+        if (e.key !== 'Escape') return
+        // 只在菜单开着且焦点还在组件内时处理，避免抢走页面上其它 Esc 行为
+        if (root.getAttribute('data-open') !== 'true') return
+        if (!root.contains(document.activeElement)) return
+        close()
+        trigger.focus()
       })
     })
   }

@@ -6,6 +6,8 @@ other = "Main navigation"
 other = "Toggle theme"
 [switchLanguage]
 other = "Switch language"
+[switchLanguageCurrent]
+other = "Switch language, current: {{ .language }}"
 [onThisPage]
 other = "On this page"
 [tags]
