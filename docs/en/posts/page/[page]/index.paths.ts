@@ -4,9 +4,9 @@
  * Generates page 2 and beyond; page 1 is `/en/posts/`.
  */
 
-import { SITE } from '../../../../.vitepress/data/site'
-import { readPosts } from '../../../../.vitepress/support/content'
-import { pageCount } from '../../../../.vitepress/theme/support/pagination'
+import { SITE } from '../../../../../.vitepress/data/site'
+import { readPosts } from '../../../../../.vitepress/support/content'
+import { pageCount } from '../../../../../.vitepress/theme/support/pagination'
 
 export default {
   watch: ['../../../../**/*.md'],

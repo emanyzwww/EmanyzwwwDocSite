@@ -2,9 +2,10 @@
 #  推送到 master 后自动构建并发布到 GitHub Pages
 #
 #  要点：
-#  - 站点域名仍以 docs/.vitepress/data/site.ts 里的 url 为准（用于 sitemap / RSS）
+#  - 站点域名仍以 .vitepress/data/site.ts 里的 url 为准（用于 sitemap / RSS）
 #  - 构建时用 VP_BASE / VP_SITE_URL 覆盖「部署路径」与「绝对地址」，
 #    因此项目型站点（https://owner.github.io/repo/）也能正确生成链接
+#  - 产物目录是 .vitepress/dist（配置里显式声明，不随命令行 root 变化）
 #  - 首次使用需在仓库里设置一次：
 #    Settings -> Pages -> Build and deployment -> Source 选「GitHub Actions」
 # =========================================================
@@ -84,12 +85,12 @@ jobs:
         run: |
           set -euo pipefail
           pnpm build
-          echo "产物文件数：$(find ./docs/.vitepress/dist -type f | wc -l)"
+          echo "产物文件数：$(find ./.vitepress/dist -type f | wc -l)"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs/.vitepress/dist
+          path: ./.vitepress/dist
 
   deploy:
     needs: build

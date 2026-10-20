@@ -21,10 +21,10 @@
     "allowJs": false
   },
   "include": [
-    "docs/.vitepress/**/*.ts",
-    "docs/.vitepress/**/*.vue",
-    "docs/.vitepress/**/*.d.ts",
+    ".vitepress/**/*.ts",
+    ".vitepress/**/*.vue",
+    ".vitepress/**/*.d.ts",
     "docs/**/*.paths.ts"
   ],
-  "exclude": ["docs/.vitepress/dist", "docs/.vitepress/cache", "node_modules"]
+  "exclude": [".vitepress/dist", ".vitepress/cache", ".vitepress/.temp", "node_modules"]
 }

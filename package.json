@@ -5,13 +5,13 @@
   "type": "module",
   "description": "个人站点：VitePress 1.6.4 + TypeScript + 自定义主题",
   "scripts": {
-    "dev": "vitepress dev docs --host 127.0.0.1",
-    "build": "vitepress build docs",
-    "preview": "vitepress preview docs",
+    "dev": "vitepress dev . --host 127.0.0.1",
+    "build": "vitepress build .",
+    "preview": "vitepress preview .",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "format": "oxfmt --write docs README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
-    "format:check": "oxfmt --check docs README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
-    "clean": "node -e \"for (const d of ['docs/.vitepress/dist','docs/.vitepress/cache']) require('fs').rmSync(d,{recursive:true,force:true})\""
+    "format": "oxfmt --write docs .vitepress README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
+    "format:check": "oxfmt --check docs .vitepress README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
+    "clean": "node -e \"for (const d of ['.vitepress/dist','.vitepress/cache','.vitepress/.temp']) require('fs').rmSync(d,{recursive:true,force:true})\""
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",

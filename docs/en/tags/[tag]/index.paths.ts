@@ -4,7 +4,7 @@
  * Each tag becomes `/en/tags/<slug>/`.
  */
 
-import { readPosts } from '../../../.vitepress/support/content'
+import { readPosts } from '../../../../.vitepress/support/content'
 
 export default {
   watch: ['../../../../**/*.md'],

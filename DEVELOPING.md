@@ -22,14 +22,14 @@
 理解这条链路，绝大多数「该改哪儿」的问题就不用查文档了。
 
 ```text
-docs/**/*.md
+docs/{zh-cn,en}/**/*.md          ← 内容按语言分目录，URL 前缀即目录名
     │
     │  ① support/content.ts 扫描全部 .md，解析 frontmatter
     │     算出：url / 标题 / 摘要 / 字数 / 标签 / 日期文本 / 语言
     ▼
 data/posts.data.ts  ──►  PostSummary[]  ──►  序列化成 JSON 内联进客户端
     │
-    │  ② 同时：docs/{tags,posts}/**/index.paths.ts 用同一份数据
+    │  ② 同时：docs/<locale>/{tags,posts}/**/index.paths.ts 用同一份数据
     │     生成动态路由（每个标签一页、每个分页一页）
     ▼
 config.ts
@@ -42,9 +42,9 @@ theme/Layout.vue
     ▼
 Vue 组件  ──►  HTML
     │
-    │  ⑤ buildEnd 用同一份数据再生成 RSS
+    │  ⑤ buildEnd 用同一份数据再生成 RSS 与 robots.txt
     ▼
-docs/.vitepress/dist/
+.vitepress/dist/
 ```
 
 **三条重要结论**：
@@ -60,13 +60,13 @@ docs/.vitepress/dist/
 ## 二、目录职责表
 
 ```text
-docs/.vitepress/
+.vitepress/                 ← 配置与主题在仓库根，与内容分离
 ├─ config.ts              构建配置：路由、Markdown、SEO、RSS。改「站点行为」看这里
 ├─ types.ts               全站类型。加字段先改这里，TS 会告诉你哪儿还没适配
 ├─ env.d.ts               import.meta.glob 与 .vue 的类型声明
 │
 ├─ data/                  纯数据与数据加载器（*.data.ts 是加载器）
-│  ├─ site.ts             ★ 站点名、域名、导航、页脚、分页数、侧栏顺序
+│  ├─ site.ts             ★ 站点名、域名、导航、页脚、分页数、侧栏顺序、语言表
 │  ├─ profile.ts          ★ 个人信息、头像、社交链接
 │  ├─ widgets.ts          ★ 自定义侧栏卡片内容
 │  ├─ taxonomy.ts         标签 slug / 显示名覆盖（可选）
@@ -79,7 +79,12 @@ docs/.vitepress/
 │  ├─ content.ts          ★ 扫描/解析 Markdown，文章的唯一定义处
 │  ├─ format.ts           日期/字数/截断（纯函数，两端通用）
 │  ├─ markdown.ts         Markdown → HTML（bio / widgets / RSS 正文）
-│  └─ rss.ts              RSS 生成（buildEnd 调用）
+│  ├─ rss.ts              RSS 生成（buildEnd 调用）
+│  ├─ robots.ts           robots.txt 生成（buildEnd 调用）
+│  └─ dev-redirect.ts     dev 下 `/` 按 Accept-Language 跳语言
+│
+├─ dist/                  构建产物（gitignore）
+├─ cache/                 Vite 依赖缓存（gitignore）
 │
 └─ theme/                 运行期代码（浏览器）
    ├─ index.ts            主题入口：引样式 + 复制按钮本地化
@@ -96,18 +101,32 @@ docs/.vitepress/
    │  └─ common/          图标、空状态、进度条
    ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动
    └─ styles/             9 个分层样式
+
+docs/                      ← 只有内容与静态资源
+├─ zh-cn/                 中文站（URL `/zh-cn/`）
+│  ├─ index.md            首页（layout: home）
+│  ├─ about/index.md
+│  ├─ posts/              文章（含 page/[page]/ 分页动态路由）
+│  └─ tags/               标签总览 + [tag]/ 动态路由
+├─ en/                    英文站（URL `/en/`），结构完全对应
+├─ media/                 会换的图（头像等），走 Vite 指纹
+└─ public/                原样拷贝：favicon、根路径语言跳转页
 ```
 
 带 ★ 的是**日常最常改的**。
 
+> `.vitepress` 在仓库根而不是 `docs/` 里，因此 `config.ts` 必须显式声明
+> `srcDir: 'docs'`、`outDir: '.vitepress/dist'`、`cacheDir: '.vitepress/cache'`。
+> 否则 VitePress 会按命令行传入的 root（`.`）解析成 `./dist`、`./cache`。
+
 ### 两类 `support/` 的区别（容易混）
 
-|                | `docs/.vitepress/support/`             | `docs/.vitepress/theme/support/` |
-| -------------- | -------------------------------------- | -------------------------------- |
-| 运行环境       | 构建期（Node）                         | 浏览器                           |
-| 能用 `node:fs` | ✅                                     | ❌                               |
-| 典型内容       | 读文件、生成 RSS                       | 路径拼接、图标表、滚动监听       |
-| 被谁引用       | `config.ts`、`*.data.ts`、`*.paths.ts` | Vue 组件                         |
+|                | `.vitepress/support/`                  | `.vitepress/theme/support/` |
+| -------------- | -------------------------------------- | --------------------------- |
+| 运行环境       | 构建期（Node）                         | 浏览器                      |
+| 能用 `node:fs` | ✅                                     | ❌                          |
+| 典型内容       | 读文件、生成 RSS                       | 路径拼接、图标表、滚动监听  |
+| 被谁引用       | `config.ts`、`*.data.ts`、`*.paths.ts` | Vue 组件                    |
 
 例外：`format.ts` 在构建期目录里，但它是纯函数，两边都能用。
 
@@ -147,22 +166,43 @@ export const SITE: SiteMeta = {
 | 版权起始年    | `since`            |
 | 导航菜单      | `NAV` 对象         |
 | 语言列表      | `LOCALES` 对象     |
+| 默认语言      | `DEFAULT_LOCALE`   |
+
+### 语言模型（`zh-cn` / `en` 完全对等）
+
+`LocaleCode = 'zh-cn' | 'en'`，两个值同时是：
+
+| 身份           | 例子                                     |
+| -------------- | ---------------------------------------- |
+| 内容目录名     | `docs/zh-cn/`、`docs/en/`                |
+| URL 前缀       | `/zh-cn/`、`/en/`                        |
+| `locales` 的键 | `locales: { 'zh-cn': {...}, en: {...} }` |
+| `LOCALES` 的键 | `LOCALES['zh-cn']`、`LOCALES.en`         |
+
+没有「默认语言不带前缀」的特例。新增语言就是三件事：
+加 `docs/<code>/` 目录、加 `LOCALES` 一条、加 `locales` 一段（外加 `theme/i18n/` 一份文案）。
+
+**根路径 `/` 不承载内容**：`docs/public/index.html` 会按浏览器语言跳到
+`/zh-cn/` 或 `/en/`，匹配不上时落到 `DEFAULT_LOCALE`；用户在语言按钮上手动选过的
+语言记在 `localStorage`（键 `emanyzwww-locale`），优先级高于浏览器语言。
+dev 阶段由 `.vitepress/support/dev-redirect.ts` 用 `Accept-Language` 做同样的跳转。
 
 ### 改导航
 
 ```ts
 export const NAV = {
-  root: [
-    { text: '首页', link: '/' },
-    { text: '文章', link: '/posts/' },
-    { text: '标签', link: '/tags/' },
-    { text: '关于', link: '/about/' },
+  'zh-cn': [
+    { text: '首页', link: '/zh-cn/' },
+    { text: '文章', link: '/zh-cn/posts/' },
+    { text: '标签', link: '/zh-cn/tags/' },
+    { text: '关于', link: '/zh-cn/about/' },
   ],
   en: [/* 英文版 */],
 }
 ```
 
-- `link` 用**目录式路径**（`/posts/`），不要写 `.html`，不要写相对路径
+- `link` 用**目录式路径**（`/zh-cn/posts/`），不要写 `.html`，不要写相对路径
+- 两种语言的 link 都必须带各自的语言前缀，与 `docs/<locale>/` 目录一一对应
 - 高亮自动判断：当前路径等于该项或以该项为前缀
 - 首页特殊处理：只做精确匹配，否则所有页面都会点亮首页
 - 加一项就是加一行；**英文和中文要分别加**
@@ -616,7 +656,7 @@ return {
 
 ### 标签页是怎么来的
 
-`docs/tags/[tag]/index.md` 是模板，`index.paths.ts`（构建期跑）生成具体路由：
+`docs/zh-cn/tags/[tag]/index.md` 是模板，`index.paths.ts`（构建期跑）生成具体路由：
 
 ```ts
 export default {
@@ -624,7 +664,7 @@ export default {
 
   paths() {
     const slugs = new Set<string>()
-    for (const post of readPosts('root')) {
+    for (const post of readPosts('zh-cn')) {
       for (const tag of post.tags) slugs.add(tag.slug)
     }
     return [...slugs].sort().map((tag) => ({ params: { tag } }))
@@ -634,18 +674,18 @@ export default {
 
 所以：**文章加了新标签 → 自动出现标签页**，不需要写文件。
 
-同理，`docs/posts/page/[page]/index.paths.ts` 生成分页路由（第 2 页起）。
+同理，`docs/zh-cn/posts/page/[page]/index.paths.ts` 生成分页路由（第 2 页起）。
 
 > 注意：VitePress 1.6.4 **没有** `defineRoutes` 辅助函数（2.x 才有），
 > 所以这里是裸 `export default`，别写成 `defineRoutes({...})`。
 
 ### 标签 URL 转英文
 
-默认标签名即 URL（`/tags/随笔/`）。想变英文，改 `data/taxonomy.ts`：
+默认标签名即 URL（`/zh-cn/tags/随笔/`）。想变英文，改 `data/taxonomy.ts`：
 
 ```ts
 export const TAG_SLUGS: Record<string, string> = {
-  随笔: 'essay', // /tags/随笔/ → /tags/essay/
+  随笔: 'essay', // /zh-cn/tags/随笔/ → /zh-cn/tags/essay/
   工具: 'tools',
 }
 
@@ -658,7 +698,7 @@ export const TAG_LABELS: Record<string, string> = {
 
 ### 分页
 
-第 1 页是 `/posts/`，第 2 页起是 `/posts/page/N/`。
+第 1 页是 `/zh-cn/posts/`，第 2 页起是 `/zh-cn/posts/page/N/`。
 
 - 每页几篇：`site.ts` 的 `postsPerPage`
 - 分页计算：`theme/support/pagination.ts`（纯函数）
@@ -666,9 +706,9 @@ export const TAG_LABELS: Record<string, string> = {
 
 ### 加一个动态路由
 
-比如「按年份归档」`/archive/2026/`：
+比如「按年份归档」`/zh-cn/archive/2026/`：
 
-**① 建模板** `docs/archive/[year]/index.md`：
+**① 建模板** `docs/zh-cn/archive/[year]/index.md`：
 
 ```markdown
 ---
@@ -677,15 +717,15 @@ title: 归档
 ---
 ```
 
-**② 建生成器** `docs/archive/[year]/index.paths.ts`：
+**② 建生成器** `docs/zh-cn/archive/[year]/index.paths.ts`：
 
 ```ts
-import { readPosts } from '../../.vitepress/support/content'
+import { readPosts } from '../../../../.vitepress/support/content'
 
 export default {
   watch: ['../../../**/*.md'],
   paths() {
-    const years = new Set(readPosts('root').map((post) => post.year))
+    const years = new Set(readPosts('zh-cn').map((post) => post.year))
     return [...years].map((year) => ({ params: { year } }))
   },
 }
@@ -701,8 +741,11 @@ const year = computed(() => String(params.value?.year ?? ''))
 const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 ```
 
-**注意**：`index.paths.ts` 里引用 `.vitepress` 下的代码要用相对路径
-（`../../.vitepress/support/content`），因为它在内容目录里，不在 `.vitepress` 下。
+**注意**：`index.paths.ts` 里引用 `.vitepress` 下的代码要用相对路径，
+因为它在 `docs/<locale>/` 内容目录里、不在 `.vitepress` 下。
+**`.vitepress` 提到仓库根之后，所有这类相对路径的层级都要比原来多一层**
+（例如 `docs/zh-cn/tags/[tag]/` 下是 `../../../../.vitepress/...`）。
+新增动态路由时数一下目录深度，别照抄旧文档。
 
 ---
 
@@ -811,9 +854,10 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 ① 删 docs/en/ 整个目录
 ② config.ts → locales 删 en
 ③ data/site.ts → LOCALES 删 en、NAV 删 en
-④ types.ts → LocaleCode 改成只有 'root'（TS 会指出所有要改的地方）
+④ types.ts → LocaleCode 改成只有 'zh-cn'（TS 会指出所有要改的地方）
 ⑤ theme/i18n/ → 删 en.ts，MESSAGES 删对应项
-⑥ 组件里的语言下拉会自动只剩一项（LocaleSwitch 的逻辑会处理）
+⑥ docs/public/index.html → SUPPORTED 数组删掉 'en'
+⑦ 组件里的语言下拉会自动只剩一项（LocaleSwitch 的逻辑会处理）
 ```
 
 `LocaleCode` 这个联合类型是这套设计的关键——**改它，编译器会带你走完全部改动点**。
@@ -826,12 +870,15 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 
 ```powershell
 pnpm typecheck     # TS + Vue 类型检查（0 错误才算过）
-pnpm format        # 格式化：docs（含主题代码）+ README
+pnpm format        # 格式化：docs + .vitepress + 根目录几份 md
 pnpm format:check  # 只检查不写入
 pnpm build         # 构建（也会暴露类型问题）
 ```
 
 改完代码的标准流程：`format` → `typecheck` → `build`。
+
+> 注意 `format` 现在显式带上了 `.vitepress`——它已经不在 `docs/` 里了，
+> 只写 `docs` 会漏掉主题代码。
 
 ### 格式化覆盖什么
 
@@ -839,7 +886,7 @@ pnpm build         # 构建（也会暴露类型问题）
 
 ```text
 node_modules / .pnpm-store / .npm-cache
-docs/.vitepress/dist / docs/.vitepress/cache
+.vitepress/dist / .vitepress/cache
 docs/public          # 原样输出的静态资源
 pnpm-lock.yaml
 ```
@@ -914,7 +961,7 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 1. 算部署路径：仓库名是 `xxx.github.io` 就用根路径，否则用 `/<repo>/`
 2. 算站点地址，可用仓库变量 `SITE_URL` 覆盖（绑定自定义域名时用）
-3. `pnpm build` 后上传 `docs/.vitepress/dist`
+3. `pnpm build` 后上传 `.vitepress/dist`
 
 本地不用配任何东西。
 
@@ -937,6 +984,15 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 `SITE_URL` 影响：sitemap 的 `<loc>`、RSS 的绝对链接、canonical、OG `og:url`、
 `robots.txt` 里的 `Sitemap:`。后两者由构建期生成，无需手工改文件。
 
+### 根路径 `/` 的语言跳转
+
+`docs/public/index.html` 会被原样拷到产物根，作为 `/` 的入口：
+
+- 它**不写死任何域名或 base**，跳转目标是相对路径，靠 `new URL(相对, location)` 解析，
+  因此 `/`、`/repo/`、自定义域名三种部署都能正确跳到 `zh-cn/` 或 `en/`
+- 页面带 `noindex`，不进 sitemap，也不参与 hreflang 配对
+- dev 阶段由 `.vitepress/support/dev-redirect.ts` 用 `Accept-Language` 做同样的事
+
 ---
 
 ## 附：设计决策速查
@@ -954,3 +1010,6 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 | `LocaleCode` 用联合类型                       | 改语言集合时，TS 会指出所有需要适配的位置                                |
 | 标签页用动态路由 + `paths()`                  | 新增标签无需手写文件，是静态博客最容易腐化的地方                         |
 | 侧栏用注册表而非约定式                        | 名字拼错在构建期报错，而不是悄悄少渲染                                   |
+| `.vitepress` 放仓库根                         | 配置/主题与内容分离；`srcDir`/`outDir`/`cacheDir` 显式声明即可           |
+| 中文也带 `/zh-cn/` 前缀                       | 与 `docs/zh-cn/` 一一对应，两种语言完全对称，无隐式映射                  |
+| 根路径只做语言分发                            | 浏览器语言优先、手动选择记忆；比在根目录塞一份重复首页更干净             |

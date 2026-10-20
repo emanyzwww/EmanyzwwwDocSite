@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EmanyzwwwDocSite</title>
+    <meta name="robots" content="noindex, follow" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="alternate" hreflang="zh-CN" href="zh-cn/" />
+    <link rel="alternate" hreflang="en" href="en/" />
+    <link rel="alternate" hreflang="x-default" href="zh-cn/" />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', sans-serif;
+        background: #fff;
+        color: #1a1a1a;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #16171a;
+          color: #e8e8e8;
+        }
+        a {
+          color: #8ab4f8;
+        }
+      }
+      main {
+        text-align: center;
+        padding: 2rem;
+        line-height: 1.8;
+      }
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0 0 1rem;
+        opacity: 0.7;
+        font-size: 0.9rem;
+      }
+      a {
+        color: #3358d9;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>EmanyzwwwDocSite</h1>
+      <p id="hint">正在按浏览器语言跳转…</p>
+      <ul>
+        <li><a href="zh-cn/" hreflang="zh-CN" lang="zh-CN">简体中文</a></li>
+        <li><a href="en/" hreflang="en" lang="en">English</a></li>
+      </ul>
+    </main>
+    <script>
+      /**
+       * 根路径只做语言分发，不承载内容。
+       *
+       * 规则（按优先级）：
+       * 1. 用户上次手动选过语言（localStorage）→ 尊重该选择，不再自动跳；
+       * 2. 浏览器语言列表里第一个能匹配上的 → 跳过去；
+       * 3. 一个都匹配不上 → 落到默认语言（简体中文）。
+       *
+       * 链接一律用**相对地址**（`zh-cn/`、`en/`），这样同一个文件在
+       * 本地 dev（`/`）、GitHub Pages 项目站点（`/repo/`）、自定义域名（`/`）
+       * 三种部署下都指向正确位置，不需要注入 base。
+       */
+      ;(function () {
+        var STORAGE_KEY = 'emanyzwww-locale'
+        var DEFAULT_LOCALE = 'zh-cn'
+        var SUPPORTED = ['zh-cn', 'en']
+
+        /** 浏览器语言标签 → 本站语言代码；匹配不上返回 null。 */
+        function match(tag) {
+          var lower = String(tag || '').toLowerCase()
+          if (!lower) return null
+          // zh、zh-CN、zh-Hans-CN、zh-TW 都归到简体中文站
+          if (lower.indexOf('zh') === 0) return 'zh-cn'
+          if (lower.indexOf('en') === 0) return 'en'
+          return null
+        }
+
+        /** 读取上次的手动选择（隐私模式下 localStorage 会抛错，忽略即可）。 */
+        function remembered() {
+          try {
+            var saved = window.localStorage.getItem(STORAGE_KEY)
+            return SUPPORTED.indexOf(saved) >= 0 ? saved : null
+          } catch (error) {
+            return null
+          }
+        }
+
+        /** 按 navigator.languages 顺序找第一个匹配项。 */
+        function detect() {
+          var tags =
+            navigator.languages && navigator.languages.length
+              ? navigator.languages
+              : [navigator.language]
+          for (var i = 0; i < tags.length; i++) {
+            var hit = match(tags[i])
+            if (hit) return hit
+          }
+          return null
+        }
+
+        /**
+         * 目标地址。
+         *
+         * 用 `new URL(相对路径, 当前地址)` 而不是直接拼字符串：
+         * 访问 `/repo`（没有结尾斜杠）时，直接拼 `zh-cn/` 会被浏览器解析成
+         * `/zh-cn/`（把 repo 当成文件）；交给 URL 解析则能正确得到 `/repo/zh-cn/`。
+         */
+        function targetOf(locale) {
+          return new URL(locale + '/', window.location.href).href
+        }
+
+        var locale = remembered() || detect() || DEFAULT_LOCALE
+
+        // 用 replace 而不是 assign：不往历史记录里塞一条中转页，后退不会弹回来
+        window.location.replace(targetOf(locale))
+      })()
+    </script>
+  </body>
+</html>

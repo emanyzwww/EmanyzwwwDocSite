@@ -2,8 +2,9 @@
 node_modules/
 .pnpm-store/
 .npm-cache/
-docs/.vitepress/dist/
-docs/.vitepress/cache/
+.vitepress/dist/
+.vitepress/cache/
+.vitepress/.temp/
 
 # 原样输出的静态资源（不参与格式化）
 docs/public/

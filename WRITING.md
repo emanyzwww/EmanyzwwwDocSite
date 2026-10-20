@@ -23,27 +23,27 @@
 
 ### 操作步骤
 
-在 `docs/posts/` 下**建一个目录**（目录名就是 URL），里面放 `index.md`：
+在 `docs/zh-cn/posts/` 下**建一个目录**（目录名就是 URL），里面放 `index.md`：
 
 ```text
-docs/posts/我的文章标题/
+docs/zh-cn/posts/我的文章标题/
 └─ index.md
 ```
 
 配图也放同一个目录：
 
 ```text
-docs/posts/我的文章标题/
+docs/zh-cn/posts/我的文章标题/
 ├─ index.md
 └─ 截图.png
 ```
 
-访问地址：`https://emanyzoo.cn/posts/我的文章标题/`
+访问地址：`https://emanyzoo.cn/zh-cn/posts/我的文章标题/`
 
 ### 为什么必须建目录
 
-如果直接写 `docs/posts/我的文章.md`，URL 会变成 `/posts/我的文章.html`——带 `.html` 后缀。
-而目录式 `index.md` 得到的是 `/posts/我的文章标题/`，**结尾斜杠、没有 .html**。
+如果直接写 `docs/zh-cn/posts/我的文章.md`，URL 会变成 `/zh-cn/posts/我的文章.html`——带 `.html` 后缀。
+而目录式 `index.md` 得到的是 `/zh-cn/posts/我的文章标题/`，**结尾斜杠、没有 .html**。
 
 本站统一用目录式，好处是：
 
@@ -53,13 +53,28 @@ docs/posts/我的文章标题/
 
 ### 目录名规则
 
-| 规则             | 说明                                                   |
-| ---------------- | ------------------------------------------------------ |
-| 可以用中文       | `/posts/你好世界/` 完全没问题，URL 会自动编码          |
-| 不要有空格       | 空格会被编码成 `%20`，难读也难分享；用 `-` 代替        |
-| 不要用 `[ ]`     | 方括号是动态路由语法，会被当成参数                     |
-| 建好后别轻易改名 | 改名 = 换 URL = 旧链接 404                             |
-| 建议前缀日期     | 如 `2026-10-hello-world`，按目录排序时天然有序（可选） |
+| 规则             | 说明                                                |
+| ---------------- | --------------------------------------------------- |
+| 可以用中文       | `/zh-cn/posts/你好世界/` 完全没问题，URL 会自动编码 |
+| 不要有空格       | 空格会被编码成 `%20`，难读也难分享；用 `-` 代替     |
+| 不要用 `[ ]`     | 方括号是动态路由语法，会被当成参数                  |
+| 建好后别轻易改名 | 改名 = 换 URL = 旧链接 404                          |
+| 按日期分层       | 如 `2026/10/19/01/hello-world/`，见下节             |
+
+### 按日期分层（当前采用的约定）
+
+现在的文章放在「年/月/日/序号/标题」这样的多层目录里：
+
+```text
+docs/zh-cn/posts/2026/10/19/01/hello-world/index.md
+→ /zh-cn/posts/2026/10/19/01/hello-world/
+```
+
+好处是同一目录下按时间天然有序，找旧文章不用翻列表。序号 `01` 用来区分同一天的多篇。
+`date` 仍然以 frontmatter 为准，目录里的日期只是给人看的。
+
+> 想换回平铺的 `posts/我的文章标题/` 也完全可行——URL 只由目录结构决定，
+> 两种写法可以共存，不影响任何功能。
 
 ### 最小可用的文章
 
@@ -87,15 +102,17 @@ pnpm dev
 浏览器打开 **http://127.0.0.1:5173/**（注意用 `127.0.0.1`，不要用 `localhost`
 ——dev server 只绑了 IPv4）。保存文件后页面自动刷新。
 
+`/` 会按浏览器的 `Accept-Language` 跳到 `/zh-cn/` 或 `/en/`，与线上规则一致。
+
 预览时可以直接访问你的文章地址，比如：
-`http://127.0.0.1:5173/posts/我的文章标题/`
+`http://127.0.0.1:5173/zh-cn/posts/我的文章标题/`
 
 **停止**：终端里按 `Ctrl + C`。
 
 想看**最终构建产物**（和线上一致）：
 
 ```powershell
-pnpm build      # 生成 docs/.vitepress/dist
+pnpm build      # 生成 .vitepress/dist
 pnpm preview    # 起一个本地服务器预览 dist
 ```
 
@@ -185,11 +202,11 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 
 ### 三者的区别
 
-| 位置                 | 引用方式           | URL 形态                | 换图后自动生效          | 适用场景                       |
-| -------------------- | ------------------ | ----------------------- | ----------------------- | ------------------------------ |
-| `docs/posts/文章名/` | `![](./图.png)`    | `/assets/图.<hash>.png` | ✅ 会（Vite 处理）      | 文章自己的配图                 |
-| `docs/media/`        | 配置里写**文件名** | `/assets/图.<hash>.png` | ✅ 会（本站的指纹机制） | 头像、logo 等会替换的图        |
-| `docs/public/`       | `/图.png`          | `/图.png`（原样）       | ❌ 不会                 | favicon、robots.txt 等固定资源 |
+| 位置                       | 引用方式           | URL 形态                | 换图后自动生效          | 适用场景                       |
+| -------------------------- | ------------------ | ----------------------- | ----------------------- | ------------------------------ |
+| `docs/zh-cn/posts/文章名/` | `![](./图.png)`    | `/assets/图.<hash>.png` | ✅ 会（Vite 处理）      | 文章自己的配图                 |
+| `docs/media/`              | 配置里写**文件名** | `/assets/图.<hash>.png` | ✅ 会（本站的指纹机制） | 头像、logo 等会替换的图        |
+| `docs/public/`             | `/图.png`          | `/图.png`（原样）       | ❌ 不会                 | favicon、robots.txt 等固定资源 |
 
 前两个都会在 URL 里带上内容哈希（实测：`banner.png` → `/assets/banner.DXVcoPer.png`），
 所以**只要重新构建过**，换图就会生效。只有 `docs/public/` 是原样拷贝、URL 恒定。
@@ -227,7 +244,7 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 ### 头像 / logo（会替换的图）
 
 1. 把图放到 `docs/media/`，比如 `docs/media/avatar.png`
-2. 在 `docs/.vitepress/data/profile.ts` 里写**文件名**：
+2. 在 `.vitepress/data/profile.ts` 里写**文件名**：
 
 ```ts
 export const PROFILE: Profile = {
@@ -243,9 +260,12 @@ export const PROFILE: Profile = {
 `docs/public/` 下的文件会**原样拷贝**到输出根目录：
 
 ```text
+docs/public/index.html    →  /index.html      （根路径的语言跳转页）
 docs/public/favicon.svg   →  /favicon.svg
-docs/public/robots.txt    →  /robots.txt
 ```
+
+`robots.txt` 不在这里：它由 `.vitepress/support/robots.ts` 在构建结束时生成，
+因为里面的 `Sitemap:` 必须跟着部署地址走（见 [DEVELOPING.md](./DEVELOPING.md)）。
 
 引用时用绝对路径 `/favicon.svg`。这些文件不会被处理、不会加指纹。
 **不要**把会替换的图放这里。
@@ -271,10 +291,10 @@ docs/public/robots.txt    →  /robots.txt
 
 ### 两种模式的真实行为
 
-| 做法               | 出现在列表 | 生成页面      | 进 sitemap    | 进 RSS    | 能猜到 URL 访问 |
-| ------------------ | ---------- | ------------- | ------------- | --------- | --------------- |
-| `draft: true`      | ❌ 不出现  | ✅ **会生成** | ✅ **会收录** | ❌ 不收录 | ✅ **能访问**   |
-| 放 `docs/_drafts/` | ❌ 不出现  | ❌ 不生成     | ❌ 不收录     | ❌ 不收录 | ❌ 404          |
+| 做法                     | 出现在列表 | 生成页面      | 进 sitemap    | 进 RSS    | 能猜到 URL 访问 |
+| ------------------------ | ---------- | ------------- | ------------- | --------- | --------------- |
+| `draft: true`            | ❌ 不出现  | ✅ **会生成** | ✅ **会收录** | ❌ 不收录 | ✅ **能访问**   |
+| 放 `docs/zh-cn/_drafts/` | ❌ 不出现  | ❌ 不生成     | ❌ 不收录     | ❌ 不收录 | ❌ 404          |
 
 （以上是实测结果，不是推测。）
 
@@ -287,18 +307,18 @@ draft: true
 ```
 
 - 列表、标签页、RSS 里都没有它
-- 但页面确实存在，`/posts/xxx/` 能直接打开，搜索引擎也可能收录
+- 但页面确实存在，`/zh-cn/posts/xxx/` 能直接打开，搜索引擎也可能收录
 - 适合「写了一半，先放着，本地能看」
 
-**不想让任何人访问 → 移到 `docs/_drafts/`**
+**不想让任何人访问 → 移到 `docs/zh-cn/_drafts/`**
 
 ```text
-docs/_drafts/还没想好的文章.md
+docs/zh-cn/_drafts/还没想好的文章.md
 ```
 
 - 完全不参与构建，线上就是 404
 - 文章页面的 frontmatter 写法不变
-- 想发布时，把文件移到 `docs/posts/文章名/index.md`
+- 想发布时，把文件移到 `docs/zh-cn/posts/文章名/index.md`
 
 ### 注意：草稿页会被当成普通页面
 
@@ -311,12 +331,23 @@ docs/_drafts/还没想好的文章.md
 
 ## 五、写英文版
 
-英文站是 `docs/en/`，结构完全对应：
+内容按语言分成两个**平级**目录，`docs/zh-cn/` 和 `docs/en/`，结构完全对应：
 
 ```text
-docs/posts/hello-world/index.md           →  /posts/hello-world/
-docs/en/posts/hello-world/index.md        →  /en/posts/hello-world/
+docs/zh-cn/posts/hello-world/index.md   →  /zh-cn/posts/hello-world/
+docs/en/posts/hello-world/index.md      →  /en/posts/hello-world/
 ```
+
+两边都是一等公民：**URL 都带语言前缀**，没有「中文不带前缀」的特例。
+好处是打开 `docs/` 就能一眼对照两种语言，写英文版时照着中文的目录结构复制一份即可。
+
+### 根路径 `/` 怎么处理
+
+`/` 不承载内容，只做语言分发（文件是 `docs/public/index.html`）：
+
+1. 你之前在语言按钮上手动选过语言 → 尊重这个选择；
+2. 否则看浏览器语言：`zh-*` → `/zh-cn/`，`en-*` → `/en/`；
+3. 都匹配不上 → 默认落到 `/zh-cn/`。
 
 ### 规则
 
@@ -328,7 +359,7 @@ docs/en/posts/hello-world/index.md        →  /en/posts/hello-world/
 
 从中文页点英文按钮时，按顺序尝试：
 
-1. 完全对应的页面（`/posts/hello-world/` → `/en/posts/hello-world/`）✅ 通常命中
+1. 完全对应的页面（`/zh-cn/posts/hello-world/` → `/en/posts/hello-world/`）✅ 通常命中
 2. 同栏目索引（`/en/posts/`）
 3. 英文首页（`/en/`）
 
@@ -365,9 +396,9 @@ tags: [] # 空数组 = 没有标签，也能正常工作
 
 加一个标签，构建时会自动：
 
-1. 生成标签页 `/tags/标签名/`（**不需要手写任何文件**）
+1. 生成标签页 `/zh-cn/tags/标签名/`（**不需要手写任何文件**）
 2. 出现在侧栏「标签」卡片（按文章数排序，上限见 `profile.ts` 的 `tagsLimit`）
-3. 出现在 `/tags/` 总览页的标签云（字号按文章数分 5 级）
+3. 出现在 `/zh-cn/tags/` 总览页的标签云（字号按文章数分 5 级）
 4. 出现在文章卡片、文章页元信息、时间线行内
 
 ### 标签命名建议
@@ -384,7 +415,7 @@ tags: [] # 空数组 = 没有标签，也能正常工作
 
 ### URL 里的中文
 
-默认标签名就是 URL 片段，`随笔` 的地址是 `/tags/随笔/`（浏览器会显示成 `/tags/%E9%9A%8F%E7%AC%94/`）。
+默认标签名就是 URL 片段，`随笔` 的地址是 `/zh-cn/tags/随笔/`（浏览器会显示成 `/zh-cn/tags/%E9%9A%8F%E7%AC%94/`）。
 
 看起来不好看，但**能用**。如果想让地址变英文，可以配置映射——见
 [DEVELOPING.md 的标签一节](./DEVELOPING.md#六标签与路由)。
@@ -405,7 +436,7 @@ tags: [] # 空数组 = 没有标签，也能正常工作
 
 这些页面的文字都在各自的 Markdown 里，不需要碰代码。
 
-### 首页 `docs/index.md`
+### 首页 `docs/zh-cn/index.md`
 
 ```yaml
 ---
@@ -420,10 +451,10 @@ description: 这里记录一些想法、笔记和折腾的过程。
 - `description` → 标题下方那行灰字
 - `---` 下面的正文 → 显示在标题和文章卡片之间
 
-**首页显示几篇文章**：在 `docs/.vitepress/data/site.ts` 的 `homePostCount`（默认 5）。
+**首页显示几篇文章**：在 `.vitepress/data/site.ts` 的 `homePostCount`（默认 5）。
 这个属于配置，但只改数字，不算改代码。
 
-### 关于页 `docs/about/index.md`
+### 关于页 `docs/zh-cn/about/index.md`
 
 ```yaml
 ---
@@ -435,7 +466,7 @@ description: 关于 Emanyzwww。
 
 没有 `layout` 字段，所以按普通文档渲染（有左右侧栏，没有文章元信息）。
 
-### 文章列表页 `docs/posts/index.md`
+### 文章列表页 `docs/zh-cn/posts/index.md`
 
 ```yaml
 ---
@@ -447,7 +478,7 @@ description: 按时间顺序排列的全部文章
 
 一般**不用动**。`layout: posts` 决定了它是时间线 + 分页的形态。
 
-### 标签总览页 `docs/tags/index.md`
+### 标签总览页 `docs/zh-cn/tags/index.md`
 
 ```yaml
 ---
@@ -484,7 +515,7 @@ date: 2026-10-20T10:30:00+08:00 # ← 只有这个决定位置
 
 想调整某篇文章的位置，改 `date` 即可。**不需要**改目录名。
 
-**例外**：时间线列表页（`/posts/`）按年份分组，分组的顺序也跟着 `date`。
+**例外**：时间线列表页（`/zh-cn/posts/`）按年份分组，分组的顺序也跟着 `date`。
 
 ### 改标题
 
@@ -493,7 +524,7 @@ date: 2026-10-20T10:30:00+08:00 # ← 只有这个决定位置
 ### 改 URL（换目录名）
 
 ```text
-docs/posts/旧名字/index.md  →  docs/posts/新名字/index.md
+docs/zh-cn/posts/旧名字/index.md  →  docs/zh-cn/posts/新名字/index.md
 ```
 
 **这是破坏性操作**：
@@ -508,14 +539,14 @@ docs/posts/旧名字/index.md  →  docs/posts/新名字/index.md
 真要改的话，可以在 `docs/public/` 放一个跳转页保住旧链接：
 
 ```html
-<!-- docs/public/posts/旧名字/index.html -->
+<!-- docs/public/zh-cn/posts/旧名字/index.html -->
 <!doctype html>
 <meta
   http-equiv="refresh"
-  content="0; url=/posts/新名字/" />
+  content="0; url=/zh-cn/posts/新名字/" />
 <link
   rel="canonical"
-  href="https://emanyzoo.cn/posts/新名字/" />
+  href="https://emanyzoo.cn/zh-cn/posts/新名字/" />
 ```
 
 ### 删除文章
@@ -523,7 +554,7 @@ docs/posts/旧名字/index.md  →  docs/posts/新名字/index.md
 直接删掉整个目录（含配图）：
 
 ```powershell
-Remove-Item -Recurse docs/posts/不要的文章
+Remove-Item -Recurse docs/zh-cn/posts/不要的文章
 ```
 
 如果那篇文章用过的标签**只有它在用**，标签页会自动消失（因为标签是从文章汇总来的）。
@@ -621,8 +652,8 @@ int main() {
 ### 站内链接
 
 ```markdown
-[另一篇文章](/posts/另一篇/)
-[关于我](/about/)
+[另一篇文章](/zh-cn/posts/另一篇/)
+[关于我](/zh-cn/about/)
 ```
 
 **用绝对路径**（以 `/` 开头），不要用 `.md` 后缀，也不要写相对路径。
@@ -658,14 +689,14 @@ int main() {
 
 按顺序检查：
 
-| 检查项                    | 说明                                             |
-| ------------------------- | ------------------------------------------------ |
-| 是不是在 `docs/posts/` 下 | 只有 `posts/` 下的才被当文章                     |
-| 有没有写 `date`           | **没写 date 就不是文章**，会按普通页面渲染       |
-| `date` 格式对不对         | 写错时整个构建会报「文章缺少有效日期」           |
-| 是不是 `draft: true`      | 草稿从列表隐藏                                   |
-| 文件名是不是 `index.md`   | 写成 `我的文章.md` 也能构建，但 URL 会带 `.html` |
-| 是不是在 `_drafts/` 下    | 那里完全不构建                                   |
+| 检查项                          | 说明                                             |
+| ------------------------------- | ------------------------------------------------ |
+| 是不是在 `docs/zh-cn/posts/` 下 | 只有 `posts/` 下的才被当文章                     |
+| 有没有写 `date`                 | **没写 date 就不是文章**，会按普通页面渲染       |
+| `date` 格式对不对               | 写错时整个构建会报「文章缺少有效日期」           |
+| 是不是 `draft: true`            | 草稿从列表隐藏                                   |
+| 文件名是不是 `index.md`         | 写成 `我的文章.md` 也能构建，但 URL 会带 `.html` |
+| 是不是在 `_drafts/` 下          | 那里完全不构建                                   |
 
 ### 2. 改了内容但页面没变
 
@@ -685,7 +716,7 @@ int main() {
 
 ### 4. 中文 URL 看起来乱码
 
-`/tags/随笔/` 在浏览器地址栏显示成 `/tags/%E9%9A%8F%E7%AC%94/`。
+`/zh-cn/tags/随笔/` 在浏览器地址栏显示成 `/zh-cn/tags/%E9%9A%8F%E7%AC%94/`。
 
 这是正常的——URL 只允许 ASCII，中文会被百分号编码。链接可用、可分享、搜索引擎也能收录。
 链接文本显示的是中文，不受影响。
@@ -706,7 +737,7 @@ int main() {
 
 英文版目录名和中文不一致，或英文版不存在。此时按「同栏目 → 语言首页」逐级回退。
 
-检查 `docs/en/posts/` 下的目录名是否和 `docs/posts/` 完全一致。
+检查 `docs/en/posts/` 下的目录名是否和 `docs/zh-cn/posts/` 完全一致。
 
 ### 8. 构建报错「文章缺少有效日期」
 
@@ -739,7 +770,7 @@ title: '重构: 一次彻底的改造'    # ✅
 新建一篇文章后，对照过一遍：
 
 ```text
-□ 目录放在 docs/posts/ 下，文件名是 index.md
+□ 目录放在 docs/zh-cn/posts/ 下，文件名是 index.md
 □ title 写了
 □ date 写了，带 +08:00 时区
 □ description 写了（60–120 字，别指望自动摘要）
@@ -756,7 +787,7 @@ title: '重构: 一次彻底的改造'    # ✅
 
 ```text
 □ pnpm build 没有报错
-□ 文章出现在 /posts/ 列表里
+□ 文章出现在 /zh-cn/posts/ 列表里
 □ 标签页能打开
 □ 图片正常显示
 □ 语言按钮跳转正确（如有英文版）
