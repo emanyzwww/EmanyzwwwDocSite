@@ -9,8 +9,8 @@
     "build": "vitepress build docs",
     "preview": "vitepress preview docs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "format": "oxfmt --write docs README.md --ignore-path .oxfmtignore",
-    "format:check": "oxfmt --check docs README.md --ignore-path .oxfmtignore",
+    "format": "oxfmt --write docs README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
+    "format:check": "oxfmt --check docs README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
     "clean": "node -e \"for (const d of ['docs/.vitepress/dist','docs/.vitepress/cache']) require('fs').rmSync(d,{recursive:true,force:true})\""
   },
   "devDependencies": {
