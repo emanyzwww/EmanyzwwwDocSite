@@ -10,6 +10,7 @@ import { defineConfig } from 'vitepress'
 
 import { LOCALES, SITE } from './data/site'
 import { readPosts } from './support/content'
+import { writeRobots } from './support/robots'
 import { writeFeeds } from './support/rss'
 import { pageCount } from './theme/support/pagination'
 import type { LocaleCode } from './types'
@@ -19,6 +20,20 @@ const BASE = process.env.VP_BASE ?? '/'
 
 /** 站点根地址（sitemap 与 RSS 的绝对链接用）。 */
 const SITE_URL = (process.env.VP_SITE_URL ?? SITE.url).replace(/\/$/, '')
+
+/**
+ * sitemap 的 `hostname`，**必须带部署子路径**。
+ *
+ * VitePress 内部用 `new URL(page.url, hostname)` 拼绝对地址，而它给出的
+ * `page.url` 是 `about/`、`en/posts/` 这种**相对**路径。URL 解析会以
+ * hostname 的路径部分为基准，因此：
+ *
+ * - `hostname = https://owner.github.io` → `https://owner.github.io/about/`（丢掉 `/repo/`）
+ * - `hostname = https://owner.github.io/repo/` → `https://owner.github.io/repo/about/`（正确）
+ *
+ * 这正是 GitHub Pages 项目站点 sitemap 全部指向域名根、404 的原因。
+ */
+const SITEMAP_HOSTNAME = new URL(BASE, new URL(SITE_URL).origin).href
 
 /** 由页面路径判断语言（与运行时 `localeIndex` 的判定保持一致）。 */
 function localeOfPage(relativePath: string): LocaleCode {
@@ -92,7 +107,8 @@ export default defineConfig({
 
   // ---------- 站点地图 ----------
   sitemap: {
-    hostname: SITE_URL,
+    // 必须含部署子路径，否则 URL 解析会把 /<repo>/ 吃掉（见上方 SITEMAP_HOSTNAME）
+    hostname: SITEMAP_HOSTNAME,
   },
 
   // ---------- 页头静态标签 ----------
@@ -147,7 +163,7 @@ export default defineConfig({
     const locale = localeOfPage(pageData.relativePath)
     const meta = LOCALES[locale]
     const canonical = `${SITE_URL}${toPath(pageData.relativePath)}`
-    const feed = locale === 'en' ? '/en/index.xml' : '/index.xml'
+    const feed = locale === 'en' ? `${BASE}en/index.xml` : `${BASE}index.xml`
     const title = pageData.title ? `${pageData.title} · ${meta.title}` : meta.title
     const description = pageData.description || meta.description
 
@@ -169,8 +185,9 @@ export default defineConfig({
     ]
   },
 
-  // ---------- 构建结束：写 RSS ----------
+  // ---------- 构建结束：写 RSS 与 robots ----------
   buildEnd(siteConfig) {
     writeFeeds(siteConfig.outDir)
+    writeRobots(siteConfig.outDir, `${SITEMAP_HOSTNAME}sitemap.xml`)
   },
 })

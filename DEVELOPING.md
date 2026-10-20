@@ -184,17 +184,18 @@ export const PROFILE: Profile = {
 
 ### `config.ts` —— 构建行为
 
-| 想改           | 位置                                      |
-| -------------- | ----------------------------------------- |
-| 代码高亮主题   | `markdown.theme`（当前 `github-dark`）    |
-| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`） |
-| 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）    |
-| 锚点跳转偏移   | `scrollOffset`（当前 80，配合 4rem 页头） |
-| 站点地图域名   | `sitemap.hostname`                        |
-| 页头 meta      | `head` 数组                               |
-| 页面标题怎么拼 | `transformPageData`                       |
-| OG / RSS 标签  | `transformHead`                           |
-| RSS 生成逻辑   | `buildEnd` → `support/rss.ts`             |
+| 想改           | 位置                                                 |
+| -------------- | ---------------------------------------------------- |
+| 代码高亮主题   | `markdown.theme`（当前 `github-dark`）               |
+| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`）            |
+| 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）               |
+| 锚点跳转偏移   | `scrollOffset`（当前 80，配合 4rem 页头）            |
+| 站点地图域名   | `SITEMAP_HOSTNAME`（自动 = 站点 origin + `VP_BASE`） |
+| 页头 meta      | `head` 数组                                          |
+| 页面标题怎么拼 | `transformPageData`                                  |
+| OG / RSS 标签  | `transformHead`                                      |
+| RSS 生成逻辑   | `buildEnd` → `support/rss.ts`                        |
+| robots.txt     | `buildEnd` → `support/robots.ts`                     |
 
 ### 部署路径
 
@@ -206,6 +207,11 @@ const SITE_URL = process.env.VP_SITE_URL ?? SITE.url // 绝对地址
 ```
 
 CI 会自动算好这两个值传给构建（见 `.github/workflows/deploy.yml`）。本地不用管。
+
+**坑：sitemap 的 `hostname` 必须包含 `BASE`。** VitePress 用
+`new URL(page.url, hostname)` 拼绝对地址，而 `page.url` 是 `about/` 这类相对路径；
+若 `hostname` 只有 origin，`/repo/` 会被 URL 解析吃掉，项目站点的 sitemap 会全部
+指向域名根。`SITEMAP_HOSTNAME` 就是为此存在的，`robots.txt` 也复用它。
 
 ---
 
@@ -926,10 +932,10 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 ① data/site.ts → SITE_URL
 ② docs/public/CNAME（如用自定义域名）
 ③ 仓库变量 SITE_URL（可选，覆盖 CI 里的绝对地址）
-④ docs/public/robots.txt 里的 Sitemap 地址
 ```
 
-`SITE_URL` 影响：sitemap 的 `<loc>`、RSS 的绝对链接、canonical、OG `og:url`。
+`SITE_URL` 影响：sitemap 的 `<loc>`、RSS 的绝对链接、canonical、OG `og:url`、
+`robots.txt` 里的 `Sitemap:`。后两者由构建期生成，无需手工改文件。
 
 ---
 
