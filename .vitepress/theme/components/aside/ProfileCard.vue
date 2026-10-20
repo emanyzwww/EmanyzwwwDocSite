@@ -3,8 +3,9 @@ import { computed } from 'vue'
 
 import { data as profile } from '../../../data/profile.data'
 import { SITE } from '../../../data/site'
+import { useI18n } from '../../i18n'
 import { resolveMedia } from '../../support/media'
-import { href, isExternal } from '../../support/paths'
+import { feedPath, href, isExternal } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
 /**
@@ -14,8 +15,21 @@ import AppIcon from '../common/AppIcon.vue'
  * 头像通过 `docs/media/` 的资源导入拿到带指纹的地址。
  */
 
+const { locale } = useI18n()
+
 const avatar = computed(() => resolveMedia(profile.avatar))
 const displayName = computed(() => profile.name || SITE.name)
+
+/**
+ * 链接地址本地化。
+ *
+ * `profile.ts` 是一份中英共用的配置，写不出「当前语言」，因此约定：
+ * RSS 这类跟语言相关的地址统一写占位值 `/index.xml`，渲染时替换成
+ * 当前语言的 feed（`/zh-cn/index.xml`、`/en/index.xml`）。
+ */
+function resolveLink(url: string): string {
+  return href(url === '/index.xml' ? feedPath(locale.value) : url)
+}
 </script>
 
 <template>
@@ -33,7 +47,7 @@ const displayName = computed(() => profile.name || SITE.name)
     <ul v-if="profile.links.length" class="profile__links">
       <li v-for="link in profile.links" :key="link.url">
         <a
-          :href="href(link.url)"
+          :href="resolveLink(link.url)"
           :title="link.label"
           :aria-label="link.label"
           :target="isExternal(link.url) ? '_blank' : undefined"
