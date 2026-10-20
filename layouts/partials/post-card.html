@@ -9,8 +9,8 @@
   {{- end }}
   <div class="post-card__meta">
     <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "2006-01-02" }}</time>
-    {{- if $p.Params.showReadingTime | default site.Params.showReadingTime }}
-    <span class="post-meta__item">{{ partial "icons.html" (dict "name" "clock") }}{{ $p.ReadingTime }} {{ i18n "minutesShort" }}</span>
+    {{- if $p.Params.showWordCount | default site.Params.showWordCount }}
+    <span class="post-meta__item">{{ partial "icons.html" (dict "name" "clock") }}{{ partial "word-count.html" $p }} {{ i18n "wordCount" }}</span>
     {{- end }}
     {{- with $p.GetTerms "tags" }}
     <span class="post-meta__item">{{ partial "icons.html" (dict "name" "tag") }}{{ range $i, $t := . }}{{ if $i }} · {{ end }}<a href="{{ $t.RelPermalink }}">{{ $t.LinkTitle }}</a>{{ end }}</span>

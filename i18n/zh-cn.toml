@@ -16,8 +16,8 @@ other = "标签"
 other = "链接"
 [draft]
 other = "草稿"
-[minutesShort]
-other = "分钟"
+[wordCount]
+other = "字"
 [backToPosts]
 other = "返回文章列表"
 [allPosts]

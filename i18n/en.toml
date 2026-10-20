@@ -16,8 +16,8 @@ other = "Tags"
 other = "Links"
 [draft]
 other = "Draft"
-[minutesShort]
-other = "min"
+[wordCount]
+other = "words"
 [backToPosts]
 other = "Back to posts"
 [allPosts]

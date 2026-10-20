@@ -46,18 +46,13 @@ if eq $name "sun" -}}
   />
 </svg>
 {{- else if eq $name "zh" -}}
-<svg
-  class="{{ $class }}"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="1.8"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  aria-hidden="true"
->
-  <path d="M12 2.5v19" />
-  <rect x="6" y="7.5" width="12" height="9" rx="1" />
+{{- /* 「中」字形：填充式路径。原图 fill="#666c76" 写死了颜色，
+       这里改成 currentColor，才能跟随主题色与悬停态，也适配深浅色。
+       viewBox 按字形包围盒（x 263.43–779.45 / y 222.21–814.68）等比外扩留白，
+       使渲染后的视觉高度与同为 1.1rem 的描边图标（如英文 A）相当：
+       原图 1024×1024 视口留白过多会显小，紧贴包围盒又会撑满显大。 */ -}}
+<svg class="{{ $class }}" viewBox="152 93 740 849" fill="currentColor" aria-hidden="true">
+  <path d="M555.231787 330.203429v-107.997284h-68.202727v108.038827H263.433935v273.457531H487.02906v210.976899h68.202727V603.70431h224.21827V330.203429H555.231787z m-68.202727 209.074952h-157.337694v-144.605675h157.335888v144.605675z m226.131053 0H555.195662v-144.605675h157.962645v144.605675z" />
 </svg>
 {{- else if eq $name "en" -}}
 <svg

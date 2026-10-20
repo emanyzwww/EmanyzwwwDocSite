@@ -2,9 +2,11 @@
 {{- $p := . -}}
 {{- /* 文章专属部件（日期、阅读时长、标签、返回列表、上下篇）只对 posts 分区显示 */ -}}
 {{- $isPost := eq $p.Section "posts" -}}
-{{- /* Fragments.Headings 的顶层是 H1，H2 在其 children 里，所以按目录条目数判断 */ -}}
+{{- /* 目录只输出 startLevel..endLevel 范围内的标题（本站为 H2–H3），H1 不在其中，
+       因此直接按目录条目数判断即可：只要有至少一个标题就显示目录。
+       注意：这里曾用 gt ... 2，等于要求「至少 3 个标题」，会把只有一两个小标题的短文章误判为无目录。 */ -}}
 {{- $hasToc := and site.Params.toc (not $p.Params.hideToc) -}}
-{{- if $hasToc }}{{ $hasToc = gt (len (findRE "<li" $p.TableOfContents)) 2 }}{{ end -}}
+{{- if $hasToc }}{{ $hasToc = gt (len (findRE "<li" $p.TableOfContents)) 0 }}{{ end -}}
 
 {{- /* 所有单页统一三栏：左 widgets | 正文 | 右目录
        （文章页、关于页等都一样，左右侧栏始终存在） */ -}}
@@ -14,7 +16,9 @@
   </aside>
 
   <div class="layout__main">
-    <article class="post" {{ if $hasToc }}data-article-body{{ end }}>
+    {{- /* 阅读进度条只对文章生效，且不依赖「是否有目录」：
+           之前与 $hasToc 绑定，导致短文章（无目录）的进度条一并失效。 */}}
+    <article class="post" {{ if $isPost }}data-article-body{{ end }}>
       <header class="post-header">
         <h1 class="page-title">{{ $p.Title }}</h1>
         {{- if $isPost }}
@@ -23,10 +27,10 @@
             {{ partial "icons.html" (dict "name" "calendar") }}
             <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format (i18n "dateFormat") }}</time>
           </span>
-          {{- if $p.Params.showReadingTime | default site.Params.showReadingTime }}
+          {{- if $p.Params.showWordCount | default site.Params.showWordCount }}
           <span class="post-meta__item">
             {{ partial "icons.html" (dict "name" "clock") }}
-            {{ $p.ReadingTime }} {{ i18n "minutesShort" }}
+            {{ partial "word-count.html" $p }} {{ i18n "wordCount" }}
           </span>
           {{- end }}
           {{- with $p.GetTerms "tags" }}

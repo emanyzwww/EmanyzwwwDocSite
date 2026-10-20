@@ -12,8 +12,8 @@
   </span>
 
   <span class="tl__meta">
-    {{- with $p.ReadingTime }}
-    <span class="tl__meta-item">{{ . }} {{ i18n "minutesShort" }}</span>
+    {{- if $p.Params.showWordCount | default site.Params.showWordCount }}
+    <span class="tl__meta-item">{{ partial "word-count.html" $p }} {{ i18n "wordCount" }}</span>
     {{- end }}
     {{- with $p.GetTerms "tags" }}
     <span class="tl__meta-item tl__tags">

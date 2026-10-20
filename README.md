@@ -62,7 +62,7 @@ summary = '一句话摘要，会显示在列表和 SEO 描述里'
 tags = ['随笔', 'Hugo']
 # categories = ['技术']   # 可选
 # hideToc = true          # 可选，强制隐藏目录
-# showReadingTime = true  # 可选，覆盖全局设置
+# showWordCount = true    # 可选，覆盖全局设置（显示正文字数，不是阅读时长）
 +++
 ```
 
