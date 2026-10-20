@@ -5,7 +5,7 @@
   "type": "module",
   "description": "个人站点：VitePress 1.6.4 + TypeScript + 自定义主题",
   "scripts": {
-    "dev": "vitepress dev docs",
+    "dev": "vitepress dev docs --host 127.0.0.1",
     "build": "vitepress build docs",
     "preview": "vitepress preview docs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
@@ -28,5 +28,3 @@
     "node": ">=20"
   }
 }
-
-

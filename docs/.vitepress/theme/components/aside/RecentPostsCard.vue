@@ -1,14 +1,15 @@
 <script setup lang="ts">
-/**
- * 侧栏最近文章卡。
- *
- * 数量默认 5 条，可在使用时通过 `limit` 覆盖。
- */
 import { computed } from 'vue'
 
 import { usePosts } from '../../composables/usePosts'
 import { useI18n } from '../../i18n'
 import { href } from '../../support/paths'
+
+/**
+ * 侧栏最近文章卡。
+ *
+ * 数量默认 5 条，可在使用时通过 `limit` 覆盖。
+ */
 
 const props = withDefaults(defineProps<{ limit?: number }>(), { limit: 5 })
 

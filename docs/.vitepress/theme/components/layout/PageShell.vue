@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from '../../i18n'
+import SiteFooter from '../site/SiteFooter.vue'
+import SiteHeader from '../site/SiteHeader.vue'
+
 /**
  * 页面外壳。
  *
@@ -9,9 +13,6 @@
  *
  * 内容区宽度由各布局自己决定（两栏 / 三栏），外壳只管纵向结构。
  */
-import { useI18n } from '../../i18n'
-import SiteFooter from '../site/SiteFooter.vue'
-import SiteHeader from '../site/SiteHeader.vue'
 
 const { m } = useI18n()
 </script>

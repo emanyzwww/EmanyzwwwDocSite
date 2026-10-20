@@ -1,4 +1,17 @@
 <script setup lang="ts">
+import { useData } from 'vitepress'
+import { computed } from 'vue'
+
+import { SITE } from '../../../data/site'
+import { usePosts } from '../../composables/usePosts'
+import { useI18n } from '../../i18n'
+import { paginate } from '../../support/pagination'
+import { postListUrl } from '../../support/paths'
+import EmptyState from '../common/EmptyState.vue'
+import TwoColumn from '../layout/TwoColumn.vue'
+import Pagination from '../post/Pagination.vue'
+import PostTimeline from '../post/PostTimeline.vue'
+
 /**
  * 文章列表（`/posts/` 与 `/posts/page/N/`）。
  *
@@ -8,19 +21,6 @@
  * 标题取 frontmatter 里的 `title`（不含站点名），分页页码由组件拼上去，
  * 保证第 2 页显示「文章 · 2/3」而不是重复的「文章」。
  */
-import { computed } from 'vue'
-
-import { useData } from 'vitepress'
-
-import { SITE } from '../../../data/site'
-import { usePosts } from '../../composables/usePosts'
-import { useI18n } from '../../i18n'
-import { postListUrl } from '../../support/paths'
-import { paginate } from '../../support/pagination'
-import EmptyState from '../common/EmptyState.vue'
-import TwoColumn from '../layout/TwoColumn.vue'
-import Pagination from '../post/Pagination.vue'
-import PostTimeline from '../post/PostTimeline.vue'
 
 const { frontmatter, params } = useData()
 const { locale, m } = useI18n()

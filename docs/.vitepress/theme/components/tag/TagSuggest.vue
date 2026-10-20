@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import type { TagSummary } from '../../../types'
+import { useI18n } from '../../i18n'
+import { href } from '../../support/paths'
+
 /**
  * 其他标签（标签详情页底部）。
  *
  * 作用：让标签页之间可以横向跳转，避免内容少的标签页看起来「空了」。
  * 传入的 `tags` 应已排除当前标签。
  */
-import type { TagSummary } from '../../../types'
-import { useI18n } from '../../i18n'
-import { href } from '../../support/paths'
 
 defineProps<{ tags: TagSummary[] }>()
 

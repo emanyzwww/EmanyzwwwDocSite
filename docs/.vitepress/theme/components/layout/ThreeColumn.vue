@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import AsideWidgets from '../aside/AsideWidgets.vue'
+
 /**
  * 三栏布局：左侧栏（卡片） + 主内容 + 右侧栏（目录 / 统计）。
  *
  * 文章页使用。窄屏下 CSS 会把两侧栏依次移到正文下方（见 layout.css）。
  */
-import AsideWidgets from '../aside/AsideWidgets.vue'
 
 defineSlots<{
   /** 主内容。 */

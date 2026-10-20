@@ -1,4 +1,15 @@
 <script setup lang="ts">
+import { useData } from 'vitepress'
+import { computed } from 'vue'
+
+import PageShell from './components/layout/PageShell.vue'
+import DocPage from './components/pages/DocPage.vue'
+import HomePage from './components/pages/HomePage.vue'
+import NotFoundPage from './components/pages/NotFoundPage.vue'
+import PostsPage from './components/pages/PostsPage.vue'
+import TagPage from './components/pages/TagPage.vue'
+import TagsPage from './components/pages/TagsPage.vue'
+
 /**
  * 路由分发。
  *
@@ -14,17 +25,6 @@
  *
  * 页头 / 页脚 / 跳转链接由外壳统一提供，各页面只关心内容本身。
  */
-import { computed } from 'vue'
-
-import { useData } from 'vitepress'
-
-import DocPage from './components/pages/DocPage.vue'
-import HomePage from './components/pages/HomePage.vue'
-import NotFoundPage from './components/pages/NotFoundPage.vue'
-import PostsPage from './components/pages/PostsPage.vue'
-import TagPage from './components/pages/TagPage.vue'
-import TagsPage from './components/pages/TagsPage.vue'
-import PageShell from './components/layout/PageShell.vue'
 
 const { frontmatter, page } = useData()
 

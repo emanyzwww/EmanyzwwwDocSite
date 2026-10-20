@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { useData } from 'vitepress'
+import { computed } from 'vue'
+
+import { useI18n } from '../../i18n'
+import AppIcon from '../common/AppIcon.vue'
+
 /**
  * 主题切换。
  *
@@ -6,12 +12,6 @@
  * （在 `<head>` 里读 localStorage，早于应用挂载执行），
  * 也自带跟随系统 + 手动覆盖的语义，因此这里不再自己写 30 行初始化。
  */
-import { computed } from 'vue'
-
-import { useData } from 'vitepress'
-
-import AppIcon from '../common/AppIcon.vue'
-import { useI18n } from '../../i18n'
 
 const { isDark } = useData()
 const { m } = useI18n()
@@ -31,8 +31,7 @@ function toggle(): void {
     :aria-label="label"
     :title="label"
     :aria-pressed="isDark ? 'true' : 'false'"
-    @click="toggle"
-  >
+    @click="toggle">
     <AppIcon name="sun" extra-class="icon-sun" />
     <AppIcon name="moon" extra-class="icon-moon" />
   </button>

@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { usePosts } from '../../composables/usePosts'
+import { useTaxonomy } from '../../composables/useTaxonomy'
+import { useI18n } from '../../i18n'
+
 /**
  * 站点统计卡：文章数 + 标签数。
  *
  * 数据由文章列表与标签汇总即时算出，不需要单独维护计数。
  */
-import { computed } from 'vue'
-
-import { useTaxonomy } from '../../composables/useTaxonomy'
-import { usePosts } from '../../composables/usePosts'
-import { useI18n } from '../../i18n'
 
 const { m } = useI18n()
 const { posts } = usePosts()

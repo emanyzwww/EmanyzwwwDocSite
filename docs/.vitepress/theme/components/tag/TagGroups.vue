@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import type { TagSummary } from '../../../types'
+import { useI18n } from '../../i18n'
+import { href } from '../../support/paths'
+
 /**
  * 标签分组列表（标签总览页）。
  *
  * 每个标签一张小卡：标签名 + 数量 + 该标签下最近 3 篇文章；
  * 文章数超过 3 时给一个「查看全部」入口。
  */
-import type { TagSummary } from '../../../types'
-import { useI18n } from '../../i18n'
-import { href } from '../../support/paths'
 
 defineProps<{ tags: TagSummary[] }>()
 

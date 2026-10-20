@@ -1,13 +1,6 @@
 <script setup lang="ts">
-/**
- * 标签总览页（`layout: tags`）。
- *
- * 组成：标签云（按数量分级字号） + 每个标签的分组卡片。
- * 右侧栏显示站点统计与最近文章，避免大屏下右栏空着。
- */
-import { computed } from 'vue'
-
 import { useData } from 'vitepress'
+import { computed } from 'vue'
 
 import { useTaxonomy } from '../../composables/useTaxonomy'
 import { format, useI18n } from '../../i18n'
@@ -17,6 +10,13 @@ import EmptyState from '../common/EmptyState.vue'
 import ThreeColumn from '../layout/ThreeColumn.vue'
 import TagCloud from '../tag/TagCloud.vue'
 import TagGroups from '../tag/TagGroups.vue'
+
+/**
+ * 标签总览页（`layout: tags`）。
+ *
+ * 组成：标签云（按数量分级字号） + 每个标签的分组卡片。
+ * 右侧栏显示站点统计与最近文章，避免大屏下右栏空着。
+ */
 
 const { page, frontmatter } = useData()
 const { m } = useI18n()

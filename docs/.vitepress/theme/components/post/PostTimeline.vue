@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import type { PostSummary } from '../../../types'
+import { href } from '../../support/paths'
+import PostMeta from './PostMeta.vue'
+
 /**
  * 时间线文章列表（`/posts/` 使用）。
  *
@@ -8,11 +14,6 @@
  * 与旧站的差异：分组在组件里完成（旧站用 Hugo 的 `GroupByDate`），
  * 直接对已按时间排序的数组做一次遍历，逻辑更直观。
  */
-import { computed } from 'vue'
-
-import type { PostSummary } from '../../../types'
-import { href } from '../../support/paths'
-import PostMeta from './PostMeta.vue'
 
 const props = defineProps<{ posts: PostSummary[] }>()
 

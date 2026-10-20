@@ -1,22 +1,22 @@
 <script setup lang="ts">
+import { useData } from 'vitepress'
+import { computed } from 'vue'
+
+import { useTaxonomy } from '../../composables/useTaxonomy'
+import { format, useI18n } from '../../i18n'
+import RecentPostsCard from '../aside/RecentPostsCard.vue'
+import StatsCard from '../aside/StatsCard.vue'
+import EmptyState from '../common/EmptyState.vue'
+import ThreeColumn from '../layout/ThreeColumn.vue'
+import PostCard from '../post/PostCard.vue'
+import TagSuggest from '../tag/TagSuggest.vue'
+
 /**
  * 标签详情页（`layout: tag`，由动态路由 `docs/tags/[tag]/index.md` 生成）。
  *
  * 页面参数 `params.tag` 是标签的 URL 片段（中文标签会是百分号编码），
  * 这里解码后到标签汇总里找对应项。
  */
-import { computed } from 'vue'
-
-import { useData } from 'vitepress'
-
-import { useTaxonomy } from '../../composables/useTaxonomy'
-import { format, useI18n } from '../../i18n'
-import EmptyState from '../common/EmptyState.vue'
-import ThreeColumn from '../layout/ThreeColumn.vue'
-import RecentPostsCard from '../aside/RecentPostsCard.vue'
-import StatsCard from '../aside/StatsCard.vue'
-import PostCard from '../post/PostCard.vue'
-import TagSuggest from '../tag/TagSuggest.vue'
 
 const { params } = useData()
 const { m } = useI18n()

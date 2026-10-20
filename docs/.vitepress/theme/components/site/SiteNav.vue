@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { useRoute } from 'vitepress'
+import { computed } from 'vue'
+
+import { NAV } from '../../../data/site'
+import { useI18n } from '../../i18n'
+import { href } from '../../support/paths'
+
 /**
  * 顶部导航。
  *
@@ -8,13 +15,6 @@
  * 高亮规则：当前路径等于该项，或位于该项目录下（`/posts/x/` 命中 `/posts/`）。
  * 首页只做精确匹配，否则任何页面都会命中 `/`。
  */
-import { computed } from 'vue'
-
-import { useRoute } from 'vitepress'
-
-import { NAV } from '../../../data/site'
-import { useI18n } from '../../i18n'
-import { href } from '../../support/paths'
 
 const route = useRoute()
 const { locale, m } = useI18n()

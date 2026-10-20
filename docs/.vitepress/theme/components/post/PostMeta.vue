@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { SITE } from '../../../data/site'
+import type { PostSummary } from '../../../types'
+import { useI18n } from '../../i18n'
+import { href } from '../../support/paths'
+import AppIcon from '../common/AppIcon.vue'
+
 /**
  * 文章元信息：日期 / 字数 / 标签 / 草稿标记。
  *
@@ -8,13 +16,6 @@
  * - `compact`：卡片，纯日期
  * - `timeline`：时间线行内的 `<span>` 容器
  */
-import { computed } from 'vue'
-
-import { SITE } from '../../../data/site'
-import type { PostSummary } from '../../../types'
-import { useI18n } from '../../i18n'
-import { href } from '../../support/paths'
-import AppIcon from '../common/AppIcon.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -32,7 +33,7 @@ const tag = computed(() => (props.variant === 'timeline' ? 'span' : 'div'))
 const wrapperClass = computed(() => ({
   'post-meta': props.variant === 'full',
   'post-card__meta': props.variant === 'compact',
-  'tl__meta': props.variant === 'timeline',
+  tl__meta: props.variant === 'timeline',
 }))
 
 const showWordCount = computed(() => SITE.wordCount)
@@ -42,7 +43,9 @@ const showWordCount = computed(() => SITE.wordCount)
   <component :is="tag" :class="wrapperClass">
     <span class="post-meta__item">
       <AppIcon v-if="props.variant === 'full'" name="calendar" />
-      <time :datetime="post.isoDate">{{ props.variant === 'timeline' ? post.dateShort : post.dateText }}</time>
+      <time :datetime="post.isoDate">{{
+        props.variant === 'timeline' ? post.dateShort : post.dateText
+      }}</time>
     </span>
 
     <span v-if="showWordCount" class="post-meta__item">

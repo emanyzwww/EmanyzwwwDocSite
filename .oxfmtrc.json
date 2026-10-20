@@ -20,6 +20,13 @@
         "printWidth": 120,
         "proseWrap": "preserve"
       }
+    },
+    {
+      "files": ["**/*.vue"],
+      "options": {
+        "singleAttributePerLine": false,
+        "printWidth": 100
+      }
     }
   ]
 }

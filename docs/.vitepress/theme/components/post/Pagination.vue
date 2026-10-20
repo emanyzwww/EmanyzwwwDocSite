@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { useI18n } from '../../i18n'
+
 /**
  * 分页组件。
  *
  * 纯展示：页码、上一页、下一页都由调用方算好传进来，
  * 因此「第几页 → 哪个地址」的规则只存在于 `support/paths.ts` 一处。
  */
-import { computed } from 'vue'
-
-import { useI18n } from '../../i18n'
 
 const props = defineProps<{
   /** 当前页码（从 1 开始）。 */
@@ -46,12 +47,7 @@ const hasNext = computed(() => props.current < props.total)
   <nav v-if="total > 1" :aria-label="m.pagination">
     <ul class="pagination">
       <li>
-        <a
-          v-if="hasPrevious"
-          :href="urlOf(current - 1)"
-          rel="prev"
-          :aria-label="m.previousPage"
-        >
+        <a v-if="hasPrevious" :href="urlOf(current - 1)" rel="prev" :aria-label="m.previousPage">
           ←
         </a>
         <span v-else class="is-disabled" aria-hidden="true">←</span>

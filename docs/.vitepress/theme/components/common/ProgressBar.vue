@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { useReadingProgress } from '../../composables/useReadingProgress'
+
 /**
  * 阅读进度条。
  *
@@ -6,9 +10,6 @@
  * 与旧站的区别：旧站只有 JS 而没有任何元素输出（进度条从未生效），
  * 这里「元素」和「计算」放在同一个组件里，不会再断链。
  */
-import { computed } from 'vue'
-
-import { useReadingProgress } from '../../composables/useReadingProgress'
 
 const props = defineProps<{
   /** 需要测量进度的元素选择器。 */

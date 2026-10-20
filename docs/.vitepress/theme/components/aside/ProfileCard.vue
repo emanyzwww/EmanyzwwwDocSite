@@ -1,17 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import { data as profile } from '../../../data/profile.data'
+import { SITE } from '../../../data/site'
+import { resolveMedia } from '../../support/media'
+import { href, isExternal } from '../../support/paths'
+import AppIcon from '../common/AppIcon.vue'
+
 /**
  * 个人资料卡。
  *
  * 数据来自 `data/profile.ts`；`bio` 已在构建期渲染为 HTML（`profile.data.ts`），
  * 头像通过 `docs/media/` 的资源导入拿到带指纹的地址。
  */
-import { computed } from 'vue'
-
-import { data as profile } from '../../../data/profile.data'
-import { SITE } from '../../../data/site'
-import { resolveMedia } from '../../support/media'
-import AppIcon from '../common/AppIcon.vue'
-import { href, isExternal } from '../../support/paths'
 
 const avatar = computed(() => resolveMedia(profile.avatar))
 const displayName = computed(() => profile.name || SITE.name)
@@ -36,8 +37,7 @@ const displayName = computed(() => profile.name || SITE.name)
           :title="link.label"
           :aria-label="link.label"
           :target="isExternal(link.url) ? '_blank' : undefined"
-          :rel="isExternal(link.url) ? 'noopener noreferrer' : undefined"
-        >
+          :rel="isExternal(link.url) ? 'noopener noreferrer' : undefined">
           <AppIcon :name="link.icon ?? 'link'" />
         </a>
       </li>

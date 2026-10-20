@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { withBase } from 'vitepress'
+import { computed } from 'vue'
+
+import { SITE } from '../../../data/site'
+import LocaleSwitch from './LocaleSwitch.vue'
+import SiteNav from './SiteNav.vue'
+import ThemeToggle from './ThemeToggle.vue'
+
 /**
  * 页头：品牌 + 导航 + 工具（主题 / 语言）。
  *
@@ -6,14 +14,6 @@
  * - 品牌名与 logo 直接读 `data/site.ts`，不再有 brandName/brand 的层层回退；
  * - 主题与语言按钮共用 `.icon-button`，几何参数只有一处定义。
  */
-import { computed } from 'vue'
-
-import { withBase } from 'vitepress'
-
-import { SITE } from '../../../data/site'
-import LocaleSwitch from './LocaleSwitch.vue'
-import SiteNav from './SiteNav.vue'
-import ThemeToggle from './ThemeToggle.vue'
 
 /** 品牌名；想加 logo 就在 `docs/media/` 放图并在这里引入。 */
 const brand = computed(() => SITE.name)

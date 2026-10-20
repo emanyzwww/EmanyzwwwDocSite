@@ -11,7 +11,7 @@ import type { FooterConfig, LocaleMeta, SiteMeta, WidgetName } from '../types'
 const SITE_URL = 'https://emanyzoo.cn'
 
 /** 站点名（导航栏品牌、页脚、SEO 标题后缀）。 */
-const SITE_NAME = 'Emanyzwww'
+const SITE_NAME = 'EmanyzwwwDocSite'
 
 /** 展示与 RSS 使用的时区。固定下来，避免构建机时区不同导致跨日。 */
 const TIME_ZONE = 'Asia/Shanghai'

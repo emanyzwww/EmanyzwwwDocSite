@@ -5,10 +5,7 @@ node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 
-# Vue 单文件组件：oxfmt 对 SFC 的解析尚不稳定，模板部分保持手写格式
-**/*.vue
-
-# 原样输出的静态资源
+# 原样输出的静态资源（不参与格式化）
 docs/public/
 
 # 锁文件与工具配置

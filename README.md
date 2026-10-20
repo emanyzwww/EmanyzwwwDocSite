@@ -170,6 +170,27 @@ widgets: ['profile', 'tags', 'custom'],
 | `print.css`      | 打印样式                             |
 | `index.css`      | 入口，按上面的顺序 `@import`         |
 
+### 代码格式化
+
+```powershell
+pnpm format        # 格式化：docs 下的 md / ts / vue / css，以及 README
+pnpm format:check  # 只检查不写入（提交前或 CI 用）
+```
+
+**格式化范围包括主题代码**：`docs/.vitepress/theme/**` 下的 `.vue`、`.ts` 和
+`docs/.vitepress/**` 下的配置与构建期脚本都在内，改完主题顺手跑一下即可。
+
+默认不处理：`node_modules`、`docs/public`（原样输出的静态资源）、
+`docs/.vitepress/{dist,cache}`（构建产物）、锁文件。
+
+两个与 Vue 有关的细节（`oxfmt` 的行为，已配置好，了解即可）：
+
+1. `.vue` 的属性只在超长时才换行（见 `.oxfmtrc.json` 里 `**/*.vue` 的覆盖）。
+   若沿用全局的 `singleAttributePerLine`，每个属性都会独占一行，模板会膨胀两三倍。
+2. `oxfmt` 会把所有 `import` 提到 `<script setup>` 最前面，**因此组件说明注释不要写在
+   import 之上**——否则会被留在原地，夹在两条 import 中间。正确位置是放在
+   import 块之后、第一条语句之前。
+
 ---
 
 ## 五、暗色 / 亮色模式

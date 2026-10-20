@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import { useAdjacentPosts } from '../../composables/useAdjacentPosts'
+import { useI18n } from '../../i18n'
+import { href } from '../../support/paths'
+import AppIcon from '../common/AppIcon.vue'
+
 /**
  * 上一篇 / 下一篇。
  *
  * 顺序：更早的排在左边（上一篇），更新的排在右边（下一篇），
  * 与旧站 `PrevInSection` / `NextInSection` 一致。
  */
-import { useAdjacentPosts } from '../../composables/useAdjacentPosts'
-import { useI18n } from '../../i18n'
-import AppIcon from '../common/AppIcon.vue'
-import { href } from '../../support/paths'
 
 const { m } = useI18n()
 const { previous, next } = useAdjacentPosts()

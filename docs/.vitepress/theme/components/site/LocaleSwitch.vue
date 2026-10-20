@@ -1,16 +1,17 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+import { useLocaleSwitch } from '../../composables/useLocaleSwitch'
+import { format, useI18n } from '../../i18n'
+import { localizedHref } from '../../support/paths'
+import AppIcon from '../common/AppIcon.vue'
+
 /**
  * 语言切换。
  *
  * 行为与旧站一致：一个图标按钮 + 下拉菜单，Esc 关闭、点击外部关闭、
  * 焦点回到触发按钮。目标地址的推导规则见 `useLocaleSwitch`。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-
-import AppIcon from '../common/AppIcon.vue'
-import { useLocaleSwitch } from '../../composables/useLocaleSwitch'
-import { format, useI18n } from '../../i18n'
-import { localizedHref } from '../../support/paths'
 
 const { m, locale } = useI18n()
 const { options } = useLocaleSwitch()
@@ -69,8 +70,7 @@ onBeforeUnmount(() => {
       :aria-expanded="open ? 'true' : 'false'"
       :aria-label="triggerLabel"
       :title="m.switchLanguage"
-      @click.stop="toggle"
-    >
+      @click.stop="toggle">
       <AppIcon :name="currentIcon" />
     </button>
 

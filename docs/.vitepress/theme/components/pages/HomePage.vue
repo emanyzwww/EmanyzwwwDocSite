@@ -1,16 +1,6 @@
 <script setup lang="ts">
-/**
- * 首页（`frontmatter.layout: home`）。
- *
- * 结构：页面标题 + 正文 + 最近若干篇文章卡片 + 「查看全部文章」入口。
- * 文章条数与列表地址分别来自 `data/site.ts` 与 `support/paths.ts`。
- *
- * 标题取 `page.title`（frontmatter 里的标题），不用 `useData().title`
- * ——后者会拼上站点名，用于 `<title>` 合适，用于页面大标题就重复了。
- */
-import { computed } from 'vue'
-
 import { useData } from 'vitepress'
+import { computed } from 'vue'
 
 import { SITE } from '../../../data/site'
 import { usePosts } from '../../composables/usePosts'
@@ -20,6 +10,16 @@ import AppIcon from '../common/AppIcon.vue'
 import EmptyState from '../common/EmptyState.vue'
 import TwoColumn from '../layout/TwoColumn.vue'
 import PostCard from '../post/PostCard.vue'
+
+/**
+ * 首页（`frontmatter.layout: home`）。
+ *
+ * 结构：页面标题 + 正文 + 最近若干篇文章卡片 + 「查看全部文章」入口。
+ * 文章条数与列表地址分别来自 `data/site.ts` 与 `support/paths.ts`。
+ *
+ * 标题取 `page.title`（frontmatter 里的标题），不用 `useData().title`
+ * ——后者会拼上站点名，用于 `<title>` 合适，用于页面大标题就重复了。
+ */
 
 const { page, frontmatter } = useData()
 const { locale, m } = useI18n()

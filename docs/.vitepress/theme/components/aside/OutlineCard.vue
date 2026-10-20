@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { useData } from 'vitepress'
+import { computed } from 'vue'
+
+import { useActiveAnchor } from '../../composables/useActiveAnchor'
+import { useI18n } from '../../i18n'
+import AppIcon from '../common/AppIcon.vue'
+
 /**
  * 目录卡（右栏）。
  *
@@ -9,13 +16,6 @@
  * - 旧站把 HTML 字符串塞进 `v-html`，无法做无障碍处理；
  * - 这里渲染成真正的 `<ul>`，并给当前项加 `aria-current="true"`。
  */
-import { computed } from 'vue'
-
-import { useData } from 'vitepress'
-
-import { useActiveAnchor } from '../../composables/useActiveAnchor'
-import { useI18n } from '../../i18n'
-import AppIcon from '../common/AppIcon.vue'
 
 const { page } = useData()
 const { m } = useI18n()
@@ -66,8 +66,7 @@ const hasOutline = computed(() => tree.value.length > 0)
         <a
           :href="`#${node.slug}`"
           :class="{ 'is-active': activeId === node.slug }"
-          :aria-current="activeId === node.slug ? 'true' : undefined"
-        >
+          :aria-current="activeId === node.slug ? 'true' : undefined">
           {{ node.title }}
         </a>
         <ul v-if="node.children.length">
@@ -75,8 +74,7 @@ const hasOutline = computed(() => tree.value.length > 0)
             <a
               :href="`#${child.slug}`"
               :class="{ 'is-active': activeId === child.slug }"
-              :aria-current="activeId === child.slug ? 'true' : undefined"
-            >
+              :aria-current="activeId === child.slug ? 'true' : undefined">
               {{ child.title }}
             </a>
           </li>

@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
+import type { IconName } from '../../../types'
+import { getIcon, STROKE_WIDTH } from '../../support/icons'
+
 /**
  * 图标组件。
  *
@@ -6,10 +11,6 @@
  * 尺寸由 CSS 决定（`.icon` 默认 1em），颜色跟随 `currentColor`，
  * 因此明暗主题与悬停态都不需要额外处理。
  */
-import { computed } from 'vue'
-
-import type { IconName } from '../../../types'
-import { getIcon, STROKE_WIDTH } from '../../support/icons'
 
 const props = withDefaults(
   defineProps<{
@@ -37,6 +38,5 @@ const strokeWidth = computed(() => icon.value.strokeWidth ?? STROKE_WIDTH)
     stroke-linejoin="round"
     aria-hidden="true"
     focusable="false"
-    v-html="icon.body"
-  />
+    v-html="icon.body" />
 </template>

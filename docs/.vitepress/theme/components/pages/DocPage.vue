@@ -1,14 +1,6 @@
 <script setup lang="ts">
-/**
- * 文档 / 文章页（默认布局）。
- *
- * 判断「是不是文章」不靠路径判断，而是看构建期的文章数据里能否匹配到当前页，
- * 因此把任何页面加进 `posts/` 并写 `date`，就会自动获得文章的全部行为
- * （元信息、返回列表、上下篇、进度条）。
- */
-import { computed } from 'vue'
-
 import { useData, withBase } from 'vitepress'
+import { computed } from 'vue'
 
 import { SITE } from '../../../data/site'
 import { useCurrentPost } from '../../composables/useCurrentPost'
@@ -20,6 +12,14 @@ import ProgressBar from '../common/ProgressBar.vue'
 import ThreeColumn from '../layout/ThreeColumn.vue'
 import PostMeta from '../post/PostMeta.vue'
 import PostNav from '../post/PostNav.vue'
+
+/**
+ * 文档 / 文章页（默认布局）。
+ *
+ * 判断「是不是文章」不靠路径判断，而是看构建期的文章数据里能否匹配到当前页，
+ * 因此把任何页面加进 `posts/` 并写 `date`，就会自动获得文章的全部行为
+ * （元信息、返回列表、上下篇、进度条）。
+ */
 
 const { frontmatter, page } = useData()
 const { locale, m } = useI18n()
