@@ -1,0 +1,62 @@
+/* =========================================================
+   打印样式
+   ========================================================= */
+
+@media print {
+  .site-header,
+  .site-footer,
+  .layout__aside,
+  .pagination,
+  .post-nav,
+  .skip-link,
+  .reading-progress,
+  .prose div[class*='language-'] > button.copy {
+    display: none !important;
+  }
+
+  .layout,
+  .layout--three {
+    display: block;
+    padding: 0;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  .prose a::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.85em;
+    color: #555;
+  }
+
+  /* 代码块在纸上必须浅底黑字，深色背景会浪费墨且看不清 */
+  .prose div[class*='language-'] {
+    background: #f5f5f5;
+    color: #000;
+    border: 1px solid #ddd;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .prose div[class*='language-'] > pre {
+    background: #f5f5f5 !important;
+    white-space: pre-wrap;
+  }
+
+  .prose div[class*='language-'] > pre > code,
+  .prose div[class*='language-'] > pre > code span {
+    color: #000 !important;
+  }
+
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+
+  img {
+    break-inside: avoid;
+  }
+}

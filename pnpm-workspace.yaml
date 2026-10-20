@@ -1,0 +1,7 @@
+# pnpm 允许执行的构建脚本。
+# esbuild 需要 postinstall 校验平台二进制；其余依赖不需要。
+# pnpm 10 读 onlyBuiltDependencies，pnpm 11+ 读 allowBuilds，两者都写以兼容。
+onlyBuiltDependencies:
+  - esbuild
+allowBuilds:
+  esbuild: true

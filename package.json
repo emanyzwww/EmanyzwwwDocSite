@@ -1,22 +1,32 @@
 {
   "name": "emanyzwww-doc-site",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Hugo 静态站点：内容与主题格式化",
   "type": "module",
+  "description": "个人站点：VitePress 1.6.4 + TypeScript + 自定义主题",
   "scripts": {
-    "format": "node scripts/format.js",
-    "format:check": "node scripts/format.js --check",
-    "format:md": "node scripts/format.js content data README.md",
-    "format:theme": "node scripts/format.js assets",
-    "dev": "hugo server -D",
-    "build": "hugo --gc --minify --cleanDestinationDir",
-    "clean": "node -e \"const fs=require('fs');for(const d of ['public','resources'])fs.rmSync(d,{recursive:true,force:true})\""
+    "dev": "vitepress dev docs",
+    "build": "vitepress build docs",
+    "preview": "vitepress preview docs",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "format": "oxfmt --write docs README.md --ignore-path .oxfmtignore",
+    "format:check": "oxfmt --check docs README.md --ignore-path .oxfmtignore",
+    "clean": "node -e \"for (const d of ['docs/.vitepress/dist','docs/.vitepress/cache']) require('fs').rmSync(d,{recursive:true,force:true})\""
   },
   "devDependencies": {
-    "oxfmt": "^0.73.0"
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.13.1",
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^14.1.0",
+    "oxfmt": "^0.73.0",
+    "typescript": "^5.7.3",
+    "vitepress": "1.6.4",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.0"
   },
   "engines": {
     "node": ">=20"
   }
 }
+
+

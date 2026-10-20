@@ -2,11 +2,10 @@
 #  推送到 master 后自动构建并发布到 GitHub Pages
 #
 #  要点：
-#  - 不改动 hugo.toml 里的 baseURL（仍是你自己的域名）
-#  - 构建时用 --baseURL 覆盖成 GitHub Pages 的实际地址
-#  - 项目型站点会自动带上 /<仓库名>/ 子路径
-#
-#  首次使用需在仓库里设置一次：
+#  - 站点域名仍以 docs/.vitepress/data/site.ts 里的 url 为准（用于 sitemap / RSS）
+#  - 构建时用 VP_BASE / VP_SITE_URL 覆盖「部署路径」与「绝对地址」，
+#    因此项目型站点（https://owner.github.io/repo/）也能正确生成链接
+#  - 首次使用需在仓库里设置一次：
 #    Settings -> Pages -> Build and deployment -> Source 选「GitHub Actions」
 # =========================================================
 name: Deploy to GitHub Pages
@@ -37,53 +36,60 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          # 与本地保持一致，避免 CI 与本地渲染结果不同
-          hugo-version: "0.168.0"
-          extended: true
+          version: 10
 
-      # 计算本次部署的 baseURL：
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # 计算本次部署的 base 与站点地址：
       #   仓库名形如 xxx.github.io  -> 用户站点，根路径
       #   其他仓库名                 -> 项目站点，带 /<仓库名>/ 子路径
-      # 若在仓库变量里设置了 HUGO_BASEURL（例如以后绑定自定义域名），则优先使用它
-      - name: Resolve baseURL
-        id: baseurl
+      # 若在仓库变量里设置了 SITE_URL（例如以后绑定自定义域名），则优先使用它
+      - name: Resolve deployment URLs
+        id: urls
         env:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
-          OVERRIDE: ${{ vars.HUGO_BASEURL }}
+          OVERRIDE: ${{ vars.SITE_URL }}
         run: |
           set -euo pipefail
-          if [ -n "${OVERRIDE}" ]; then
-            URL="${OVERRIDE}"
-          elif [[ "${REPO}" == *.github.io ]]; then
-            URL="https://${OWNER}.github.io/"
+          if [[ "${REPO}" == *.github.io ]]; then
+            BASE="/"
+            DEFAULT_HOME="https://${OWNER}.github.io/"
           else
-            URL="https://${OWNER}.github.io/${REPO}/"
+            BASE="/${REPO}/"
+            DEFAULT_HOME="https://${OWNER}.github.io/${REPO}/"
           fi
-          # Hugo 的 baseURL 需要以斜杠结尾
-          if [[ "${URL}" != */ ]]; then URL="${URL}/"; fi
-          echo "url=${URL}" >> "$GITHUB_OUTPUT"
-          echo "本次构建使用 baseURL = ${URL}"
+          HOME_URL="${OVERRIDE:-$DEFAULT_HOME}"
+          # 站点地址不带结尾斜杠，base 必须以斜杠开头和结尾
+          HOME_URL="${HOME_URL%/}"
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "home=${HOME_URL}" >> "$GITHUB_OUTPUT"
+          echo "本次部署 base=${BASE}，站点地址=${HOME_URL}"
 
       - name: Build
+        env:
+          VP_BASE: ${{ steps.urls.outputs.base }}
+          VP_SITE_URL: ${{ steps.urls.outputs.home }}
         run: |
           set -euo pipefail
-          hugo \
-            --gc \
-            --minify \
-            --baseURL "${{ steps.baseurl.outputs.url }}"
-          echo "产物文件数：$(find ./public -type f | wc -l)"
+          pnpm build
+          echo "产物文件数：$(find ./docs/.vitepress/dist -type f | wc -l)"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./public
+          path: ./docs/.vitepress/dist
 
   deploy:
     needs: build

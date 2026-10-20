@@ -1,0 +1,160 @@
+/* =========================================================
+   布局骨架：容器、两栏 / 三栏网格、粘性侧栏
+   ========================================================= */
+
+/* ---------- 容器 ---------- */
+
+.container {
+  width: 100%;
+  max-width: var(--layout-max);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+/* ---------- 页面外壳 ---------- */
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.page-shell__main {
+  flex: 1 0 auto;
+  width: 100%;
+}
+
+/* ---------- 两栏（首页 / 列表） ---------- */
+
+.layout {
+  display: grid;
+  /* main 在第二列（宽），aside 在第一列（窄），与 DOM 顺序无关 */
+  grid-template-columns: var(--aside-width) minmax(0, 1fr);
+  gap: var(--layout-gap);
+  align-items: start;
+  padding-block: var(--space-8) var(--space-16);
+}
+
+.layout__main {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.layout__aside {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+
+  /* 固定悬浮：滚动正文时侧栏始终可见 */
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-4));
+
+  /* 侧栏内容可能比视口更高：限制高度并内部滚动，
+     这样长侧栏不会被裁掉，也不会顶住页头 */
+  max-height: calc(100vh - var(--header-height) - var(--space-8));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  padding-right: var(--space-1);
+}
+
+/* 侧栏滚动条平时淡出，悬停时才明显，减少视觉噪音 */
+.layout__aside::-webkit-scrollbar {
+  width: 6px;
+}
+
+.layout__aside::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+
+.layout__aside:hover::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+}
+
+/* ---------- 三栏（文章页）：左卡片 | 正文 | 右目录 ---------- */
+
+.layout--three {
+  grid-template-columns: var(--aside-width) minmax(0, 1fr) var(--aside-width);
+}
+
+.layout--three .layout__main {
+  grid-column: 2;
+}
+
+.layout--three .layout__aside--left {
+  grid-column: 1;
+}
+
+.layout--three .layout__aside--right {
+  grid-column: 3;
+  order: 0;
+}
+
+.layout__aside--right {
+  order: 3;
+}
+
+/* 三栏先降级：右侧目录移到正文下方 */
+@media (max-width: 1120px) {
+  .layout--three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .layout--three .layout__main {
+    grid-column: 1;
+  }
+
+  .layout--three .layout__aside,
+  .layout--three .layout__aside--left,
+  .layout--three .layout__aside--right {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+
+  .layout--three .layout__aside--left {
+    order: 2;
+  }
+
+  .layout--three .layout__aside--right {
+    order: 3;
+  }
+}
+
+/* 两栏再降级：侧栏移到正文下方 */
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--space-6) var(--space-12);
+  }
+
+  .layout__main {
+    grid-column: 1;
+  }
+
+  .layout__aside {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    order: 2;
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+}
+
+/* ---------- 正文宽度约束 ---------- */
+
+/* 阅读区不比「最佳阅读宽度」更宽，避免超宽屏下换行过长的眼睛疲劳 */
+.layout__main > .content-measure {
+  max-width: var(--layout-measure);
+}

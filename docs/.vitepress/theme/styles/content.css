@@ -1,0 +1,336 @@
+/* =========================================================
+   正文排版 + 代码块
+   ========================================================= */
+
+/* ---------- 正文容器 ----------
+   VitePress 会把 Markdown 渲染结果包进 `<div style="position:relative"><div>…</div></div>`，
+   为了沿用 Hugo 那套「只给第一层子元素加间距」的排版规则，
+   这里先清掉包裹层的定位与间距，把内容当平级处理。 */
+
+.prose {
+  font-size: var(--text-md);
+  line-height: var(--leading-loose);
+  color: var(--fg-default);
+  overflow-wrap: break-word;
+}
+
+.prose > div {
+  position: static !important;
+}
+
+/* 第一层子元素之间统一间距（覆盖包裹层内部的那一层） */
+.prose > * + *,
+.prose > div > div > * + * {
+  margin-top: var(--space-5);
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  /* VitePress 会给标题注入锚点，滚动定位依赖 scroll-padding-top，
+     这里只处理间距与层级 */
+  margin-top: 0;
+}
+
+.prose > div > div > h2 + *,
+.prose > h2 + * {
+  margin-top: var(--space-3);
+}
+
+.prose h2 {
+  margin-top: var(--space-12);
+  padding-bottom: var(--space-2);
+  font-size: var(--text-xl);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.prose h3 {
+  margin-top: var(--space-8);
+  font-size: var(--text-lg);
+}
+
+.prose h4 {
+  margin-top: var(--space-6);
+  font-size: var(--text-md);
+}
+
+/* 标题旁的自定义锚点：默认隐藏，悬停或聚焦时出现 */
+.prose .header-anchor {
+  float: left;
+  margin-left: -0.8em;
+  padding-right: 0.2em;
+  color: var(--fg-subtle);
+  opacity: 0;
+  text-decoration: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.prose h1:hover .header-anchor,
+.prose h2:hover .header-anchor,
+.prose h3:hover .header-anchor,
+.prose h4:hover .header-anchor,
+.prose .header-anchor:focus-visible {
+  opacity: 1;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: var(--space-6);
+}
+
+.prose li + li {
+  margin-top: var(--space-2);
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: var(--space-2);
+}
+
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-border);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
+.prose a:hover {
+  text-decoration-color: var(--accent);
+}
+
+.prose strong {
+  font-weight: var(--weight-semibold);
+}
+
+.prose blockquote {
+  margin-inline: 0;
+  padding: var(--space-1) 0 var(--space-1) var(--space-5);
+  border-left: 3px solid var(--accent-border);
+  color: var(--fg-muted);
+}
+
+.prose blockquote > * + * {
+  margin-top: var(--space-3);
+}
+
+.prose img {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.prose figure {
+  margin: 0;
+}
+
+.prose figcaption {
+  margin-top: var(--space-2);
+  color: var(--fg-subtle);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* ---------- 表格 ---------- */
+
+.prose table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.prose th,
+.prose td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+  text-align: left;
+}
+
+.prose th {
+  font-weight: var(--weight-semibold);
+  color: var(--fg-muted);
+  background: var(--bg-surface-alt);
+}
+
+/* ---------- 行内代码 ---------- */
+
+.prose :not(pre) > code {
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  font-weight: inherit;
+}
+
+/* ---------- 代码块 ----------
+   VitePress 输出结构：
+     <div class="language-xxx"><button class="copy"></button><span class="lang">xxx</span><pre><code>…</code></pre></div>
+   高亮用 Shiki 单主题（github-dark），因此代码块在明暗两种主题下都是深色。 */
+
+.prose div[class*='language-'] {
+  position: relative;
+  margin-block: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--bg-code);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.prose div[class*='language-'] > pre {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-code) !important;
+  overflow-x: auto;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+
+/* 代码块本身由外层容器负责样式，`pre` 只做滚动容器；
+   VitePress 给 `pre` 加了 tabindex，浏览器会画默认焦点环，这里去掉它自己的环 */
+.prose div[class*='language-'] > pre:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.prose div[class*='language-']:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-border);
+}
+
+.prose div[class*='language-'] > pre > code {
+  display: block;
+  padding: 0;
+  background: none;
+  color: var(--gray-100);
+  font-family: var(--font-mono);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* Shiki 会给 span 加内联色值，深色主题下保持原样即可；
+   只有行内背景（diff 高亮）需要跟随 token 自带颜色。 */
+
+/* 语言标签 */
+.prose div[class*='language-'] > .lang {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  z-index: 2;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--gray-400);
+  user-select: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* 复制按钮：由 VitePress 运行时接管点击，
+   这里只负责外观、悬停显隐与本地化的提示文字 */
+.prose div[class*='language-'] > button.copy {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 3;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid rgb(255 255 255 / 0.16);
+  background-color: rgb(255 255 255 / 0.08);
+  background-image: none;
+  color: var(--gray-300);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+/* 图标用 CSS 画，避免再引一张图片资源 */
+.prose div[class*='language-'] > button.copy::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  box-shadow:
+    3px -3px 0 -1px var(--bg-code),
+    4px -4px 0 0 currentColor;
+}
+
+.prose div[class*='language-']:hover > button.copy,
+.prose div[class*='language-'] > button.copy:focus-visible {
+  opacity: 1;
+}
+
+.prose div[class*='language-'] > button.copy:hover {
+  background-color: rgb(255 255 255 / 0.16);
+  color: var(--white);
+}
+
+/* 复制成功：按钮变绿并显示文字提示 */
+.prose div[class*='language-'] > button.copy.copied {
+  opacity: 1;
+  width: auto;
+  padding-inline: 0.6rem;
+  border-color: rgb(126 231 135 / 0.4);
+  background-color: rgb(126 231 135 / 0.12);
+  color: #7ee787;
+}
+
+.prose div[class*='language-'] > button.copy.copied::after {
+  display: none;
+}
+
+.prose div[class*='language-'] > button.copy.copied::before {
+  content: attr(data-copied-label);
+  font-size: var(--text-xs);
+  font-family: var(--font-sans);
+  line-height: 1.9rem;
+}
+
+/* 按钮出现时让语言标签让位 */
+.prose div[class*='language-']:hover > .lang,
+.prose div[class*='language-'] > button.copy:focus-visible + .lang {
+  opacity: 0;
+}
+
+/* ---------- VitePress 容器（tip / warning / danger / info） ---------- */
+
+.prose .custom-block {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border-subtle);
+  border-left-width: 3px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-alt);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.prose .custom-block .custom-block-title {
+  margin-bottom: var(--space-1);
+  color: var(--fg-default);
+  font-weight: var(--weight-semibold);
+}
+
+.prose .custom-block.tip {
+  border-left-color: var(--accent);
+}
+
+.prose .custom-block.warning {
+  border-left-color: #c98a13;
+}
+
+.prose .custom-block.danger {
+  border-left-color: #d9534f;
+}
+
+.prose .custom-block > * + * {
+  margin-top: var(--space-2);
+}

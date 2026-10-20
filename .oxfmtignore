@@ -1,16 +1,16 @@
-layouts/
-
-# 构建产物与缓存
-public/
-resources/
+# 依赖与产物
 node_modules/
+.pnpm-store/
+.npm-cache/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 
-# 原样输出
-static/
+# Vue 单文件组件：oxfmt 对 SFC 的解析尚不稳定，模板部分保持手写格式
+**/*.vue
 
-# 依赖锁文件
+# 原样输出的静态资源
+docs/public/
+
+# 锁文件与工具配置
 pnpm-lock.yaml
-
-# 工具配置
-.dsh/
 .idea/

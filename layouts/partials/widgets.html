@@ -1,3 +1,0 @@
-{{- /* 侧栏组件：按 hugo.toml 里 params.widgets 的顺序渲染 */ -}} {{- $names := site.Params.widgets
-| default (slice "profile") -}} {{- range $names }} {{- $tpl := printf "widgets/%s.html" . -}} {{-
-if templates.Exists (printf "partials/%s" $tpl) }} {{- partial $tpl $ }} {{- end }} {{- end }}

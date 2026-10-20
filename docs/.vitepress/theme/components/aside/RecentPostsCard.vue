@@ -1,0 +1,30 @@
+<script setup lang="ts">
+/**
+ * 侧栏最近文章卡。
+ *
+ * 数量默认 5 条，可在使用时通过 `limit` 覆盖。
+ */
+import { computed } from 'vue'
+
+import { usePosts } from '../../composables/usePosts'
+import { useI18n } from '../../i18n'
+import { href } from '../../support/paths'
+
+const props = withDefaults(defineProps<{ limit?: number }>(), { limit: 5 })
+
+const { m } = useI18n()
+const { posts } = usePosts()
+
+const recent = computed(() => posts.value.slice(0, props.limit))
+</script>
+
+<template>
+  <section v-if="recent.length" class="card">
+    <p class="card__title">{{ m.recentPosts }}</p>
+    <ul class="mini-list">
+      <li v-for="post in recent" :key="post.url">
+        <a :href="href(post.url)">{{ post.title }}</a>
+      </li>
+    </ul>
+  </section>
+</template>
