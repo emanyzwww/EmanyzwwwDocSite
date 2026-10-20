@@ -3,79 +3,39 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>正在跳转… | EmanyzwwwDocSite</title>
+    <title>EmanyzwwwDocSite</title>
     <meta name="robots" content="noindex, follow" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="alternate" hreflang="zh-CN" href="zh-cn/" />
     <link rel="alternate" hreflang="en" href="en/" />
     <link rel="alternate" hreflang="x-default" href="zh-cn/" />
     <style>
+      /* 只负责底色，避免暗色模式下闪一下白屏；不渲染任何可见内容 */
       :root {
         color-scheme: light dark;
       }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', sans-serif;
+      html {
         background: #fff;
-        color: #1a1a1a;
       }
       @media (prefers-color-scheme: dark) {
-        body {
+        html {
           background: #16171a;
-          color: #e8e8e8;
         }
-        a {
-          color: #8ab4f8;
-        }
-      }
-      main {
-        text-align: center;
-        padding: 2rem;
-        line-height: 1.8;
-      }
-      h1 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin: 0 0 0.5rem;
-      }
-      p {
-        margin: 0 0 1rem;
-        opacity: 0.7;
-        font-size: 0.9rem;
-      }
-      a {
-        color: #3358d9;
-      }
-      ul {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        gap: 1.5rem;
-        justify-content: center;
       }
     </style>
-  </head>
-  <body>
-    <main>
-      <h1>EmanyzwwwDocSite</h1>
-      <p id="hint">正在按浏览器语言跳转…</p>
-      <ul>
-        <li><a href="zh-cn/" hreflang="zh-CN" lang="zh-CN">简体中文</a></li>
-        <li><a href="en/" hreflang="en" lang="en">English</a></li>
-      </ul>
-    </main>
     <script>
       /**
-       * 根路径只做语言分发，不承载内容。
+       * 根路径只做语言分发，**不显示任何内容**。
        *
        * 规则（按优先级）：
        * 1. 用户上次手动选过语言（localStorage）→ 尊重该选择，不再自动跳；
        * 2. 浏览器语言列表里第一个能匹配上的 → 跳过去；
        * 3. 一个都匹配不上 → 落到默认语言（简体中文）。
+       *
+       * 为什么脚本放在 `<head>` 里：它在 `<body>` 解析之前执行，
+       * 浏览器还没机会绘制任何东西就已经跳走了，因此不会出现
+       * 「正在跳转…」这类一闪而过的提示。之前把跳转放在 body 末尾、
+       * 还画了一屏文字，结果就是用户会看到一次很突兀的中转页。
        *
        * 链接一律用**相对地址**（`zh-cn/`、`en/`），这样同一个文件在
        * 本地 dev（`/`）、GitHub Pages 项目站点（`/repo/`）、自定义域名（`/`）
@@ -136,5 +96,15 @@
         window.location.replace(targetOf(locale))
       })()
     </script>
+  </head>
+  <body>
+    <!--
+      正常情况下这段永远不会被看到（脚本在 head 里已经跳走）。
+      只有禁用 JavaScript 时才会显示，作为兜底入口。
+    -->
+    <noscript>
+      <p><a href="zh-cn/" hreflang="zh-CN" lang="zh-CN">简体中文</a></p>
+      <p><a href="en/" hreflang="en" lang="en">English</a></p>
+    </noscript>
   </body>
 </html>

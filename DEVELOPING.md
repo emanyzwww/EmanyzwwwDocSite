@@ -1027,10 +1027,14 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 `public/index.html` 会被原样拷到产物根，作为 `/` 的入口：
 
+- **页面不渲染任何可见内容**：跳转脚本放在 `<head>` 里，在 `<body>` 解析之前就执行
+  `location.replace()`，浏览器还没机会绘制就已经跳走。不要把它改回「body 末尾 + 一段提示文字」
+  ——那会出现一次很突兀的中转页闪现
 - 它**不写死任何域名或 base**，跳转目标是相对路径，靠 `new URL(相对, location)` 解析，
   因此 `/`、`/repo/`、自定义域名三种部署都能正确跳到 `zh-cn/` 或 `en/`
 - 页面带 `noindex`，不进 sitemap，也不参与 hreflang 配对
-- dev 阶段由 `.vitepress/support/dev-redirect.ts` 用 `Accept-Language` 做同样的事
+- `<body>` 里只有一个 `<noscript>` 兜底链接，禁用 JavaScript 时才会显示
+- dev 阶段由 `.vitepress/support/dev-redirect.ts` 用 `Accept-Language` 做同样的事（302）
 
 ---
 
