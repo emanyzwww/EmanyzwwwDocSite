@@ -1,7 +1,7 @@
 /**
  * dev server 的根路径语言跳转（仅开发期生效）。
  *
- * 生产构建时，根路径 `/` 由 `docs/public/index.html` 承担跳转，靠浏览器端的
+ * 生产构建时，根路径 `/` 由 `public/index.html` 承担跳转，靠浏览器端的
  * `navigator.languages` + `localStorage` 判断。但 dev server 里 `/` 会被 Vite
  * 当作 SPA 入口接管，`public/index.html` 不会生效，页面会是一片空白。
  *

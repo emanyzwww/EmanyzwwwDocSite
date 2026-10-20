@@ -17,7 +17,7 @@ const { m, locale } = useI18n()
 /**
  * 「回到首页」指向**当前语言的首页**，不能指向站点根 `/`。
  *
- * `/` 是 `docs/public/index.html` 那份静态跳转页，不在 VitePress 路由表里；
+ * `/` 是 `public/index.html` 那份静态跳转页，不在 VitePress 路由表里；
  * 而 404 页本身就处在客户端路由中，跳到 `/` 只会再渲染一次 404，形成死循环。
  */
 const homeLink = computed(() => href(withLocale('/', locale.value)))

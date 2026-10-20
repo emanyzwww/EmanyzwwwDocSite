@@ -1,7 +1,7 @@
 /**
  * 个人资料。
  *
- * 头像只写文件名，实际文件放在 `docs/media/`：
+ * 头像只写文件名，实际文件放在 `media/`：
  * 组件通过 Vite 的资源导入解析成带内容指纹的 URL，
  * 因此「换图不换文件名」也会立刻生效（浏览器缓存自动失效）。
  */
@@ -9,7 +9,7 @@
 import type { Profile } from '../types'
 
 export const PROFILE: Profile = {
-  // 头像文件名（位于 docs/media/）；留空则不显示头像
+  // 头像文件名（位于 media/）；留空则不显示头像
   avatar: 'avatar.png',
 
   name: 'Emanyzwww',

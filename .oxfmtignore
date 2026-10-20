@@ -7,7 +7,8 @@ node_modules/
 .vitepress/.temp/
 
 # 原样输出的静态资源（不参与格式化）
-docs/public/
+public/
+media/
 
 # 锁文件与工具配置
 pnpm-lock.yaml

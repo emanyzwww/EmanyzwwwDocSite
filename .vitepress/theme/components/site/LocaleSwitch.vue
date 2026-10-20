@@ -12,11 +12,11 @@ import AppIcon from '../common/AppIcon.vue'
  * 行为与旧站一致：一个图标按钮 + 下拉菜单，Esc 关闭、点击外部关闭、
  * 焦点回到触发按钮。目标地址的推导规则见 `useLocaleSwitch`。
  *
- * 点过某个语言后记到 `localStorage`，根路径的自动跳转（`docs/public/index.html`）
+ * 点过某个语言后记到 `localStorage`，根路径的自动跳转（`public/index.html`）
  * 会优先尊重这个选择，不再按浏览器语言重新猜一次。
  */
 
-/** 与 `docs/public/index.html` 里必须保持一致的存储键。 */
+/** 与 `public/index.html` 里必须保持一致的存储键。 */
 const LOCALE_STORAGE_KEY = 'emanyzwww-locale'
 
 const { m, locale } = useI18n()

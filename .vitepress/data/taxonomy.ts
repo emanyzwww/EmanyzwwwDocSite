@@ -7,7 +7,7 @@
  *   export const TAG_SLUGS = { 随笔: 'essay' }   // /tags/随笔/ → /tags/essay/
  *
  * 注意：改了 slug 就等于换了地址，旧地址会 404；如需保留旧链接，
- * 可在 `docs/public/` 下放跳转页，或干脆不改。
+ * 可在 `public/` 下放跳转页，或干脆不改。
  */
 
 /** 标签原文 → URL 片段。 */

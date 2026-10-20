@@ -1,7 +1,7 @@
 /**
  * robots.txt 生成（仅构建期，由 `buildEnd` 调用）。
  *
- * 为什么不在 `docs/public/robots.txt` 里写死：
+ * 为什么不在 `public/robots.txt` 里写死：
  * 项目型 GitHub Pages 的站点根是 `/<repo>/`，而 `Sitemap:` 必须是**绝对地址**
  * （robots 协议不允许相对路径）。写死的域名在部署到 Pages 后就会指向一个
  * 根本不存在的站点，所以这里与 sitemap 共用同一个 hostname（由调用方传入）。

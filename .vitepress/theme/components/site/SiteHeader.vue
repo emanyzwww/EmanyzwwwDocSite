@@ -18,13 +18,13 @@ import ThemeToggle from './ThemeToggle.vue'
 
 const { locale } = useI18n()
 
-/** 品牌名；想加 logo 就在 `docs/media/` 放图并在这里引入。 */
+/** 品牌名；想加 logo 就在 `media/` 放图并在这里引入。 */
 const brand = computed(() => SITE.name)
 
 /**
  * 品牌链接指向**当前语言的首页**（`/zh-cn/`、`/en/`），不是站点根 `/`。
  *
- * 根路径 `/` 只是 `docs/public/index.html` 这份静态跳转页，它**不在 VitePress
+ * 根路径 `/` 只是 `public/index.html` 这份静态跳转页，它**不在 VitePress
  * 的路由表里**（`docs/` 下没有 `index.md`）。而 VitePress 的客户端路由会拦截站内
  * `<a>` 点击、按路由表解析目标：指向 `/` 时查不到页面，会直接渲染成 404。
  * 所以任何站内链接都不能写 `/`，一律用 `withLocale` 带上语言前缀。

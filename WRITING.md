@@ -205,11 +205,11 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 | 位置                       | 引用方式           | URL 形态                | 换图后自动生效          | 适用场景                       |
 | -------------------------- | ------------------ | ----------------------- | ----------------------- | ------------------------------ |
 | `docs/zh-cn/posts/文章名/` | `![](./图.png)`    | `/assets/图.<hash>.png` | ✅ 会（Vite 处理）      | 文章自己的配图                 |
-| `docs/media/`              | 配置里写**文件名** | `/assets/图.<hash>.png` | ✅ 会（本站的指纹机制） | 头像、logo 等会替换的图        |
-| `docs/public/`             | `/图.png`          | `/图.png`（原样）       | ❌ 不会                 | favicon、robots.txt 等固定资源 |
+| `media/`                   | 配置里写**文件名** | `/assets/图.<hash>.png` | ✅ 会（本站的指纹机制） | 头像、logo 等会替换的图        |
+| `public/`                  | `/图.png`          | `/图.png`（原样）       | ❌ 不会                 | favicon、robots.txt 等固定资源 |
 
 前两个都会在 URL 里带上内容哈希（实测：`banner.png` → `/assets/banner.DXVcoPer.png`），
-所以**只要重新构建过**，换图就会生效。只有 `docs/public/` 是原样拷贝、URL 恒定。
+所以**只要重新构建过**，换图就会生效。只有 `public/` 是原样拷贝、URL 恒定。
 
 ### 为什么「换了图没变」
 
@@ -223,10 +223,10 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 1. 有没有重新 `pnpm build`（dev 模式的缓存不算）
 2. 部署是否已完成（Actions 要 1–3 分钟）
 3. 强制刷新 `Ctrl + F5`
-4. 图是不是放在 `docs/public/` 了（那里不带哈希）
+4. 图是不是放在 `public/` 了（那里不带哈希）
 
-**结论**：会被替换的图放 `docs/media/`（配置引用）或直接用相对路径（文章配图）；
-`docs/public/` 只放 favicon 这类永不改名的文件。
+**结论**：会被替换的图放 `media/`（配置引用）或直接用相对路径（文章配图）；
+`public/` 只放 favicon 这类永不改名的文件。
 
 ### 文章配图（最常用）
 
@@ -243,7 +243,7 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 
 ### 头像 / logo（会替换的图）
 
-1. 把图放到 `docs/media/`，比如 `docs/media/avatar.png`
+1. 把图放到 `media/`，比如 `media/avatar.png`
 2. 在 `.vitepress/data/profile.ts` 里写**文件名**：
 
 ```ts
@@ -257,11 +257,11 @@ export const PROFILE: Profile = {
 
 ### 站内固定资源
 
-`docs/public/` 下的文件会**原样拷贝**到输出根目录：
+`public/` 下的文件会**原样拷贝**到输出根目录：
 
 ```text
-docs/public/index.html    →  /index.html      （根路径的语言跳转页）
-docs/public/favicon.svg   →  /favicon.svg
+public/index.html    →  /index.html      （根路径的语言跳转页）
+public/favicon.svg   →  /favicon.svg
 ```
 
 `robots.txt` 不在这里：它由 `.vitepress/support/robots.ts` 在构建结束时生成，
@@ -343,7 +343,7 @@ docs/en/posts/hello-world/index.md      →  /en/posts/hello-world/
 
 ### 根路径 `/` 怎么处理
 
-`/` 不承载内容，只做语言分发（文件是 `docs/public/index.html`）：
+`/` 不承载内容，只做语言分发（文件是 `public/index.html`）：
 
 1. 你之前在语言按钮上手动选过语言 → 尊重这个选择；
 2. 否则看浏览器语言：`zh-*` → `/zh-cn/`，`en-*` → `/en/`；
@@ -372,7 +372,7 @@ docs/en/posts/hello-world/index.md      →  /en/posts/hello-world/
 两种做法：
 
 - **各放一份**：`docs/en/posts/hello-world/banner.png`（简单，但占两份空间）
-- **用 `docs/media/`**：两边都引用同一个文件名（省空间，但失去「放一起」的便利）
+- **用 `media/`**：两边都引用同一个文件名（省空间，但失去「放一起」的便利）
 
 现在的 `hello-world` 用的是各放一份（两个 1.9 MB 的文件）。
 
@@ -426,7 +426,7 @@ tags: [] # 空数组 = 没有标签，也能正常工作
 
 - 想重命名 `随笔` → `杂谈`：把所有文章的 `tags: ['随笔']` 改成 `tags: ['杂谈']`
 - 想合并：把两个标签在文章里统一成同一个
-- 改完后旧标签页会自动消失，旧链接 404（需要的话可在 `docs/public/` 放跳转页）
+- 改完后旧标签页会自动消失，旧链接 404（需要的话可在 `public/` 放跳转页）
 
 批量替换可以用编辑器的「在文件夹中替换」，注意**只替换 `tags:` 行**。
 
@@ -536,10 +536,10 @@ docs/zh-cn/posts/旧名字/index.md  →  docs/zh-cn/posts/新名字/index.md
 
 如果只是标题不合适，**改 `title`，别改目录名**。
 
-真要改的话，可以在 `docs/public/` 放一个跳转页保住旧链接：
+真要改的话，可以在 `public/` 放一个跳转页保住旧链接：
 
 ```html
-<!-- docs/public/zh-cn/posts/旧名字/index.html -->
+<!-- public/zh-cn/posts/旧名字/index.html -->
 <!doctype html>
 <meta
   http-equiv="refresh"
@@ -709,10 +709,10 @@ int main() {
 
 见 [第三节](#三图片怎么放)。最常见的两个原因：
 
-- 图片放在了 `docs/public/`（那里不带哈希，URL 恒定）
+- 图片放在了 `public/`（那里不带哈希，URL 恒定）
 - 换完没重新构建 / 部署还没跑完
 
-文章配图和 `docs/media/` 下的图都带内容哈希，重建后会自动生效。
+文章配图和 `media/` 下的图都带内容哈希，重建后会自动生效。
 
 ### 4. 中文 URL 看起来乱码
 

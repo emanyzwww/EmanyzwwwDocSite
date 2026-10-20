@@ -6,6 +6,8 @@
  * 个人信息在 `data/profile.ts`，界面文案在 `theme/i18n/`——各管一块，互不干扰。
  */
 
+import { fileURLToPath } from 'node:url'
+
 import { defineConfig } from 'vitepress'
 
 import { DEFAULT_LOCALE, LOCALES, SITE } from './data/site'
@@ -75,6 +77,14 @@ export default defineConfig({
 
   // ---------- Vite ----------
   vite: {
+    /**
+     * `public/` 在仓库根（与 `media/` 一起，属于站点资源而非内容）。
+     *
+     * 必须给**绝对路径**：Vite 的 `publicDir` 相对 root（= `srcDir`，即 `docs/`）
+     * 解析，写成 `'public'` 会落到并不存在的 `docs/public`，于是 favicon 与
+     * 根路径跳转页都不会被拷贝，dev 下也会被 SPA fallback 吞掉。
+     */
+    publicDir: fileURLToPath(new URL('../public', import.meta.url)),
     plugins: [devRootRedirect(BASE)],
     server: {
       /**

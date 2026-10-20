@@ -93,7 +93,7 @@ export interface ProfileLink {
 
 /** 个人资料（数据源：`data/profile.ts`，构建期渲染 bio 后下发）。 */
 export interface Profile {
-  /** `docs/media/` 下的文件名；留空则不显示头像。 */
+  /** `media/` 下的文件名；留空则不显示头像。 */
   avatar: MediaFile
   name: string
   tagline: string

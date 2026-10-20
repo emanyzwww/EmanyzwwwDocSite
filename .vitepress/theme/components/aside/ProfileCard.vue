@@ -12,7 +12,7 @@ import AppIcon from '../common/AppIcon.vue'
  * 个人资料卡。
  *
  * 数据来自 `data/profile.ts`；`bio` 已在构建期渲染为 HTML（`profile.data.ts`），
- * 头像通过 `docs/media/` 的资源导入拿到带指纹的地址。
+ * 头像通过 `media/` 的资源导入拿到带指纹的地址。
  */
 
 const { locale } = useI18n()

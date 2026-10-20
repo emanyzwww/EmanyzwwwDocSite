@@ -47,7 +47,7 @@ export const SITE: SiteMeta = {
  *
  * `zh-cn` 与 `en` 地位对等：各自一个内容目录（`docs/zh-cn/`、`docs/en/`），
  * 各自一个 URL 前缀（`/zh-cn/`、`/en/`）。根路径 `/` 只放语言重定向，
- * 由浏览器语言决定落到哪边（见 `docs/public/index.html`）。
+ * 由浏览器语言决定落到哪边（见 `public/index.html`）。
  *
  * 新增语言时：这里加一条、`config.ts` 的 locales 加一段、`theme/i18n/` 加一份文案。
  */

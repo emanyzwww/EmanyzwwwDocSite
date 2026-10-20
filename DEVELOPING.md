@@ -102,15 +102,16 @@ Vue 组件  ──►  HTML
    ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动
    └─ styles/             9 个分层样式
 
-docs/                      ← 只有内容与静态资源
+docs/                      ← 只有内容
 ├─ zh-cn/                 中文站（URL `/zh-cn/`）
 │  ├─ index.md            首页（layout: home）
 │  ├─ about/index.md
 │  ├─ posts/              文章（含 page/[page]/ 分页动态路由）
 │  └─ tags/               标签总览 + [tag]/ 动态路由
-├─ en/                    英文站（URL `/en/`），结构完全对应
-├─ media/                 会换的图（头像等），走 Vite 指纹
-└─ public/                原样拷贝：favicon、根路径语言跳转页
+└─ en/                    英文站（URL `/en/`），结构完全对应
+
+media/                     ← 会换的图（头像等），走 Vite 指纹
+public/                    ← 原样拷贝：favicon、根路径语言跳转页
 ```
 
 带 ★ 的是**日常最常改的**。
@@ -118,6 +119,11 @@ docs/                      ← 只有内容与静态资源
 > `.vitepress` 在仓库根而不是 `docs/` 里，因此 `config.ts` 必须显式声明
 > `srcDir: 'docs'`、`outDir: '.vitepress/dist'`、`cacheDir: '.vitepress/cache'`。
 > 否则 VitePress 会按命令行传入的 root（`.`）解析成 `./dist`、`./cache`。
+>
+> `public/` 同理：Vite 的 `publicDir` 相对 root（= `srcDir`）解析，默认会去找
+> `docs/public`。因此配置里用**绝对路径**指向仓库根的 `public/`
+> （`fileURLToPath(new URL('../public', import.meta.url))`），
+> 否则 favicon 与根路径跳转页都不会进产物。
 
 ### 两类 `support/` 的区别（容易混）
 
@@ -182,7 +188,7 @@ export const SITE: SiteMeta = {
 没有「默认语言不带前缀」的特例。新增语言就是三件事：
 加 `docs/<code>/` 目录、加 `LOCALES` 一条、加 `locales` 一段（外加 `theme/i18n/` 一份文案）。
 
-**根路径 `/` 不承载内容**：`docs/public/index.html` 会按浏览器语言跳到
+**根路径 `/` 不承载内容**：`public/index.html` 会按浏览器语言跳到
 `/zh-cn/` 或 `/en/`，匹配不上时落到 `DEFAULT_LOCALE`；用户在语言按钮上手动选过的
 语言记在 `localStorage`（键 `emanyzwww-locale`），优先级高于浏览器语言。
 dev 阶段由 `.vitepress/support/dev-redirect.ts` 用 `Accept-Language` 做同样的跳转。
@@ -211,7 +217,7 @@ export const NAV = {
 
 ```ts
 export const PROFILE: Profile = {
-  avatar: 'avatar.png', // docs/media/ 下的文件名
+  avatar: 'avatar.png', // media/ 下的文件名
   name: 'Emanyzwww',
   tagline: '余晏舟',
   bio: '支持 Markdown',
@@ -694,7 +700,7 @@ export const TAG_LABELS: Record<string, string> = {
 }
 ```
 
-**改 slug = 换地址 = 旧链接 404**。要保留旧链接，在 `docs/public/` 放跳转页。
+**改 slug = 换地址 = 旧链接 404**。要保留旧链接，在 `public/` 放跳转页。
 
 ### 分页
 
@@ -856,7 +862,7 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 ③ data/site.ts → LOCALES 删 en、NAV 删 en
 ④ types.ts → LocaleCode 改成只有 'zh-cn'（TS 会指出所有要改的地方）
 ⑤ theme/i18n/ → 删 en.ts，MESSAGES 删对应项
-⑥ docs/public/index.html → SUPPORTED 数组删掉 'en'
+⑥ public/index.html → SUPPORTED 数组删掉 'en'
 ⑦ 组件里的语言下拉会自动只剩一项（LocaleSwitch 的逻辑会处理）
 ```
 
@@ -887,7 +893,7 @@ pnpm build         # 构建（也会暴露类型问题）
 ```text
 node_modules / .pnpm-store / .npm-cache
 .vitepress/dist / .vitepress/cache
-docs/public          # 原样输出的静态资源
+public          # 原样输出的静态资源
 pnpm-lock.yaml
 ```
 
@@ -969,7 +975,7 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 - 仓库 Settings → Pages → Source 必须是 **GitHub Actions**
 - 绑定自定义域名时：
-  - `docs/public/CNAME` 写域名
+  - `public/CNAME` 写域名
   - `data/site.ts` 的 `SITE_URL` 改成同一域名
   - 仓库变量 `SITE_URL` 也改成同一域名
 
@@ -977,7 +983,7 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 ```text
 ① data/site.ts → SITE_URL
-② docs/public/CNAME（如用自定义域名）
+② public/CNAME（如用自定义域名）
 ③ 仓库变量 SITE_URL（可选，覆盖 CI 里的绝对地址）
 ```
 
@@ -986,7 +992,7 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 ### 根路径 `/` 的语言跳转
 
-`docs/public/index.html` 会被原样拷到产物根，作为 `/` 的入口：
+`public/index.html` 会被原样拷到产物根，作为 `/` 的入口：
 
 - 它**不写死任何域名或 base**，跳转目标是相对路径，靠 `new URL(相对, location)` 解析，
   因此 `/`、`/repo/`、自定义域名三种部署都能正确跳到 `zh-cn/` 或 `en/`

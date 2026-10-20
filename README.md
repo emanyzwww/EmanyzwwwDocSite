@@ -38,15 +38,16 @@ pnpm format      # 格式化（内容 + 主题代码）
 ├─ support/                 构建期工具（内容扫描、RSS、robots、dev 跳转）
 └─ theme/                   运行期代码（组件、样式、文案）
 
-docs/                       只有内容与静态资源
+docs/                       只有内容
 ├─ zh-cn/                   中文站 → /zh-cn/
 │  ├─ index.md              首页
 │  ├─ posts/                文章（每篇一个目录）
 │  ├─ tags/                 标签总览 + 标签详情模板
 │  └─ about/                关于
-├─ en/                      英文站 → /en/（与 zh-cn 结构完全对应）
-├─ media/                   会替换的图片（自动指纹）
-└─ public/                  原样拷贝：favicon、根路径语言跳转页
+└─ en/                      英文站 → /en/（与 zh-cn 结构完全对应）
+
+media/                      会替换的图片（自动指纹）
+public/                     原样拷贝：favicon、根路径语言跳转页
 ```
 
 根路径 `/` 不承载内容，按浏览器语言跳到 `/zh-cn/` 或 `/en/`（匹配不上时中文）。
