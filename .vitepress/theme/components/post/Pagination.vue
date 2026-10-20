@@ -28,7 +28,7 @@ const pages = computed<(number | '…')[]>(() => {
 
   const current = props.current
   const window = new Set<number>([1, total, current - 1, current, current + 1])
-  const sorted = [...window].filter((page) => page >= 1 && page <= total).sort((a, b) => a - b)
+  const sorted = [...window].filter((page) => page >= 1 && page <= total).toSorted((a, b) => a - b)
 
   const result: (number | '…')[] = []
   for (const [index, page] of sorted.entries()) {

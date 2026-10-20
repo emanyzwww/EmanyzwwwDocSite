@@ -7,7 +7,7 @@ description: Every beginner in this field goes through the same rite of passage 
 
 Every beginner in this field goes through the same rite of passage — writing a “hello, world” program by hand.
 
-![hello, world](banner.png)
+![hello, world](./banner.webp)
 
 ## Where does "hello, world" come from?
 

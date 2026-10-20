@@ -9,6 +9,7 @@ import { useData } from 'vitepress'
 import { computed } from 'vue'
 
 import type { PostSummary } from '../../types'
+import { toPageUrl } from '../support/paths'
 import { usePosts } from './usePosts'
 
 export function useAdjacentPosts() {
@@ -16,7 +17,7 @@ export function useAdjacentPosts() {
   const { posts } = usePosts()
 
   const index = computed(() =>
-    posts.value.findIndex((post) => post.url === normalize(page.value.relativePath)),
+    posts.value.findIndex((post) => post.url === toPageUrl(page.value.relativePath)),
   )
 
   /** 更早的一篇。 */
@@ -32,11 +33,4 @@ export function useAdjacentPosts() {
   })
 
   return { previous, next }
-}
-
-/** `posts/hello-world/index.md` → `/posts/hello-world/`。 */
-function normalize(relativePath: string): string {
-  const withoutExt = relativePath.replace(/\.md$/, '')
-  const withoutIndex = withoutExt.replace(/(^|\/)index$/, '$1')
-  return `/${withoutIndex}`.replace(/\/{2,}/g, '/').replace(/\/?$/, '/')
 }

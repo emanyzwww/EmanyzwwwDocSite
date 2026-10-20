@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SITE } from '../../../data/site'
 import type { TagSummary } from '../../../types'
 import { useI18n } from '../../i18n'
 import { href } from '../../support/paths'
@@ -13,16 +14,13 @@ import { href } from '../../support/paths'
 defineProps<{ tags: TagSummary[] }>()
 
 const { m } = useI18n()
-
-/** 最多展示多少个。 */
-const LIMIT = 20
 </script>
 
 <template>
   <section v-if="tags.length" class="tag-suggest">
     <h2 class="tag-suggest__title">{{ m.otherTags }}</h2>
     <ul class="tag-list">
-      <li v-for="tag in tags.slice(0, LIMIT)" :key="tag.slug">
+      <li v-for="tag in tags.slice(0, SITE.tagSuggestLimit)" :key="tag.slug">
         <a class="tag" :href="href(tag.url)">
           {{ tag.label }}
           <span class="tag__count">{{ tag.count }}</span>

@@ -13,7 +13,7 @@
  */
 export type LocaleCode = 'zh-cn' | 'en'
 
-/** 站点图片文件名 → 由 `theme/support/assets.ts` 解析为带指纹的 URL。 */
+/** 站点图片文件名 → 由 `theme/support/media.ts` 解析为带指纹的 URL。 */
 export type MediaFile = string
 
 /** 一篇文章的摘要数据（构建期生成，随数据加载器下发到客户端）。 */
@@ -161,6 +161,12 @@ export interface SiteMeta {
   postsPerPage: number
   /** 首页显示的文章数。 */
   homePostCount: number
+  /** 侧栏「最近文章」卡片显示几条。 */
+  recentPostsLimit: number
+  /** 标签详情页底部「其他标签」最多显示几个。 */
+  tagSuggestLimit: number
+  /** 标签总览页里每个标签预览几篇文章（超出时给「查看全部」）。 */
+  tagPreviewCount: number
   /** 是否默认生成目录。 */
   outline: boolean
   /** 是否显示字数。 */

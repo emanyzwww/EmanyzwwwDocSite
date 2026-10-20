@@ -26,7 +26,7 @@ export interface LocaleOption {
   current: boolean
 }
 
-/** 页面存在性索引。 */
+/** 页面存在性索引（存的是编码后的 URL，与 `RawDoc.url` 一致）。 */
 const knownPages = new Set(pages.urls)
 
 export function useLocaleSwitch() {
@@ -54,7 +54,12 @@ export function useLocaleSwitch() {
   return { current, options }
 }
 
-/** 按上面三条规则推导目标地址。 */
+/**
+ * 按上面三条规则推导目标地址。
+ *
+ * 比较时统一编码：`knownPages` 存的是 `encodeURI` 后的形式，
+ * 而 `route.path` 在浏览器里已经是编码后的（中文标签页会是 `%E9%9A%8F...`）。
+ */
 function resolveTarget(bare: string, locale: LocaleCode): string {
   // 1. 完全对应的页面
   const exact = withLocale(bare, locale)

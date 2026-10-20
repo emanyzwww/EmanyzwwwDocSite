@@ -2,7 +2,7 @@
  * 目录高亮。
  *
  * 算法：取正文里所有 H2/H3 的几何位置，滚动时找出「最后一个已经越过阅读线」的标题。
- * 阅读线取视口顶部往下约 96px，与 CSS 的 `scroll-padding-top` 呼应，
+ * 阅读线取 `--anchor-offset`（与 CSS 的 `scroll-padding-top` 是同一个变量），
  * 因此点击目录跳转后高亮也是对的。
  *
  * 为什么不用 IntersectionObserver：
@@ -16,8 +16,22 @@ import { onMounted, ref, watch } from 'vue'
 
 import { useScrollEffect } from '../support/scroll'
 
-/** 阅读线距视口顶部的距离（px）：页头高度 + 一点余量。 */
-const READING_LINE = 96
+/**
+ * 阅读线距视口顶部的距离（px）。
+ *
+ * 从 `--anchor-offset` 读，保证与 `scroll-padding-top` 一致——
+ * 之前这里写死 96px、CSS 算出来是 80px，导致点击目录后高亮会偏一格。
+ * 读不到时回退到 80px（4rem 页头 + 1rem 余量，16px 根字号）。
+ */
+const FALLBACK_READING_LINE = 80
+
+function readingLine(): number {
+  if (typeof window === 'undefined') return FALLBACK_READING_LINE
+
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--anchor-offset')
+  const value = Number.parseFloat(raw)
+  return Number.isFinite(value) ? value : FALLBACK_READING_LINE
+}
 
 export function useActiveAnchor() {
   const { page } = useData()
@@ -39,9 +53,10 @@ export function useActiveAnchor() {
   function update(): void {
     if (targets.length === 0) return
 
+    const line = readingLine()
     let current = targets[0]
     for (const target of targets) {
-      if (target.getBoundingClientRect().top - READING_LINE <= 0) current = target
+      if (target.getBoundingClientRect().top - line <= 0) current = target
       else break
     }
 

@@ -23,9 +23,6 @@ const EN_MONTHS = [
   'Dec',
 ]
 
-/** 英文星期缩写（RFC 822 需要）。 */
-const EN_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
 interface DateParts {
   year: string
   month: string
@@ -86,14 +83,19 @@ export function formatIsoDate(date: Date, timeZone: string): string {
   return `${year}-${month}-${day}`
 }
 
-/** RFC 822 时间串，用于 RSS 的 `pubDate` / `lastBuildDate`。 */
-export function formatRfc822(date: Date, timeZone: string): string {
-  const { year, month, day } = splitDate(date, timeZone)
-  const weekday = EN_WEEKDAYS[date.getUTCDay()] ?? 'Mon'
-  const hh = String(date.getUTCHours()).padStart(2, '0')
-  const mm = String(date.getUTCMinutes()).padStart(2, '0')
-  const ss = String(date.getUTCSeconds()).padStart(2, '0')
-  return `${weekday}, ${day} ${EN_MONTHS[Number(month) - 1]} ${year} ${hh}:${mm}:${ss} +0000`
+/**
+ * RFC 822 时间串，用于 RSS 的 `pubDate` / `lastBuildDate`。
+ *
+ * 关键点：日期、时间、时区偏移**必须来自同一个时刻表示**。
+ * 之前这里日期按站点时区算、时分秒却取 `getUTC*()`，两者混用会得到
+ * 自相矛盾的串（例如「19 日」配「20:09 UTC」，实际是 18 日 20:09 UTC）。
+ *
+ * 现在统一用 UTC：`toUTCString()` 给出的就是 RFC 822 兼容格式
+ * （`Sun, 18 Oct 2026 20:09:28 GMT`），只需把 `GMT` 换成 `+0000`。
+ * 这样无论构建机时区如何，输出的都是同一个绝对时刻。
+ */
+export function formatRfc822(date: Date, _timeZone: string): string {
+  return date.toUTCString().replace(/GMT$/, '+0000')
 }
 
 /**

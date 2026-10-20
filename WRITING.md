@@ -38,7 +38,7 @@ docs/zh-cn/posts/我的文章标题/
 └─ 截图.png
 ```
 
-访问地址：`https://emanyzoo.cn/zh-cn/posts/我的文章标题/`
+访问地址：`https://emanyzwww.github.io/EmanyzwwwDocSite/zh-cn/posts/我的文章标题/`
 
 ### 为什么必须建目录
 
@@ -202,14 +202,25 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 
 ### 三者的区别
 
-| 位置                       | 引用方式           | URL 形态                | 换图后自动生效          | 适用场景                       |
-| -------------------------- | ------------------ | ----------------------- | ----------------------- | ------------------------------ |
-| `docs/zh-cn/posts/文章名/` | `![](./图.png)`    | `/assets/图.<hash>.png` | ✅ 会（Vite 处理）      | 文章自己的配图                 |
-| `media/`                   | 配置里写**文件名** | `/assets/图.<hash>.png` | ✅ 会（本站的指纹机制） | 头像、logo 等会替换的图        |
-| `public/`                  | `/图.png`          | `/图.png`（原样）       | ❌ 不会                 | favicon、robots.txt 等固定资源 |
+| 位置                       | 引用方式           | URL 形态                | 换图后自动生效          | 适用场景                      |
+| -------------------------- | ------------------ | ----------------------- | ----------------------- | ----------------------------- |
+| `docs/zh-cn/posts/文章名/` | `![](./图.png)`    | `/assets/图.<hash>.png` | ✅ 会（Vite 处理）      | **文章自己的配图**            |
+| `media/`                   | 配置里写**文件名** | `/assets/图.<hash>.png` | ✅ 会（本站的指纹机制） | 头像、logo 等**全站共用**的图 |
+| `public/`                  | `/图.png`          | `/图.png`（原样）       | ❌ 不会                 | favicon、根路径跳转页         |
 
-前两个都会在 URL 里带上内容哈希（实测：`banner.png` → `/assets/banner.DXVcoPer.png`），
+前两个都会在 URL 里带上内容哈希（实测：`avatar.png` → `/assets/avatar.yZKXYQuM.png`），
 所以**只要重新构建过**，换图就会生效。只有 `public/` 是原样拷贝、URL 恒定。
+
+**怎么选：看这张图「属于谁」**
+
+- **属于某一篇文章** → 放那篇文章的目录里，用 `./图.png`。配图跟着文章走，删文章时图片一起删
+- **全站共用**（头像、logo） → 放 `media/`，配置里写文件名
+- **必须固定 URL、不参与构建** → 放 `public/`
+
+> 中英双语文章如果配同一张图，**两边目录各放一份**（各自用 `./banner.webp`）。
+> 这是有意的重复：两篇文章是独立内容，任何一篇都可能单独换图。
+> 不要为了省这点空间把文章配图提到 `public/`——那样「文章私有资源」就混进了
+> 「全局公共资源」，以后想只改英文版的图就做不到了。
 
 ### 为什么「换了图没变」
 
@@ -237,9 +248,13 @@ outline: false # 强制不显示（比如短文章、或正文结构不适合做
 ```
 
 构建后 URL 会变成 `/assets/screenshot.<hash>.png`——**文章配图也会加指纹**，
-因为相对路径的图片由 Vite 处理。实测：`banner.png` → `/assets/banner.DXVcoPer.png`。
+因为相对路径的图片由 Vite 处理。实测：`avatar.png` → `/assets/avatar.yZKXYQuM.png`。
 
 也就是说，**文章配图换图后也会自动生效**（前提：用相对路径引用、且重新构建过）。
+
+> 注意：Markdown 里写 `/xxx.png` 这种**以斜杠开头**的路径会被 Vite 当成模块导入，
+> 构建时直接报 `Rollup failed to resolve import`。想让图片走「原样拷贝」，
+> 必须把文件放进 `public/` 且**确实存在于那里**；否则请用相对路径。
 
 ### 头像 / logo（会替换的图）
 
@@ -272,16 +287,17 @@ public/favicon.svg   →  /favicon.svg
 
 ### 图片体积
 
-仓库里现在的 `banner.png` 是 1.9 MB。GitHub Pages 没有硬限制，但文章多起来会拖慢构建和加载。
+GitHub Pages 没有硬限制，但文章多起来会拖慢构建和加载。
 
 建议：
 
-- 截图用 PNG，照片用 JPEG/WebP
+- 截图用 PNG，照片/插画用 WebP（通常只有 PNG 的 1/5 到 1/10）
 - 单张控制在 500 KB 以内
-- 长图先裁掉无关部分
+- 长图先裁掉无关部分，宽度 1200px 对正文已经足够（正文最大宽度 44rem）
 - 需要动图就用 GIF 或视频外链
 
-本项目**没有**内置图片压缩，需要自己处理。
+本项目**没有**内置图片压缩，需要自己处理。参考：`hello-world` 的 banner
+原图 1672×941 / 1.83 MB，转成 1200px 宽的 WebP 后是 55.8 KB。
 
 ---
 
@@ -369,12 +385,19 @@ docs/en/posts/hello-world/index.md      →  /en/posts/hello-world/
 
 英文文章如果用中文目录下的图，会解析失败（相对路径是相对英文文章的）。
 
-两种做法：
+**答案是各放一份**，两边目录各自存一张，各自用 `./图名`：
 
-- **各放一份**：`docs/en/posts/hello-world/banner.png`（简单，但占两份空间）
-- **用 `media/`**：两边都引用同一个文件名（省空间，但失去「放一起」的便利）
+```text
+docs/zh-cn/posts/2026/10/19/01/hello-world/banner.webp
+docs/en/posts/2026/10/19/01/hello-world/banner.webp
+```
 
-现在的 `hello-world` 用的是各放一份（两个 1.9 MB 的文件）。
+看着是重复，但这是对的：两篇文章是**独立内容**，中文换了配图不该影响英文版。
+把文章配图提到 `public/` 虽然省了几十 KB，却把「文章私有资源」混进了「全局公共资源」，
+以后想单独改一边就做不到了。
+
+> 省空间的办法是**压缩图片**，不是**共享文件**。
+> 现在的 `hello-world` banner 是 1200px 宽的 WebP，只有 55.8 KB。
 
 ### 英文站也支持 `_drafts`
 
@@ -546,7 +569,7 @@ docs/zh-cn/posts/旧名字/index.md  →  docs/zh-cn/posts/新名字/index.md
   content="0; url=/zh-cn/posts/新名字/" />
 <link
   rel="canonical"
-  href="https://emanyzoo.cn/zh-cn/posts/新名字/" />
+  href="https://emanyzwww.github.io/EmanyzwwwDocSite/zh-cn/posts/新名字/" />
 ```
 
 ### 删除文章

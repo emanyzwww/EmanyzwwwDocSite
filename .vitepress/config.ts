@@ -10,13 +10,14 @@ import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitepress'
 
-import { DEFAULT_LOCALE, LOCALES, SITE } from './data/site'
-import { readPosts } from './support/content'
+import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
+import { buildTagIndex, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
 import { writeRobots } from './support/robots'
 import { writeFeeds } from './support/rss'
+import { toPageUrl } from './support/urls'
 import { pageCount } from './theme/support/pagination'
-import type { LocaleCode } from './types'
+import type { LocaleCode, TagRef } from './types'
 
 /** 部署根路径。GitHub Pages 项目站点会通过环境变量覆盖成 `/<repo>/`。 */
 const BASE = process.env.VP_BASE ?? '/'
@@ -45,14 +46,53 @@ const SITEMAP_HOSTNAME = new URL(BASE, new URL(SITE_URL).origin).href
  */
 function localeOfPage(relativePath: string): LocaleCode {
   const first = relativePath.split('/')[0]
-  return first === 'en' ? 'en' : DEFAULT_LOCALE
+  return LOCALE_CODES.includes(first as LocaleCode) ? (first as LocaleCode) : DEFAULT_LOCALE
 }
 
-/** `zh-cn/posts/2026/10/19/hello-world/index.md` → `/zh-cn/posts/2026/10/19/hello-world/`。 */
-function toPath(relativePath: string): string {
-  const withoutExt = relativePath.replace(/\.md$/, '')
-  const withoutIndex = withoutExt.replace(/(^|\/)index$/, '$1')
-  return `/${withoutIndex}`.replace(/\/{2,}/g, '/')
+/** 标签索引缓存：每种语言建一次，避免每个标签页都遍历全部文章。 */
+const tagIndexCache = new Map<LocaleCode, Map<string, TagRef>>()
+
+function tagIndexOf(locale: LocaleCode): Map<string, TagRef> {
+  let index = tagIndexCache.get(locale)
+  if (!index) {
+    index = buildTagIndex(locale)
+    tagIndexCache.set(locale, index)
+  }
+  return index
+}
+
+/**
+ * 语言互指的 `<link rel="alternate" hreflang>` 组。
+ *
+ * 中英是**平级前缀**，两种语言的同一页面地址只差第一段，因此直接替换语言段即可。
+ * 另外补一个 `x-default` 指向默认语言，告诉搜索引擎「语言匹配不上时用哪个」。
+ */
+function alternateLinks(relativePath: string, path: string): [string, Record<string, string>][] {
+  const locale = localeOfPage(relativePath)
+  const bare = path.slice(locale.length + 1) // `/zh-cn/about/` → `/about/`
+
+  const links = LOCALE_CODES.map(
+    (code) =>
+      [
+        'link',
+        {
+          rel: 'alternate',
+          hreflang: LOCALES[code].lang,
+          href: `${SITE_URL}/${code}${bare}`,
+        },
+      ] as [string, Record<string, string>],
+  )
+
+  links.push([
+    'link',
+    {
+      rel: 'alternate',
+      hreflang: 'x-default',
+      href: `${SITE_URL}/${DEFAULT_LOCALE}${bare}`,
+    },
+  ])
+
+  return links
 }
 
 export default defineConfig({
@@ -155,9 +195,8 @@ export default defineConfig({
     // 标签详情页：标题 = 标签名
     if (layout === 'tag') {
       const slug = String(pageData.params?.tag ?? '')
-      const tag = readPosts(locale)
-        .flatMap((post) => post.tags)
-        .find((item) => item.slug === slug)
+      // 构建期建一次索引，避免每个标签页都遍历全部文章
+      const tag = tagIndexOf(locale).get(slug)
 
       if (tag) {
         pageData.title = tag.label
@@ -185,7 +224,13 @@ export default defineConfig({
   transformHead({ pageData }) {
     const locale = localeOfPage(pageData.relativePath)
     const meta = LOCALES[locale]
-    const canonical = `${SITE_URL}${toPath(pageData.relativePath)}`
+    // 404 页没有规范地址，也不该被索引：整块 SEO 标签都跳过
+    if (pageData.isNotFound) {
+      return [['meta', { name: 'robots', content: 'noindex' }]]
+    }
+
+    const path = toPageUrl(pageData.relativePath)
+    const canonical = `${SITE_URL}${path}`
     // 每种语言的 feed 落在自己的前缀下：/zh-cn/index.xml、/en/index.xml
     const feed = `${BASE}${locale}/index.xml`
     const title = pageData.title ? `${pageData.title} · ${meta.title}` : meta.title
@@ -194,6 +239,8 @@ export default defineConfig({
     return [
       ['link', { rel: 'canonical', href: canonical }],
       ['link', { rel: 'alternate', type: 'application/rss+xml', href: feed, title: meta.title }],
+      // 语言互指：中英是平级前缀，缺了这组标签搜索引擎不知道两者是同一内容的译本
+      ...alternateLinks(pageData.relativePath, path),
       ['meta', { property: 'og:title', content: title }],
       ['meta', { property: 'og:description', content: description }],
       [

@@ -4,6 +4,7 @@ import { computed } from 'vue'
 
 import { useTaxonomy } from '../../composables/useTaxonomy'
 import { format, useI18n } from '../../i18n'
+import { decodePath } from '../../support/paths'
 import RecentPostsCard from '../aside/RecentPostsCard.vue'
 import StatsCard from '../aside/StatsCard.vue'
 import EmptyState from '../common/EmptyState.vue'
@@ -12,25 +13,18 @@ import PostCard from '../post/PostCard.vue'
 import TagSuggest from '../tag/TagSuggest.vue'
 
 /**
- * 标签详情页（`layout: tag`，由动态路由 `docs/tags/[tag]/index.md` 生成）。
+ * 标签详情页（`layout: tag`，由动态路由 `docs/zh-cn/tags/[tag]/index.md` 生成）。
  *
- * 页面参数 `params.tag` 是标签的 URL 片段（中文标签会是百分号编码），
- * 这里解码后到标签汇总里找对应项。
+ * 页面参数 `params.tag` 可能是原文（构建期传入）也可能是百分号编码
+ * （客户端从 URL 解析），统一用 `decodePath` 归一成原文再和 `tag.slug` 比对。
  */
 
 const { params } = useData()
 const { m } = useI18n()
 const { tags, findTag } = useTaxonomy()
 
-/** 当前标签的 slug（动态路由参数传入时已被编码，这里解码一次）。 */
-const slug = computed(() => {
-  const raw = String(params.value?.tag ?? '')
-  try {
-    return decodeURIComponent(raw)
-  } catch {
-    return raw
-  }
-})
+/** 当前标签的 slug（归一成原文，与 `TagRef.slug` 同一形式）。 */
+const slug = computed(() => decodePath(String(params.value?.tag ?? '')))
 
 const tag = computed(() => findTag(slug.value))
 

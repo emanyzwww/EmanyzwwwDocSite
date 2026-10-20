@@ -66,8 +66,3 @@ export function useScrollEffect(handler: ScrollHandler): void {
     handlers.delete(handler)
   })
 }
-
-/** 直接取滚动位置（避免依赖 `window.scrollY` 在 iframe 里的兼容差异）。 */
-export function scrollTop(): number {
-  return window.scrollY || document.documentElement.scrollTop || 0
-}

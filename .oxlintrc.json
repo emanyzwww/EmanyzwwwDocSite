@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "off",
+    "typescript/no-explicit-any": "warn"
+  },
+  "ignorePatterns": [
+    ".vitepress/dist/**",
+    ".vitepress/cache/**",
+    ".vitepress/.temp/**",
+    "node_modules/**",
+    "public/**",
+    "media/**"
+  ]
+}

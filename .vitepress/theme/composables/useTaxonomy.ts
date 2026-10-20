@@ -28,7 +28,7 @@ export function useTaxonomy() {
       }
     }
 
-    return [...groups.values()].sort((a, b) => {
+    return [...groups.values()].toSorted((a, b) => {
       const diff = b.count - a.count
       return diff !== 0 ? diff : a.label.localeCompare(b.label)
     })

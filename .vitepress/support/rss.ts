@@ -12,11 +12,12 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { LOCALES, SITE } from '../data/site'
+import { LOCALE_CODES, LOCALES, SITE } from '../data/site'
 import type { LocaleCode, PostSummary } from '../types'
 import { readDocs, readPosts } from './content'
 import { formatRfc822 } from './format'
 import { renderMarkdown } from './markdown'
+import { decodePath } from './urls'
 
 /**
  * 站点根地址：优先用构建环境变量 `VP_SITE_URL`。
@@ -36,9 +37,14 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;')
 }
 
-/** 站点路径 → 源文件路径：`/zh-cn/posts/a/` → `zh-cn/posts/a/index.md`。 */
+/**
+ * 站点路径 → 源文件路径：`/zh-cn/posts/a/` → `zh-cn/posts/a/index.md`。
+ *
+ * `post.url` 是 `encodeURI` 之后的地址（中文标签/目录会变成 `%E9%9A%8F...`），
+ * 而 map 的 key 是磁盘上的真实路径，因此这里必须解码回原文再拼。
+ */
 function toSourcePath(url: string): string {
-  return `${url.replace(/^\//, '')}index.md`
+  return `${decodePath(url).replace(/^\//, '')}index.md`
 }
 
 /** 语言首页地址（带结尾斜杠）。每种语言一个前缀，没有例外。 */
@@ -109,7 +115,7 @@ export function writeFeeds(outDir: string): void {
   // 正文只读一次，避免每篇文章都全量扫描
   const docs = new Map(readDocs().map((doc) => [doc.filePath, doc.body]))
 
-  for (const locale of Object.keys(LOCALES) as LocaleCode[]) {
+  for (const locale of LOCALE_CODES) {
     const posts = readPosts(locale)
     const target = join(outDir, locale, 'index.xml')
 

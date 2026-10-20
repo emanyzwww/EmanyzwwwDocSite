@@ -19,6 +19,6 @@ export { data }
 export default defineLoader({
   watch: ['../../**/*.md'],
   load(): Data {
-    return { urls: readPageUrls().sort() }
+    return { urls: readPageUrls().toSorted() }
   },
 })

@@ -7,8 +7,17 @@
 
 import type { FooterConfig, LocaleCode, LocaleMeta, SiteMeta, WidgetName } from '../types'
 
-/** 站点根地址（不带结尾斜杠）。部署到子路径时由 `base` 单独处理。 */
-const SITE_URL = 'https://emanyzoo.cn'
+/**
+ * 站点根地址（不带结尾斜杠）。
+ *
+ * 必须是**真实可访问**的地址：sitemap、canonical、RSS 的绝对链接都从这里派生。
+ * 之前写的是一个没有 DNS 记录的域名，导致本地 `pnpm build` 产出的 sitemap 与
+ * canonical 全部指向打不开的地址，只有 CI 里 `VP_SITE_URL` 覆盖后才正确。
+ *
+ * 部署到子路径（如 GitHub Pages 项目站点）时，这里只写 origin，
+ * 子路径由 `base`（`VP_BASE`）单独处理，见 `config.ts` 的 `SITEMAP_HOSTNAME`。
+ */
+const SITE_URL = 'https://emanyzwww.github.io'
 
 /** 站点名（导航栏品牌、页脚、SEO 标题后缀）。 */
 const SITE_NAME = 'EmanyzwwwDocSite'
@@ -40,6 +49,10 @@ export const SITE: SiteMeta = {
   // 侧栏卡片渲染顺序。可选项：profile / tags / links / custom
   widgets: ['profile', 'tags', 'custom'] satisfies WidgetName[],
   footer,
+  // 下面三项原来散落在各组件里，集中到这里便于统一调整
+  recentPostsLimit: 5,
+  tagSuggestLimit: 20,
+  tagPreviewCount: 3,
 }
 
 /**

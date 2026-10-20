@@ -1,6 +1,6 @@
 ---
 name: commit-message
-description: "为 Hugo 静态站点生成中文提交词（Conventional Commits）；scope 贴合 content/theme/config 等真实目录，可限定或排除路径。"
+description: "为 VitePress 静态站点生成中文提交词（Conventional Commits）；scope 贴合 docs/theme/data/support 等真实目录，可限定或排除路径。"
 whenToUse: "用户要求生成 commit message、提交信息、提交词、提交说明，或说「帮我提交」时使用。"
 ---
 
@@ -103,11 +103,11 @@ git rev-parse --verify HEAD
 | 改动内容 | type |
 |---|---|
 | 写文章、改正文、补页面文字 | `docs` |
-| 新增页面类型、组件、功能（如新的 side widget） | `feat` |
-| 修复模板报错、样式错位、链接失效 | `fix` |
+| 新增页面类型、组件、功能（如新的侧栏卡片） | `feat` |
+| 修复渲染报错、样式错位、链接失效 | `fix` |
 | 只改配色、间距、字号，行为不变 | `style` |
-| 重构模板、拆分 partial、CSS 变量化 | `refactor` |
-| `baseURL`、`pagination` 等构建配置 | `build` |
+| 重构组件、拆分 composable、CSS 变量化 | `refactor` |
+| `base`、`sitemap`、`postsPerPage` 等构建配置 | `build` |
 | 依赖、工具脚本、技能配置 | `chore` |
 | CI/CD 流水线 | `ci` |
 | 撤销先前提交 | `revert` |
@@ -116,18 +116,20 @@ git rev-parse --verify HEAD
 
 ### scope
 
-只用本项目真实目录，不自造：
+只用本项目真实目录，不自造（本项目是 **VitePress**，不是 Hugo）：
 
 | 路径 | scope |
 |---|---|
-| `content/` | `content` |
-| `layouts/`、`assets/`、`static/` | `theme` |
-| `hugo.toml`、`archetypes/` | `config` |
-| `i18n/` | `i18n` |
-| `data/` | `data` |
-| `README.md` 等根级文档 | `docs` |
+| `docs/`（文章、页面、`*.paths.ts`） | `content` |
+| `.vitepress/theme/`（组件、样式、文案） | `theme` |
+| `.vitepress/data/`（站点信息、个人资料、侧栏卡片） | `data` |
+| `.vitepress/support/`（内容扫描、RSS、robots、dev 跳转） | `support` |
+| `.vitepress/config.ts`、`tsconfig.json`、`package.json` | `config` |
+| `public/`、`media/`（静态资源与图片） | `assets` |
+| `tests/` | `test` |
+| `README.md`、`WRITING.md`、`DEVELOPING.md` | `docs` |
 | `.github/` | `ci` |
-| `.dsh/`、`.gitignore`、其他工具配置 | `chore` |
+| `.dsh/`、`.gitignore`、`.oxfmtrc.json`、`.oxlintrc.json`、`vitest.config.ts` | `chore` |
 
 - 主次分明时取主要一方；确实并列则用半角逗号：`theme,content`
 - 无法归入以上任一项时用 `root`
@@ -141,8 +143,8 @@ git rev-parse --verify HEAD
 ### 要点
 
 - 一件事一条，写清改了什么
-- 同一逻辑改动涉及多个文件时合并成一条（如一次主题改动同时动了 `layouts/` 与 `assets/`）
-- **双语成对合并**：同一目录下的 `index.zh-cn.md` 与 `index.en.md` 属于同一篇文章，合并成一条要点
+- 同一逻辑改动涉及多个文件时合并成一条（如一次主题改动同时动了 `.vitepress/theme/components/` 与 `.vitepress/theme/styles/`）
+- **双语成对合并**：`docs/zh-cn/` 与 `docs/en/` 下同一相对路径的两个文件属于同一篇文章，合并成一条要点
 - 只改了一种语言就如实写单语，不臆造另一种也改了
 - 新增文章写「新增文章《标题》及英文版本」
 
@@ -180,16 +182,19 @@ git diff HEAD -- . ':(exclude)<path>'
 
 ## 5. 永不分析的路径
 
-`public/`、`resources/`、`.hugo_build.lock`、`.idea/`、`node_modules/`、`vendor/`
+`.vitepress/dist/`、`.vitepress/cache/`、`.vitepress/.temp/`、`node_modules/`、`.idea/`
 
 这些是构建产物、缓存或本地配置，已列入 `.gitignore`。即使出现在 `git status --porcelain --ignored` 里，也**不读、不写进提交词**。
+
+`public/` 与 `media/` 是**受版本控制的源文件**（favicon、根路径跳转页、头像），
+它们的改动照常分析，不要当成构建产物跳过。
 
 ## 6. 常见错误对照
 
 | 错误 | 正确 |
 |---|---|
 | 代码块外加「已按规范生成」之类的话 | 只留代码块 |
-| 把 `index.zh-cn.md` 与 `index.en.md` 拆成两条要点 | 合并成一条 |
+| 把 `docs/zh-cn/x` 与 `docs/en/x` 拆成两条要点 | 合并成一条 |
 | 无提交时用 `git diff` 读新文件，读到空就凭文件名猜 | 直接读文件原文 |
 | 自造 scope（`blog`、`site`、`web`） | 用第 3 节表中的真实目录名 |
 | 主题行或要点结尾加句号 | 一律不加 |

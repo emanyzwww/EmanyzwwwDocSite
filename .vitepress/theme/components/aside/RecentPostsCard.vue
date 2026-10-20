@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { SITE } from '../../../data/site'
 import { usePosts } from '../../composables/usePosts'
 import { useI18n } from '../../i18n'
 import { href } from '../../support/paths'
@@ -8,10 +9,12 @@ import { href } from '../../support/paths'
 /**
  * 侧栏最近文章卡。
  *
- * 数量默认 5 条，可在使用时通过 `limit` 覆盖。
+ * 数量默认取 `SITE.recentPostsLimit`，可在使用时通过 `limit` 覆盖。
  */
 
-const props = withDefaults(defineProps<{ limit?: number }>(), { limit: 5 })
+const props = withDefaults(defineProps<{ limit?: number }>(), {
+  limit: () => SITE.recentPostsLimit,
+})
 
 const { m } = useI18n()
 const { posts } = usePosts()

@@ -10,7 +10,7 @@ import { join, relative, resolve, sep } from 'node:path'
 
 import matter from 'gray-matter'
 
-import { DEFAULT_LOCALE, LOCALES } from '../data/site'
+import { asLocale, DEFAULT_LOCALE, LOCALE_CODES, LOCALES } from '../data/site'
 import { TAG_LABELS, TAG_SLUGS } from '../data/taxonomy'
 import type { LocaleCode, PostSummary, TagRef } from '../types'
 import {
@@ -24,6 +24,7 @@ import {
   plainText,
   truncate,
 } from './format'
+import { toPageUrl } from './urls'
 
 /** 内容根目录。优先取 VitePress 已解析的 `srcDir`，避免依赖启动目录。 */
 export const DOCS_DIR =
@@ -36,14 +37,11 @@ const POST_SECTION = 'posts'
 /** 不作为内容页统计的目录。 */
 const IGNORED_DIRS = new Set(['.vitepress', 'public', 'node_modules'])
 
-/** 语言目录名即 URL 前缀，两者一一对应。 */
-const LOCALE_DIRS = Object.keys(LOCALES) as LocaleCode[]
-
 /** 一份 Markdown 文档的原始信息。 */
 export interface RawDoc {
   /** 相对 `docs/` 的路径，统一用 `/` 分隔，含语言前缀（`zh-cn/posts/x/index.md`）。 */
   filePath: string
-  /** 站点内路径，含语言前缀，如 `/zh-cn/posts/x/`。 */
+  /** 站点内路径（已 URL 编码），含语言前缀，如 `/zh-cn/tags/随笔/` → `/zh-cn/tags/%E9%9A%8F%E7%AC%94/`。 */
   url: string
   /** 所属语言。 */
   locale: LocaleCode
@@ -53,23 +51,15 @@ export interface RawDoc {
   body: string
 }
 
-/** 把文件路径转成站点路径：`zh-cn/posts/x/index.md` → `/zh-cn/posts/x/`。 */
-function toUrl(filePath: string): string {
-  const withoutExt = filePath.replace(/\.md$/, '')
-  const withoutIndex = withoutExt.replace(/(^|\/)index$/, '$1')
-  return `/${withoutIndex}`.replace(/\/{2,}/g, '/').replace(/\/?$/, '/')
-}
-
 /** 判断文件属于哪种语言：第一段目录名就是语言。 */
 function toLocale(filePath: string): LocaleCode {
-  const first = filePath.split('/')[0]
-  return (LOCALE_DIRS as string[]).includes(first) ? (first as LocaleCode) : DEFAULT_LOCALE
+  return asLocale(filePath.split('/')[0])
 }
 
 /** 去掉语言前缀：`zh-cn/posts/x/index.md` → `posts/x/index.md`。 */
 export function stripLocalePrefix(filePath: string): string {
   const first = filePath.split('/')[0]
-  return (LOCALE_DIRS as string[]).includes(first) ? filePath.slice(first.length + 1) : filePath
+  return LOCALE_CODES.includes(first as LocaleCode) ? filePath.slice(first.length + 1) : filePath
 }
 
 /** 递归收集 `docs/` 下所有 Markdown 文件（相对路径，`/` 分隔）。 */
@@ -94,16 +84,50 @@ export function readDoc(filePath: string): RawDoc {
 
   return {
     filePath,
-    url: toUrl(filePath),
+    url: toPageUrl(filePath),
     locale: toLocale(filePath),
     data: data as Record<string, unknown>,
     body: content,
   }
 }
 
-/** 读取全部 Markdown。 */
+/**
+ * 全量文档缓存。
+ *
+ * `readPosts()` 会被 `transformPageData`（每个标签页、每个分页页各一次）、
+ * 两个 `*.paths.ts`、`posts.data.ts`、RSS 反复调用。不加缓存时，每次都要
+ * 递归遍历目录 + `readFileSync` + `gray-matter` 解析，文章一多就是 O(n²) 的磁盘 IO。
+ *
+ * 缓存键是「全部 .md 的相对路径 + mtime」，因此：
+ * - 构建期只扫一次；
+ * - dev 下改了文件，路径或 mtime 变化会自动失效，不需要手动重启。
+ */
+let docsCache: { key: string; docs: RawDoc[] } | null = null
+
+/** 缓存键：文件清单 + 各自 mtime，任一变化即失效。 */
+function docsCacheKey(files: string[]): string {
+  return files
+    .map((file) => {
+      const stat = statSync(join(DOCS_DIR, file), { throwIfNoEntry: false })
+      return `${file}:${stat?.mtimeMs ?? 0}`
+    })
+    .join('|')
+}
+
+/** 读取全部 Markdown（带缓存）。 */
 export function readDocs(): RawDoc[] {
-  return collectMarkdown().sort().map(readDoc)
+  const files = collectMarkdown().toSorted()
+  const key = docsCacheKey(files)
+  if (docsCache?.key === key) return docsCache.docs
+
+  const docs = files.map(readDoc)
+  docsCache = { key, docs }
+  return docs
+}
+
+/** 清空缓存（仅供测试使用）。 */
+export function clearContentCache(): void {
+  docsCache = null
 }
 
 /** 是否为一篇文章：去掉语言前缀后位于 `posts/` 分区，且声明了日期。 */
@@ -128,15 +152,32 @@ function tagSlugOf(raw: string): string {
  * 由原始标签名构造标签引用。
  *
  * 标签页地址带语言前缀，与内容目录一一对应：
- * `随笔` + `zh-cn` → `/zh-cn/tags/随笔/`，`Essay` + `en` → `/en/tags/Essay/`。
+ * `随笔` + `zh-cn` → `/zh-cn/tags/%E9%9A%8F%E7%AC%94/`，`Essay` + `en` → `/en/tags/Essay/`。
+ *
+ * `slug` 存**原文**（`随笔`），`url` 存**编码后**的地址。全站只有这一处做这个转换，
+ * 与 `toPageUrl()` 的编码规则一致，因此标签页的 canonical 与 sitemap 不会出现两种形式。
  */
 export function makeTagRef(raw: string, locale: LocaleCode = DEFAULT_LOCALE): TagRef {
   const slug = tagSlugOf(raw)
   return {
     label: tagLabelOf(raw),
     slug,
-    url: `/${locale}/tags/${encodeURIComponent(slug)}/`,
+    url: encodeURI(`/${locale}/tags/${slug}/`),
   }
+}
+
+/**
+ * 标签 slug → 标签引用（构建期建一次，供 `transformPageData` 查）。
+ *
+ * 之前每个标签页都 `readPosts(locale).flatMap(...).find(...)` 遍历一遍，
+ * 标签一多就是 O(n²)。这里改成一次建表、O(1) 查。
+ */
+export function buildTagIndex(locale: LocaleCode): Map<string, TagRef> {
+  const index = new Map<string, TagRef>()
+  for (const post of readPosts(locale)) {
+    for (const tag of post.tags) index.set(tag.slug, tag)
+  }
+  return index
 }
 
 /** 把一份文档转成文章摘要。 */
@@ -187,44 +228,10 @@ export function readPosts(locale?: LocaleCode): PostSummary[] {
     .map(toPostSummary)
     .filter((post) => !post.draft)
     .filter((post) => (locale ? post.locale === locale : true))
-    .sort((a, b) => +new Date(b.date) - +new Date(a.date))
-}
-
-/** 汇总标签：按文章数倒序，同数量按名称排序。 */
-export function groupByTag(
-  posts: PostSummary[],
-): Map<string, { ref: TagRef; posts: PostSummary[] }> {
-  const groups = new Map<string, { ref: TagRef; posts: PostSummary[] }>()
-
-  for (const post of posts) {
-    for (const tag of post.tags) {
-      const group = groups.get(tag.slug)
-      if (group) {
-        group.posts.push(post)
-      } else {
-        groups.set(tag.slug, { ref: tag, posts: [post] })
-      }
-    }
-  }
-
-  return new Map(
-    [...groups.entries()].sort((a, b) => {
-      const diff = b[1].posts.length - a[1].posts.length
-      return diff !== 0 ? diff : a[1].ref.label.localeCompare(b[1].ref.label)
-    }),
-  )
+    .toSorted((a, b) => +new Date(b.date) - +new Date(a.date))
 }
 
 /** 全部内容页路径（供语言切换判断「是否存在对应翻译」）。 */
 export function readPageUrls(): string[] {
   return readDocs().map((doc) => doc.url)
-}
-
-/** 判断文件是否存在（用于配置里的可选文件）。 */
-export function fileExists(path: string): boolean {
-  try {
-    return statSync(path).isFile()
-  } catch {
-    return false
-  }
 }

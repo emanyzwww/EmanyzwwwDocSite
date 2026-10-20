@@ -97,7 +97,7 @@ Vue 组件  ──►  HTML
    │  ├─ site/            页头、页脚、导航、主题切换、语言切换
    │  ├─ post/            文章卡片、时间线、元信息、上下篇、分页
    │  ├─ tag/             标签云、标签分组、其他标签
-   │  ├─ aside/           侧栏：容器 + 7 种卡片
+   │  ├─ aside/           侧栏：容器 + 7 个卡片组件（注册表里可选 4 种）
    │  └─ common/          图标、空状态、进度条
    ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动
    └─ styles/             9 个分层样式
@@ -143,19 +143,27 @@ public/                    ← 原样拷贝：favicon、根路径语言跳转页
 ### `data/site.ts` —— 站点层面的一切
 
 ```ts
-const SITE_URL = 'https://emanyzoo.cn' // 域名（sitemap / RSS 用）
-const SITE_NAME = 'Emanyzwww' // 品牌名（页头 / 页脚 / 标题后缀）
+const SITE_URL = 'https://emanyzwww.github.io' // 站点 origin（sitemap / RSS 用）
+const SITE_NAME = 'EmanyzwwwDocSite' // 品牌名（页头 / 页脚 / 标题后缀）
 const TIME_ZONE = 'Asia/Shanghai' // 日期显示时区
 
 export const SITE: SiteMeta = {
   postsPerPage: 10, // 每页文章数
   homePostCount: 5, // 首页显示几篇
+  recentPostsLimit: 5, // 侧栏「最近文章」几条
+  tagSuggestLimit: 20, // 标签页底部「其他标签」几个
+  tagPreviewCount: 3, // 标签总览页每个标签预览几篇
   outline: true, // 是否生成右栏目录（全局开关）
   wordCount: true, // 是否显示字数
   widgets: ['profile', 'tags', 'custom'], // 侧栏卡片顺序
   footer: {/* 版权、附加文字、链接 */},
 }
 ```
+
+> `SITE_URL` 必须是**真实可访问**的 origin：sitemap、canonical、RSS 的绝对链接
+> 全部由它派生。之前这里写的是一个没有 DNS 记录的域名，导致本地构建产物的
+> 绝对链接全是死链，只有 CI 里 `VP_SITE_URL` 覆盖后才正确。
+> 部署到子路径时这里只写 origin，子路径由 `base` 单独处理。
 
 **改这里能立刻看到效果**：
 
@@ -870,21 +878,46 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 
 ---
 
-## 九、格式化与类型检查
+## 九、检查、测试与格式化
 
 ### 命令
 
 ```powershell
 pnpm typecheck     # TS + Vue 类型检查（0 错误才算过）
+pnpm lint          # oxlint：未使用变量、可疑写法、性能提示
+pnpm test          # vitest：纯函数单测
+pnpm test:watch    # 单测 watch 模式
 pnpm format        # 格式化：docs + .vitepress + 根目录几份 md
 pnpm format:check  # 只检查不写入
 pnpm build         # 构建（也会暴露类型问题）
 ```
 
-改完代码的标准流程：`format` → `typecheck` → `build`。
+改完代码的标准流程：`format` → `lint` → `typecheck` → `test` → `build`。
 
 > 注意 `format` 现在显式带上了 `.vitepress`——它已经不在 `docs/` 里了，
 > 只写 `docs` 会漏掉主题代码。
+
+### 单测覆盖什么
+
+`tests/` 下只测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
+
+| 文件                   | 覆盖                                                       |
+| ---------------------- | ---------------------------------------------------------- |
+| `urls.test.ts`         | 相对路径 → URL、中文编码、与 `decodePath` 互逆             |
+| `paths.test.ts`        | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性 |
+| `pagination.test.ts`   | 分页边界（空列表、越界、非法 perPage）                     |
+| `format.test.ts`       | 日期格式化、RFC 822、字数统计、纯文本化                    |
+| `dev-redirect.test.ts` | `Accept-Language` 解析                                     |
+
+为了让这些函数能在 Node 里跑，纯逻辑刻意放在
+`.vitepress/support/urls.ts` 与 `.vitepress/support/locale-paths.ts`，
+**不 import `vitepress`**；需要 `withBase` 的包装留在 `theme/support/paths.ts`。
+
+### lint 规则
+
+`.oxlintrc.json` 开启 `correctness`（error）、`suspicious` / `perf`（warn）。
+当前 0 warning 0 error；新增代码若引入 `Array#sort()` 这类原地修改，
+会被 `unicorn/no-array-sort` 提示改用 `toSorted()`。
 
 ### 格式化覆盖什么
 
@@ -892,8 +925,8 @@ pnpm build         # 构建（也会暴露类型问题）
 
 ```text
 node_modules / .pnpm-store / .npm-cache
-.vitepress/dist / .vitepress/cache
-public          # 原样输出的静态资源
+.vitepress/dist / .vitepress/cache / .vitepress/.temp
+public / media  # 原样输出的静态资源
 pnpm-lock.yaml
 ```
 

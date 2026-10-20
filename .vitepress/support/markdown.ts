@@ -22,8 +22,3 @@ function getRenderer(): MarkdownIt {
 export function renderMarkdown(source: string): string {
   return getRenderer().render(source).trim()
 }
-
-/** 渲染行内 Markdown（不包 `<p>`）。 */
-export function renderInlineMarkdown(source: string): string {
-  return getRenderer().renderInline(source).trim()
-}

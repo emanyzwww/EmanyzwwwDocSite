@@ -11,7 +11,13 @@ export interface PageSlice<T> {
 
 /**
  * 取第 `page` 页的数据。
- * 页码越界时自动夹到 `[1, totalPages]`，因此 `page/99/` 这类地址仍有内容可看。
+ *
+ * 页码越界时夹到 `[1, totalPages]`，因此即使传进 `99` 也能拿到最后一页。
+ *
+ * 注意：这条兜底**不会**让 `/posts/page/99/` 变成可访问地址——
+ * 分页路由由 `index.paths.ts` 只生成 `2..totalPages`，越界页码本身就是 404。
+ * 这里的夹取只用于「页面已存在、但参数异常」的情况（例如手动改地址栏后
+ * 客户端路由复用了同一个组件）。
  */
 export function paginate<T>(items: T[], page: number, perPage: number): PageSlice<T> {
   const size = Math.max(1, Math.trunc(perPage))

@@ -15,6 +15,6 @@ export default {
       for (const tag of post.tags) slugs.add(tag.slug)
     }
 
-    return [...slugs].sort().map((tag) => ({ params: { tag } }))
+    return [...slugs].toSorted().map((tag) => ({ params: { tag } }))
   },
 }

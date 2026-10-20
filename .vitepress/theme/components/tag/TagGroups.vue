@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { SITE } from '../../../data/site'
 import type { TagSummary } from '../../../types'
 import { useI18n } from '../../i18n'
 import { href } from '../../support/paths'
@@ -6,16 +7,13 @@ import { href } from '../../support/paths'
 /**
  * 标签分组列表（标签总览页）。
  *
- * 每个标签一张小卡：标签名 + 数量 + 该标签下最近 3 篇文章；
- * 文章数超过 3 时给一个「查看全部」入口。
+ * 每个标签一张小卡：标签名 + 数量 + 该标签下最近几篇文章；
+ * 文章数超过预览条数时给一个「查看全部」入口。
  */
 
 defineProps<{ tags: TagSummary[] }>()
 
 const { m } = useI18n()
-
-/** 每个标签下最多列几篇（超出时给「查看全部」）。 */
-const PREVIEW_COUNT = 3
 </script>
 
 <template>
@@ -27,13 +25,13 @@ const PREVIEW_COUNT = 3
       </header>
 
       <ul class="tag-group__posts">
-        <li v-for="post in tag.posts.slice(0, PREVIEW_COUNT)" :key="post.url">
+        <li v-for="post in tag.posts.slice(0, SITE.tagPreviewCount)" :key="post.url">
           <a :href="href(post.url)">{{ post.title }}</a>
           <time :datetime="post.isoDate">{{ post.isoDate }}</time>
         </li>
       </ul>
 
-      <a v-if="tag.count > PREVIEW_COUNT" class="tag-group__more" :href="href(tag.url)">
+      <a v-if="tag.count > SITE.tagPreviewCount" class="tag-group__more" :href="href(tag.url)">
         {{ m.allPosts }}
       </a>
     </section>
