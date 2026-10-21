@@ -64,6 +64,18 @@ export interface TagSummary extends TagRef {
   posts: PostSummary[]
 }
 
+/** 目录（右栏 TOC）里的一个节点，可任意深地嵌套。 */
+export interface OutlineItem {
+  /** 标题文字。 */
+  title: string
+  /** 锚点 id。 */
+  slug: string
+  /** 标题级别（2 = H2、3 = H3、4 = H4）。 */
+  level: number
+  /** 子节点。 */
+  children: OutlineItem[]
+}
+
 /** 图标名。新增图标需同时改 `theme/support/icons.ts`。 */
 export type IconName =
   | 'sun'

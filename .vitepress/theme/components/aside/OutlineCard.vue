@@ -2,15 +2,17 @@
 import { useData } from 'vitepress'
 import { computed } from 'vue'
 
+import type { OutlineItem } from '../../../types'
 import { useActiveAnchor } from '../../composables/useActiveAnchor'
 import { useI18n } from '../../i18n'
 import AppIcon from '../common/AppIcon.vue'
+import OutlineNode from './OutlineNode.vue'
 
 /**
  * 目录卡（右栏）。
  *
  * 目录来源是 VitePress 在构建期解析出的 `page.headers`，
- * 不需要再读一遍 Markdown；高亮由 `useActiveAnchor` 通过 IntersectionObserver 驱动。
+ * 不需要再读一遍 Markdown；高亮由 `useActiveAnchor` 通过滚动位置驱动。
  *
  * 与旧站的差异：
  * - 旧站把 HTML 字符串塞进 `v-html`，无法做无障碍处理；
@@ -21,36 +23,30 @@ const { page } = useData()
 const { m } = useI18n()
 const { activeId } = useActiveAnchor()
 
-/** 目录里的一个节点。 */
-interface OutlineNode {
+/**
+ * 目录树。
+ *
+ * `page.headers` **本身就已经是嵌套结构**（VitePress 按 heading 级别建好了
+ * `children`），所以这里只做一层「裁剪 + 归一化」，不要再用栈去重建树——
+ * 之前就是把它当成扁平数组处理，结果只剩 4 个顶层 H2，H3/H4 全丢了。
+ */
+function toItem(header: {
+  level: number
   title: string
   slug: string
-  children: OutlineNode[]
+  children?: unknown[]
+}): OutlineItem {
+  return {
+    title: header.title,
+    slug: header.slug,
+    level: header.level,
+    children: (header.children ?? []).map((child) =>
+      toItem(child as { level: number; title: string; slug: string; children?: unknown[] }),
+    ),
+  }
 }
 
-/**
- * 只取 H2/H3（与旧站 `startLevel = 2, endLevel = 3` 一致），并组装成两级树：
- * H3 挂到它上方最近的 H2 下；开头就出现的 H3 视为顶层节点。
- */
-const tree = computed<OutlineNode[]>(() => {
-  const nodes: OutlineNode[] = []
-  let lastTopLevel: OutlineNode | null = null
-
-  for (const header of page.value.headers) {
-    if (header.level !== 2 && header.level !== 3) continue
-
-    const node: OutlineNode = { title: header.title, slug: header.slug, children: [] }
-
-    if (header.level === 2 || !lastTopLevel) {
-      nodes.push(node)
-      lastTopLevel = header.level === 2 ? node : lastTopLevel
-    } else {
-      lastTopLevel.children.push(node)
-    }
-  }
-
-  return nodes
-})
+const tree = computed<OutlineItem[]>(() => page.value.headers.map(toItem))
 
 const hasOutline = computed(() => tree.value.length > 0)
 </script>
@@ -62,24 +58,7 @@ const hasOutline = computed(() => tree.value.length > 0)
       {{ m.onThisPage }}
     </p>
     <ul class="toc__list">
-      <li v-for="node in tree" :key="node.slug">
-        <a
-          :href="`#${node.slug}`"
-          :class="{ 'is-active': activeId === node.slug }"
-          :aria-current="activeId === node.slug ? 'true' : undefined">
-          {{ node.title }}
-        </a>
-        <ul v-if="node.children.length">
-          <li v-for="child in node.children" :key="child.slug">
-            <a
-              :href="`#${child.slug}`"
-              :class="{ 'is-active': activeId === child.slug }"
-              :aria-current="activeId === child.slug ? 'true' : undefined">
-              {{ child.title }}
-            </a>
-          </li>
-        </ul>
-      </li>
+      <OutlineNode v-for="node in tree" :key="node.slug" :node="node" :active-id="activeId" />
     </ul>
   </div>
 </template>

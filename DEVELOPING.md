@@ -241,7 +241,7 @@ export const PROFILE: Profile = {
 | 想改           | 位置                                                 |
 | -------------- | ---------------------------------------------------- |
 | 代码高亮主题   | `markdown.theme`（当前 `github-dark`）               |
-| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`）            |
+| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`，可加 4）    |
 | 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）               |
 | 锚点跳转偏移   | `scrollOffset`（当前 80，配合 4rem 页头）            |
 | 站点地图域名   | `SITEMAP_HOSTNAME`（自动 = 站点 origin + `VP_BASE`） |

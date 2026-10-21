@@ -378,6 +378,10 @@
   list-style: none;
 }
 
+/*
+ * 每一层嵌套缩进一格。目录现在是 H2/H3/H4 三级，
+ * 之前只缩进一次（两级结构），三级时 H4 会与 H3 平齐、看不出层级。
+ */
 .toc__list ul {
   padding-left: var(--space-3);
 }
@@ -393,6 +397,18 @@
   color: var(--fg-muted);
   font-size: var(--text-sm);
   line-height: 1.5;
+
+  /* 目录项固定单行：右栏只有 16rem，长标题折行会把整块撑高、
+     还会让扫视节奏变乱。超出部分用省略号，完整标题在 title 属性里
+     （见 OutlineNode.vue），悬停即可看到。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 深层标题弱化：H3/H4 字号更小、颜色更淡，避免三级目录挤成一片 */
+.toc__list ul ul a {
+  font-size: var(--text-xs);
 }
 
 .toc__list a:hover,

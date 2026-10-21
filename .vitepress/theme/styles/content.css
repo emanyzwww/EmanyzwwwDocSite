@@ -12,6 +12,14 @@
   line-height: var(--leading-loose);
   color: var(--fg-default);
   overflow-wrap: break-word;
+
+  /* 正文宽度上限。
+     实测三栏布局下主栏本身只有 688px（82rem 容器 − 两侧 16rem 侧栏 − 间距），
+     已经小于 44rem = 704px，所以这条上限平时不会触发；它真正的价值是
+     **兜底**：以后若加宽 --layout-max、或去掉某一侧栏，正文不会跟着无限变宽。
+     之前 layout.css 里有个 `.content-measure` 想干这件事，但没有任何组件
+     用过那个 class，规则从未生效——那个是死代码，已删除。 */
+  max-width: var(--layout-measure);
 }
 
 .prose > div {

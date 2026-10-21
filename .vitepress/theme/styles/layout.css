@@ -154,7 +154,8 @@
 
 /* ---------- 正文宽度约束 ---------- */
 
-/* 阅读区不比「最佳阅读宽度」更宽，避免超宽屏下换行过长的眼睛疲劳 */
-.layout__main > .content-measure {
-  max-width: var(--layout-measure);
-}
+/*
+ * 阅读区宽度上限落在 `.prose` 上（见 content.css），
+ * 这里保留占位说明：早期版本用 `.layout__main > .content-measure`，
+ * 但没有任何组件使用那个 class，规则从未生效，已移除避免误导。
+ */

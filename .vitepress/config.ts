@@ -162,7 +162,8 @@ export default defineConfig({
     // 与原站一致：代码块在明暗主题下都保持深色，因此用单主题
     theme: 'github-dark',
     lineNumbers: false,
-    // 目录只收 H2/H3（原站 startLevel = 2 / endLevel = 3）
+    // 右栏目录收集哪些级别的标题。H1 留给页面标题（模板已渲染），所以正文从 ## 起。
+    // 想收更多层级就加数字，例如 [2, 3, 4]；只收两级就用 [2, 3]。
     headers: { level: [2, 3] },
     // 复制按钮的悬停提示；逐页本地化在运行时完成（见 theme/index.ts）
     codeCopyButtonTitle: 'Copy code',

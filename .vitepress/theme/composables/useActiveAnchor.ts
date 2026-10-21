@@ -33,6 +33,12 @@ function readingLine(): number {
   return Number.isFinite(value) ? value : FALLBACK_READING_LINE
 }
 
+/** 是否已经滚到页面底部（留 2px 容差，避免亚像素误差）。 */
+function isAtBottom(): boolean {
+  const doc = document.documentElement
+  return window.innerHeight + window.scrollY >= doc.scrollHeight - 2
+}
+
 export function useActiveAnchor() {
   const { page } = useData()
 
@@ -42,9 +48,30 @@ export function useActiveAnchor() {
   /** 缓存的标题元素，避免每次滚动都查询 DOM。 */
   let targets: HTMLElement[] = []
 
-  /** 收集正文里的标题元素（由 VitePress 渲染时自动加了 id）。 */
+  /**
+   * 收集正文里的标题元素（由 VitePress 渲染时自动加了 id）。
+   *
+   * `page.headers` 是**嵌套**结构（H3/H4 挂在父级的 `children` 里），
+   * 必须递归展平：只遍历顶层时，深层标题永远进不了 targets，
+   * 高亮滚到第一个 H2 之后就不再跟随。
+   */
   function collect(): void {
-    targets = page.value.headers
+    const flat: { level: number; slug: string }[] = []
+
+    const walk = (
+      items: readonly { level: number; slug: string; children?: readonly unknown[] }[],
+    ) => {
+      for (const item of items) {
+        flat.push({ level: item.level, slug: item.slug })
+        if (item.children?.length) {
+          walk(item.children as { level: number; slug: string; children?: readonly unknown[] }[])
+        }
+      }
+    }
+
+    walk(page.value.headers)
+
+    targets = flat
       .map((header) => document.getElementById(header.slug))
       .filter((element): element is HTMLElement => element !== null)
   }
@@ -58,6 +85,16 @@ export function useActiveAnchor() {
     for (const target of targets) {
       if (target.getBoundingClientRect().top - line <= 0) current = target
       else break
+    }
+
+    /*
+     * 页面滚到底时，最后几个标题可能永远越不过阅读线（下方没有足够内容把它们推上去），
+     * 此时高亮会卡在中间某一项，读者以为目录坏了。
+     * 这里补一条兜底：已经到底就高亮最后一个标题。
+     */
+    if (isAtBottom()) {
+      activeId.value = targets[targets.length - 1]?.id ?? current?.id ?? ''
+      return
     }
 
     activeId.value = current?.id ?? ''
