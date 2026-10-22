@@ -13,6 +13,7 @@ import { defineConfig } from 'vitepress'
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
 import { buildTagIndex, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
+import { extendMarkdown } from './support/markdown-plugins'
 import { writeRobots } from './support/robots'
 import { writeFeeds } from './support/rss'
 import { toPageUrl } from './support/urls'
@@ -167,6 +168,10 @@ export default defineConfig({
     headers: { level: [2, 3] },
     // 复制按钮的悬停提示；逐页本地化在运行时完成（见 theme/index.ts）
     codeCopyButtonTitle: 'Copy code',
+    // 本站额外的两条语法：`==高亮==` 与 `- [x] 任务列表`。
+    // 这里是 VitePress 留给用户挂 markdown-it 插件的唯一入口，
+    // 在它自带的插件（attrs / emoji / 容器 / 锚点）之后执行，互不覆盖。
+    config: extendMarkdown,
   },
 
   // ---------- 站点地图 ----------

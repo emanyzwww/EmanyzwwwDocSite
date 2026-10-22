@@ -7,6 +7,8 @@
 
 import MarkdownIt from 'markdown-it'
 
+import { extendMarkdown } from './markdown-plugins'
+
 let renderer: MarkdownIt | null = null
 
 function getRenderer(): MarkdownIt {
@@ -14,7 +16,9 @@ function getRenderer(): MarkdownIt {
     html: true,
     linkify: true,
     typographer: false,
-  })
+    // 与页面正文用同一套扩展语法，否则 `==高亮==`、`- [x] 任务`
+    // 在 RSS 全文与侧栏卡片里会退化成纯文本
+  }).use(extendMarkdown)
   return renderer
 }
 

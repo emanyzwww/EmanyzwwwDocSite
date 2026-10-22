@@ -53,8 +53,10 @@ In that sense, this post is more than just an introduction to a website. It's th
 - ==Highlighted text==
 - <u>Underlined text</u>
 - **Bold text containing _italic text_**
-- \*Italic text containing **bold text\***
+- _Italic text containing **bold text**_
 - **_Bold italic text containing ~~strikethrough text~~_**
+- ==Highlight inside bold== is written as **==highlight==**
+- **Bold inside highlight** is written as ==**bold**==
 - Inline code: `hello, world`
 - > Level-one blockquote
   >
@@ -77,8 +79,8 @@ In that sense, this post is more than just an introduction to a website. It's th
 - Link with a title: [Visit Baidu](https://www.baidu.com 'Click to visit Baidu')
 - Automatic link: <https://www.example.com>
 - Email link: <admin@example.com>
-- Basic image: ![Placeholder image](https://via.placeholder.com/150 'Image title')
-- Linked image: [![Click to visit GitHub](https://via.placeholder.com/100)](https://github.com)
+- Basic image: ![Placeholder image](/placeholder.svg 'Image title')
+- Linked image: [![Click to visit GitHub](/placeholder.svg){width=100}](https://github.com)
 
 #### Lists
 
@@ -104,6 +106,7 @@ In that sense, this post is more than just an introduction to a website. It's th
      - Unordered sub-item B
   2. Second level
      - [x] Nested task item
+     - [ ] Task item mixing ==highlight== with `code`
 
 #### Tables
 

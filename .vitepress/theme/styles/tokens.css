@@ -41,6 +41,11 @@
   --blue-800: #253c8a;
   --blue-900: #23366e;
 
+  /* 高亮色：琥珀，`==文字==` 的底色 */
+  --amber-100: #fef3c7;
+  --amber-200: #fde68a;
+  --amber-300: #fcd34d;
+
   --white: #ffffff;
   --black: #000000;
 }
@@ -68,6 +73,11 @@
   --accent-hover: var(--blue-700);
   --accent-soft: var(--blue-50);
   --accent-border: var(--blue-200);
+
+  /* `==高亮==` 的底色与文字色。浅色主题下用淡琥珀 + 原字色，
+     深色主题另配（见下方 .dark），而不是直接沿用同一个值。 */
+  --mark-bg: var(--amber-100);
+  --mark-fg: var(--gray-900);
 
   --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
   --shadow-md: 0 2px 8px -1px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.04);
@@ -101,6 +111,10 @@
   --accent-hover: var(--blue-200);
   --accent-soft: rgb(69 113 240 / 0.14);
   --accent-border: rgb(69 113 240 / 0.32);
+
+  /* 深色主题下淡琥珀太刺眼，改成低饱和半透明底 + 略亮的字色 */
+  --mark-bg: rgb(253 224 71 / 0.22);
+  --mark-fg: var(--amber-200);
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-md: 0 2px 8px -1px rgb(0 0 0 / 0.5);

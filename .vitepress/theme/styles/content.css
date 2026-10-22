@@ -112,7 +112,68 @@
   font-weight: var(--weight-semibold);
 }
 
+/* ---------- 高亮（`==文字==`，见 support/markdown-plugins.ts） ---------- */
+
+.prose mark {
+  padding: 0.1em 0.25em;
+  border-radius: var(--radius-sm);
+  background: var(--mark-bg);
+  color: var(--mark-fg);
+  /* 圆角会让行内元素的底色在跨行处断开，这里交给浏览器按行盒各自渲染 */
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* 高亮里再套粗体/行内代码时，颜色跟正文一致即可，不额外覆盖 */
+
+/* ---------- 任务列表（`- [x] 任务`，见 support/markdown-plugins.ts） ---------- */
+
+/* 任务列表去掉项目符号：复选框本身已经是标记，再留个圆点会显得脏 */
+.prose .contains-task-list {
+  list-style: none;
+  padding-left: var(--space-2);
+}
+
+/* 嵌套的任务列表仍按正常层级缩进，否则会与外层文字贴在一起 */
+.prose li > .contains-task-list {
+  padding-left: var(--space-4);
+}
+
+.prose .task-list-item-checkbox {
+  /* accent-color 让复选框跟随主题主色（明暗两套都自动生效）。
+     注意这依赖插件输出 `readonly` 而不是 `disabled`：
+     Chrome 在 disabled 下会忽略 accent-color，把方框画成灰色。 */
+  accent-color: var(--accent);
+  margin-right: var(--space-2);
+  /* 与首行文字视觉居中对齐 */
+  vertical-align: middle;
+  /*
+   * 读者不能改勾选状态：它不是表单，只是排版标记。
+   * `readonly` 对 checkbox 不阻止点击，所以这里直接关掉指针交互，
+   * 同时也避免出现"能点但点了没用"的假交互。
+   */
+  pointer-events: none;
+  cursor: default;
+}
+
+/* 已完成项整行弱化：任务列表的通用读法，扫一眼就能看出还剩什么。
+   用 `:has()` 作用在整行上——勾选框本身只有一个 `<input>`，
+   光给它加样式不会影响同一行里的文字。 */
+.prose .task-list-item:has(.task-list-item-checkbox:checked) {
+  color: var(--fg-muted);
+}
+
 .prose blockquote {
+  /*
+   * 上下外边距必须显式清零。
+   *
+   * 浏览器默认给 `blockquote` 加 `margin: 1em 40px`。之前这里只写了
+   * `margin-inline: 0`，块级方向留给默认值，于是**每一层嵌套都再加 1em**：
+   * 四级引用累计到 ~4em（128px），表现为「层级越深，相隔越远」的巨大空白，
+   * 看起来像 Markdown 渲染坏了。间距统一由下方 `.prose > * + *` 的
+   * 节奏规则控制，引用自身不再贡献外边距。
+   */
+  margin-block: 0;
   margin-inline: 0;
   padding: var(--space-1) 0 var(--space-1) var(--space-5);
   border-left: 3px solid var(--accent-border);

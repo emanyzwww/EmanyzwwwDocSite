@@ -47,6 +47,8 @@ int main() {
 - **包含*斜体*的加粗文本**
 - _包含**加粗**的斜体文本_
 - **_包含~~删除线~~的粗斜体文本_**
+- ==**高亮里的加粗**==
+- **==加粗里的高亮==**
 - 行内代码 `hello, world`
 - > 一级引用文本
 - > > 二级引用文本
@@ -66,8 +68,8 @@ int main() {
 - 带 Title 提示的链接：[百度一下](https://www.baidu.com '点击前往百度')
 - 自动链接：<https://www.example.com>
 - 邮箱链接：<admin@example.com>
-- 基础图片：![占位图](https://via.placeholder.com/150 '图片标题')
-- 带链接的图片：[![点击跳转](https://via.placeholder.com/100)](https://github.com)
+- 基础图片：![占位图](/placeholder.svg '图片标题')
+- 带链接的图片：[![点击跳转](/placeholder.svg){width=100}](https://github.com)
 
 #### 列表
 
@@ -93,6 +95,7 @@ int main() {
      - 无序子层级 B
   2. 第二层级
      - [x] 嵌套的任务列表
+     - [ ] ==高亮==与 `代码` 混排的任务项
 
 #### 表格
 

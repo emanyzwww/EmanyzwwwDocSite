@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="Placeholder">
+  <!--
+    本地占位图，替代原先的 https://via.placeholder.com/150 外链。
+
+    为什么自己画：
+    1. 外链在部分网络环境下会加载失败（表现为「图片语法坏了」，实际是图裂）；
+    2. 外链 PNG 固定 150×150，无法按 `{width=...}` 缩放而不发虚；
+    3. SVG 几行就能表达，体积极小，且跟随明暗主题（用 currentColor 以外的固定中性色，
+       避免在深色页面里出现"白块"）。
+
+    放在 public/ 下，按根绝对路径引用：`/placeholder.svg`。
+    VitePress 会自动加部署子路径前缀，因此 /、/repo/、自定义域名都能正确加载。
+  -->
+  <rect width="150" height="150" rx="8" fill="#e4e6eb" />
+  <path d="M20 20h110v110H20z" fill="none" stroke="#a9aeb8" stroke-width="2" stroke-dasharray="6 5" />
+  <path d="M45 105l22-30 16 21 12-14 15 23z" fill="#a9aeb8" />
+  <circle cx="58" cy="52" r="9" fill="#a9aeb8" />
+</svg>
