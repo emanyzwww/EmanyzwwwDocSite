@@ -17,8 +17,13 @@ html {
   /* 用 clip 而非 hidden：clip 不创建滚动容器，因此不会破坏 sticky。
      hidden 会让 html/body 变成滚动容器，导致页头与侧栏的 sticky 全部失效。 */
   overflow-x: clip;
-  /* 常驻预留滚动条空间，避免内容高度跨过一屏时页面宽度突变 */
-  scrollbar-gutter: stable;
+  /*
+   * 这里**没有** `scrollbar-gutter: stable`。
+   *
+   * 它是为原生滚动条"常驻预留空间"用的，而本站的原生滚动条已经被
+   * 隐藏（见文件末尾），实测预留量为 0 —— 留着它是空操作，
+   * 还会让人误以为仍在兜底。详情见末尾那段注释。
+   */
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -204,16 +209,73 @@ hr {
   white-space: nowrap;
 }
 
-/* ---------- 滚动条（常驻，不自动隐藏） ---------- */
+/* ---------- 滚动条 ----------
+
+   本站**不使用原生滚动条**，页面级滚动条是自绘的（`.scrollbar`，
+   见下方与 `components/common/ScrollBar.vue`）。这里只负责把原生的隐藏掉。
+
+   ---------- 为什么一定要隐藏，而不只是"美化" ----------
+
+   原生滚动条只能改宽度和颜色，但设计上有四条硬要求它做不到：
+
+   1. 长度下限：长文章里拇指按比例算出来只剩十几像素，看不见也抓不住；
+   2. 避开页头：原生条只能贴视口上下沿，滚到顶部时会被粘性页头压住；
+   3. 槽底与画布一致：`::-webkit-scrollbar-track` 无法与 `--bg-canvas`
+      完全一致（暗色下尤其明显），永远是一根"系统条"；
+   4. 层级：原生条固定在内容之上，无法排到页头之下。
+
+   ---------- `scrollbar-gutter` 为什么删掉了 ----------
+
+   旧代码给 `html` 写了 `scrollbar-gutter: stable`，用来"常驻预留滚动条空间，
+   避免内容高度跨过一屏时页面宽度突变"。
+
+   **隐藏原生滚动条之后这条声明变成空操作**：实测（headless Chrome，
+   `scrollbar-gutter: stable` 与 `scrollbar-width: none` 同时存在）
+   `innerWidth - clientWidth === 0`，既不再占用也不预留任何宽度。
+
+   好消息是不再有"跨过一屏时宽度突变"——因为原生条**任何时候都不占位**。
+   `stable` 是为了解决经典滚动条"有/无"切换造成的抖动，那个前提已经不存在了。
+   留着它只会让人误以为仍在兜底，所以删掉。
+
+   ---------- 嵌套滚动容器的例外 ----------
+
+   `.layout__aside`（粘性侧栏）、搜索面板的 `.search__list`、移动端目录
+   `.m-toc__list`、抽屉的 `.m-nav__list` **都保留**原生条 —— 它们是页面里
+   的局部滚动容器。理由见 layout.css：自绘条表达的是「整页读到哪里」，
+   局部容器塞第二根自绘拇指会让右侧出现两条同时移动的条，反而看不懂。
+
+   ⚠️ 这就意味着：**只删掉旧的全局 `*` 规则会造成回归**。
+   那几个容器原先靠一条 `* { scrollbar-width: auto; scrollbar-color: ... }`
+   统一着色，删掉后会退回**操作系统默认滚动条**（浅色主题下突然冒出一根
+   灰色系统条，比改动前更不统一；实测 `scrollbar-width` 变回 `auto`）。
+
+   所以全局规则保留，但换成本站令牌：细档 + 同一组拇指色。
+
+   优先级核对（重要，别把顺序调错）：
+   - `html`（元素，0,0,1）的 `none` 压过 `*`（通配符，0,0,0）→ 页面级仍隐藏；
+   - `.site-nav` / `.m-nav__list`（类，0,1,0）自己的 `none` 同样压过 `*`；
+   - 其余局部容器落回 `*` 的 `thin` + 拇指色。
+*/
 
 * {
-  scrollbar-width: auto;
-  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
+/* 页面级：隐藏原生条，改用自绘条（下面）。必须排在 `*` 之后。 */
+html {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* WebKit 系没有 `scrollbar-width: thin` 的细档，显式给 6px 对齐自绘条 */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -221,16 +283,82 @@ hr {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
+  background-color: var(--scrollbar-thumb);
   border-radius: var(--radius-full);
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--fg-subtle);
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* ---------- 自绘滚动条（页面级） ----------
+
+   层级：内容之上（0）、页头之下（100），见 tokens.css 的 `--z-scrollbar`。
+   长度为动态值，由 JS 写进 `height` / `transform`，CSS 只负责外观。
+
+   **没有轨道元素**：容器本身完全透明，所以"槽底"就是页面背景，
+   视觉上只有一根拇指浮在内容右侧（用户要求 4：只看到滚动条）。
+
+   也**没有上下箭头**（用户要求 5）：那套装饰属于 90 年代的系统控件，
+   在浮层拇指上会立刻显得陈旧。
+*/
+
+.scrollbar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  /* 命中带比视觉宽度大：手指/鼠标更容易按住，外观仍是 6px */
+  width: 14px;
+  z-index: var(--z-scrollbar);
+  /* 整条轨道不拦截点击：它只是"被看见"，正文里的链接照样能点 */
+  pointer-events: none;
+}
+
+.scrollbar__thumb {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  width: 6px;
+  border-radius: var(--radius-full);
+  background: var(--scrollbar-thumb);
+  pointer-events: auto;
+  cursor: grab;
+  /* 触屏上不给浏览器"这是滚动"的默认判断，否则 pointermove 被滚动吃掉 */
+  touch-action: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/*
+ * 把命中区从 6px 扩到 14px（两端各外扩 4px）。
+ *
+ * 伪元素继承父元素的 `pointer-events`，所以扩出来的区域照样能触发拖拽，
+ * 而视觉宽度不变——这是"看得见的很细、抓得住的很宽"的标准做法。
+ */
+.scrollbar__thumb::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.scrollbar__thumb:hover,
+.scrollbar.is-active .scrollbar__thumb {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.scrollbar__thumb:active {
+  background: var(--scrollbar-thumb-active);
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollbar__thumb {
+    transition: none;
+  }
 }

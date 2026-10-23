@@ -10,6 +10,7 @@
   .post-nav,
   .skip-link,
   .reading-progress,
+  .scrollbar,
   .prose div[class*='language-'] > button.copy {
     display: none !important;
   }

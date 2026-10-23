@@ -65,22 +65,19 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 
-  scrollbar-width: thin;
+  /*
+   * 侧栏**保留原生滚动条**，与页面级的自绘条不同。
+   *
+   * 理由：自绘条是"一根浮在页面右侧的拇指"，它表达的是**整页**的阅读位置；
+   * 侧栏是页面里的一个独立小滚动容器，塞第二根自绘条会让右侧出现
+   * 两条同时移动的拇指，反而看不懂。原生条在这里恰好是最合适的提示：
+   * 它是局部的、细的、不会喧宾夺主。
+   *
+   * 颜色不用在这里写：`base.css` 的全局规则已经给了 `thin` +
+   * `--scrollbar-thumb`，与自绘条同源。这里只需要预留空间。
+   */
   scrollbar-gutter: stable;
   padding-right: var(--space-1);
-}
-
-/* 侧栏滚动条平时淡出，悬停时才明显，减少视觉噪音 */
-.layout__aside::-webkit-scrollbar {
-  width: 6px;
-}
-
-.layout__aside::-webkit-scrollbar-thumb {
-  background-color: transparent;
-}
-
-.layout__aside:hover::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
 }
 
 /* ---------- 三栏（文章页）：左卡片 | 正文 | 右目录 ---------- */

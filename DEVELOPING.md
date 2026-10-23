@@ -340,12 +340,15 @@ CI 会自动算好这两个值传给构建（见 `.github/workflows/deploy.yml`�
 
 ```bash
 # 1. 对比度实测（打印每个前景/背景组合，必须全部 PASS）
-$env:PYTHONIOENCODING='utf-8'
-python .dsh/temp/contrast.py
+node .dsh/temp/contrast.mjs
 
 # 2. 令牌完整性（确认没有「引用了未定义令牌」）
 node .dsh/temp/check-tokens.mjs
 ```
+
+> 两个脚本都在 `.dsh/temp/` 下，该目录**不进版本库**（`.gitignore` 里的 `temp/`）。
+> 换台机器需要重新生成：`contrast.mjs` 直接读 `tokens.css` 解析变量链，
+> 所以只要令牌还在，它就是准确的。
 
 `check-tokens.mjs` 会报两类问题：
 
@@ -359,7 +362,7 @@ node .dsh/temp/check-tokens.mjs
 
   只有当某个令牌**本应被使用却被遗忘**时才算问题（那时你会在页面上直接看出异常）。
 
-`contrast.py` 里把边框分成了两类，这个区分很重要：
+`contrast.mjs` 里把边框分成了两类，这个区分很重要：
 
 - `--border-subtle` / `--border-strong` 是**装饰**（卡片描边、分隔线），
   WCAG 1.4.11 不约束它们；
@@ -393,6 +396,7 @@ node .dsh/temp/check-tokens.mjs
 | 侧栏宽度 | `--aside-width`                                      |
 | 页头高度 | `--header-height`（改后注意 `scrollOffset`）         |
 | 层级     | `--z-*` 命名阶梯，**禁止** `calc(var(--z-header)+N)` |
+| 滚动条色 | `--scrollbar-thumb*`（三档：静止/悬停/拖拽）         |
 
 ### 明暗主题的机制
 
@@ -471,7 +475,7 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 | 文件             | 管什么                                                      | 什么时候进这里改             |
 | ---------------- | ----------------------------------------------------------- | ---------------------------- |
 | `tokens.css`     | 全部设计变量（含 z 轴阶梯、安全区与停靠高度）               | 换色、换圆角、换字号、换间距 |
-| `base.css`       | 重置、body、a、图标尺寸、滚动条、焦点环、跳转链接           | 调基础排版、改滚动条         |
+| `base.css`       | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接       | 调基础排版、改滚动条         |
 | `layout.css`     | 容器、两栏/三栏网格、粘性侧栏、断点                         | 改整体骨架、侧栏宽度         |
 | `components.css` | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态  | 改页头页脚、按钮样式         |
 | `content.css`    | **正文专属**：标题、段落、列表、引用、表格、代码块、图片    | 改文章正文观感               |
@@ -765,12 +769,16 @@ export function usePopularPosts(limit = 5) {
 | `useActiveAnchor`    | 目录高亮（当前滚动到哪一节）                 |
 | `useReadingProgress` | 阅读进度 0–1                                 |
 | `useDockState`       | 移动端「阅读态」：页头隐藏 / 胶囊收成圆      |
-| `useViewportInset`   | 把 visualViewport 的底边差值写进 `--vv-gap`  |
+| `useScrollBar`       | 自绘滚动条：拇指长度、位置与拖拽             |
 
-**`useDockState` 与 `useViewportInset` 是模块级单例，可以多处调用**
+**`useDockState` 是模块级单例，可以多处调用**
 （`SiteHeader` 与 `MobileDock` 就各调了一次），不会重复绑定事件。
 不要改成「每个组件各持一份 ref」——那样两个组件会算出不同结论，
 表现为「页头藏了但胶囊没缩」这类诡异 bug。
+
+`useScrollBar` 不是单例（只有 `ScrollBar` 一个消费者），但它**复用
+`useScrollEffect`** 这个全站唯一的滚动订阅。要加新的「滚动联动」效果，
+照它的样子接进去，不要自己 `addEventListener('scroll')`。
 
 ### 加数据字段（进阶）
 
@@ -1261,10 +1269,13 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 只用 `tokens.css` 里的命名令牌，**禁止**就地写 `calc(var(--z-header) + N)`。
 
 ```text
-正文 0 < 页头 100 < 进度条 101 < 胶囊 102 < 抽屉/目录 120 < 搜索 140 < 跳过链接 150
+正文 0 < 滚动条 90 < 页头 100 < 进度条 101 < 胶囊 102 < 抽屉/目录 120 < 搜索 140 < 跳过链接 150
 ```
 
 进度条必须在页头之上（否则 2px 被页头的毛玻璃背景吃掉），但必须在所有模态之下。
+
+滚动条是**唯一排在页头之下**的浮动元素。它要盖住正文（否则滚动时被内容遮住），
+又不能盖住页头（页头是常驻导航，滚动条从它的下沿才开始画）。
 
 ### 阅读进度条：属于页头，但用 fixed 定位
 
@@ -1297,3 +1308,29 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 2. **在 `@media (mobile)` 里加 `.site-header.is-hidden .reading-progress { top: 0 }`。**
    阅读态下包含块**已经是页头**，再设 `top: 0` 等于把进度条推到
    「页头顶边」= 视口 `-57px`，直接飞出屏幕。**不需要任何状态覆盖规则。**
+
+### 滚动条：自绘，但只有页面级
+
+页面级滚动条是自绘的（`components/common/ScrollBar.vue`），
+原生条被隐藏（`base.css`）。**完整规范见 [DESIGN.md](./DESIGN.md) 第十一节**，
+这里只记改代码时的三件事。
+
+**为什么不能挂进 `<header>`。** 层级上它要在页头之下，看起来很自然想
+「挂进去」，但页头的 `backdrop-filter` 会为 `position: fixed` 后代创建
+包含块，把滚动条关进页头的层叠上下文 —— 那样它的 `z-index` 只跟页头的
+子元素比，压不住正文了。所以它和页头**平级**，都挂在 `PageShell`。
+
+**长度下限与轨道上沿都靠测量，不写死令牌。** 轨道上沿取页头实测下沿
+（`getBoundingClientRect().bottom`），长度下限取页头实测高度。
+不要改成 `--header-height`：那个变量是布局契约，历史上与实际高度
+漂移过一次（见上一节）；而且阅读态下页头移出屏幕，实测值会给出
+`bottom = -57`，需要夹到 0 —— 这是「页头滑走但滚动条留着」的实现方式。
+
+**路由切换后必须重测。** `ScrollBar` 挂在常驻的 `PageShell` 上，不会随
+路由重建。从长文章跳到短页面时，`scrollY` 可能一直是 0（没有 scroll 事件），
+唯一变化是文档变短了。所以组件里 `watch(route.path)` → `nextTick` → `refresh()`。
+`ResizeObserver` 也能覆盖大部分情况，但那是副作用，不是契约。
+
+几何计算是纯函数（`support/scrollbar.ts`），有 15 个单测兜边界
+（拇指长度永不越界、位置永不越界、`scrollTopForOffset` 与 `computeThumb` 互逆）。
+**改映射规则先改测试，再改实现。**
