@@ -243,6 +243,33 @@ export default defineConfig({
 
   // ---------- 页头静态标签 ----------
   head: [
+    /*
+     * ---------- 视口 ----------
+     *
+     * 必须**显式覆盖** VitePress 默认注入的那一条。原因是默认值
+     * `width=device-width,initial-scale=1` 里没有 `viewport-fit=cover`，
+     * 而全站的 `env(safe-area-inset-*)` 只有带了这个值才返回真实的非 0 像素。
+     *
+     * 换句话说：CSS 里写了三处安全区适配，但只要这一条 meta 不对，
+     * 它们就全部恒等于 0 —— 刘海屏 / 圆角屏上底栏被切角，且完全看不出来。
+     *
+     * VitePress 1.6.4 的 `isMetaViewportOverridden()` 会检查 `head` 里是否
+     * 已存在 `name="viewport"` 的 meta，存在则不再注入自己的默认值。
+     *
+     * `interactive-widget=resizes-content`：Chrome Android 的默认值是
+     * `resizes-visual`（虚拟键盘弹出时不重排 layout viewport），改成
+     * `resizes-content` 后底部固定元素会跟着一起重排。
+     * 它与 `useViewportInset` 的 `--vv-gap` 互补：一个覆盖 Android，
+     * 一个覆盖 iOS Safari（那边没有这个属性可用）。
+     */
+    [
+      'meta',
+      {
+        name: 'viewport',
+        content:
+          'width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content',
+      },
+    ],
     ['link', { rel: 'icon', href: `${BASE}favicon.svg`, type: 'image/svg+xml' }],
     ['meta', { name: 'color-scheme', content: 'light dark' }],
     ['meta', { name: 'author', content: SITE.author }],

@@ -149,7 +149,7 @@ hr {
   box-shadow: var(--shadow-md);
   transform: translateY(-200%);
   transition: transform var(--duration-fast) var(--ease-out);
-  z-index: calc(var(--z-header) + 1);
+  z-index: var(--z-skip);
 }
 
 .skip-link:focus-visible {

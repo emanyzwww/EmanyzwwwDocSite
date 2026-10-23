@@ -9,15 +9,34 @@ import AppIcon from '../common/AppIcon.vue'
 /**
  * 语言切换。
  *
- * 行为与旧站一致：一个图标按钮 + 下拉菜单，Esc 关闭、点击外部关闭、
- * 焦点回到触发按钮。目标地址的推导规则见 `useLocaleSwitch`。
+ * 两种形态，由 `variant` 决定：
  *
- * 点过某个语言后记到 `localStorage`，根路径的自动跳转（`public/index.html`）
- * 会优先尊重这个选择，不再按浏览器语言重新猜一次。
+ * - `dropdown`（桌面页头默认）：一个图标按钮 + 下拉菜单。
+ *   Esc 关闭、点击外部关闭、焦点回到触发按钮。
+ *
+ * - `segmented`（移动端抽屉里用）：两个并排的分段按钮，
+ *   当前语言高亮、另一语言可点。**没有展开过程**，一次点击就完成切换。
+ *
+ * 为什么抽屉里必须用 `segmented` 而不是 `dropdown`：
+ * 抽屉面板是 `overflow-y: auto` 的滚动容器，而下拉菜单是
+ * `position: absolute` —— 它会被滚动容器**直接裁掉**，
+ * 即使滚动到位置也弹不出来。这个 bug 在旧实现里存在但很难被发现
+ * （表现为「点了没反应」）。分段按钮从结构上消除了这个问题。
+ *
+ * 两种形态共用同一份地址推导逻辑（`useLocaleSwitch`），
+ * 也共用同一个 `localStorage` 记忆键。
  */
 
 /** 与 `public/index.html` 里必须保持一致的存储键。 */
 const LOCALE_STORAGE_KEY = 'emanyzwww-locale'
+
+const props = withDefaults(
+  defineProps<{
+    /** 展现形态。`dropdown` 用于桌面，`segmented` 用于移动端抽屉。 */
+    variant?: 'dropdown' | 'segmented'
+  }>(),
+  { variant: 'dropdown' },
+)
 
 const { m, locale } = useI18n()
 const { options } = useLocaleSwitch()
@@ -65,6 +84,8 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(() => {
+  // 分段形态没有展开状态，不需要任何全局监听
+  if (props.variant === 'segmented') return
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onKeydown)
 })
@@ -76,7 +97,39 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="locale-switch" :data-open="open ? 'true' : 'false'">
+  <!-- ---------- 分段形态（移动端抽屉） ---------- -->
+  <div
+    v-if="variant === 'segmented'"
+    class="locale-seg"
+    role="group"
+    :aria-label="m.switchLanguage">
+    <template v-for="option in options" :key="option.code">
+      <!-- 当前语言：不可点，用 aria-current 标记 -->
+      <span
+        v-if="option.current"
+        class="locale-seg__btn is-current"
+        :lang="option.lang"
+        aria-current="true">
+        <AppIcon :name="option.code === 'en' ? 'en' : 'zh'" />
+        {{ option.label }}
+      </span>
+
+      <!-- 另一种语言：一次点击直达对应页面 -->
+      <a
+        v-else
+        class="locale-seg__btn"
+        :href="localizedHref(option.url)"
+        :hreflang="option.lang"
+        :lang="option.lang"
+        @click="remember(option.code)">
+        <AppIcon :name="option.code === 'en' ? 'en' : 'zh'" />
+        {{ option.label }}
+      </a>
+    </template>
+  </div>
+
+  <!-- ---------- 下拉形态（桌面页头） ---------- -->
+  <div v-else ref="root" class="locale-switch" :data-open="open ? 'true' : 'false'">
     <button
       ref="trigger"
       class="locale-switch__trigger icon-button"

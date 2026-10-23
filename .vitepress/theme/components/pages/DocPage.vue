@@ -8,7 +8,6 @@ import { useI18n } from '../../i18n'
 import { feedPath, href, withLocale } from '../../support/paths'
 import OutlineCard from '../aside/OutlineCard.vue'
 import StatsCard from '../aside/StatsCard.vue'
-import ProgressBar from '../common/ProgressBar.vue'
 import ThreeColumn from '../layout/ThreeColumn.vue'
 import PostMeta from '../post/PostMeta.vue'
 import PostNav from '../post/PostNav.vue'
@@ -45,7 +44,12 @@ const feedUrl = computed(() => withBase(feedPath(locale.value)))
 
 <template>
   <ThreeColumn>
-    <ProgressBar v-if="isPost" selector="[data-article-body]" />
+    <!--
+      进度条**不在这里**渲染。它已搬到 `SiteHeader` 内部（绝对定位贴页头下沿）：
+      这样页头在移动端隐藏时进度条自动一起隐藏，也不会再因为
+      `top: var(--header-height)` 与页头实际高度（含 1px 下边框）不一致
+      而出现「没完全贴住」的观感。
+    -->
 
     <article :data-article-body="isPost ? '' : undefined">
       <header class="post-header">

@@ -2,14 +2,27 @@
    移动端专属层
    ---------------------------------------------------------
    这个文件的全部规则都只在「触屏 / 窄屏」下生效。
-   设计原则与桌面不同：
+   设计原则与桌面**不同**，不是「桌面的缩小版」：
 
    - 桌面靠「同屏并置」降低操作成本（导航、目录、正文同时可见）；
-   - 手机屏幕容不下并置，改为「拇指可达 + 按需唤出」：
-     导航进抽屉、目录进浮层、高频动作放底部固定栏。
+   - 手机屏幕容不下并置，改为「按需唤出 + 拇指可达」：
+     导航进抽屉、目录进浮层、高频动作放悬浮胶囊。
 
    断点选 720px：与 `--header-height` 的切换点一致，
    保证「页头结构」和「页头高度」永远同一时刻变化。
+
+   ---------- 本次重构解决的五个系统性问题 ----------
+   S1 视口：`viewport-fit=cover` 之前缺失，导致 `env(safe-area-inset-*)`
+      恒为 0 —— 安全区适配写了三处、一次都没执行过。
+   S2 层级：进度条与抽屉都曾等于 110，同层时 DOM 靠后者胜出，
+      表现为「打开抽屉时进度条压在遮罩上」。现改为命名阶梯（见 tokens.css）。
+   S3 布局：侧栏在 960px 就降级堆到底部，720px 下没有任何更激进的规则，
+      于是手机上「资料卡 → 标签卡 → 目录卡」全堆在正文之后，
+      多出 2~3 屏无效滚动，且目录卡与胶囊的目录按钮功能重复。
+   S4 交互：抽屉是桌面的纵向平移、语言是下拉菜单（会被滚动容器裁掉）、
+      底栏是通栏横条（切掉屏幕底部一整条）。全部按触屏重做。
+   S5 跟随：`position: fixed; bottom: 0` 贴 layout viewport，
+      浏览器工具栏收放时不会逐帧跟随。改用 `visualViewport` 补偿。
    ========================================================= */
 
 /* ---------- 页头：两套结构互斥 ----------
@@ -32,8 +45,8 @@
      * 移动端页头恒为一行，高度固定 56px。
      *
      * 这个值同时写进 `--header-height`（见下方 :root 覆盖），
-     * 因为进度条定位、锚点偏移、目录高亮线都读那个变量。
-     * 两者必须同步改，否则又会出现「进度条藏进页头」「跳转后标题被盖」。
+     * 因为锚点偏移、目录高亮线都读那个变量。
+     * 两者必须同步改，否则会出现「跳转后标题被页头盖」。
      */
     min-height: 3.5rem;
   }
@@ -41,6 +54,44 @@
   /* 页头高度契约：与上面 .site-header__mobile 的实际高度保持一致 */
   :root {
     --header-height: 3.5rem;
+  }
+}
+
+/* ---------- 阅读态：页头整体上移出屏 ----------
+ *
+ * 用户的原话：「全展开的底部和 header 同时出现时是一种状态，
+ * 进入阅读状态后全隐藏貌似更好」。
+ *
+ * 用 `transform: translateY(-100%)` 而不是 `display: none` ：
+ * 1. 页头在流里仍占着它原本的位置（sticky 元素参与流），
+ *    所以隐藏时**不会**发生内容上跳重排（那会造成一次剧烈的滚动漂移）；
+ * 2. `--header-height` 这个布局契约不受影响，
+ *    `scroll-padding-top` / 锚点偏移全部保持正确；
+ * 3. 进度条是页头的绝对定位子元素，会**自动**跟着一起隐藏，
+ *    不需要任何额外联动逻辑。
+ *
+ * 只在窄屏启用：桌面有足够空间，页头常驻更符合鼠标用户预期。
+ */
+
+@media (max-width: 720px) {
+  .site-header {
+    transition:
+      transform var(--duration-normal) var(--ease-out),
+      background-color var(--duration-normal) var(--ease-out);
+    /* 安全区：横屏刘海在左/右，页头内边距要避开 */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .site-header.is-hidden {
+    transform: translateY(-100%);
+  }
+}
+
+/* 减少动效时直接切换，不做位移过渡 */
+@media (prefers-reduced-motion: reduce) {
+  .site-header {
+    transition: none;
   }
 }
 
@@ -67,13 +118,20 @@
   height: 1.35rem;
 }
 
-/* ---------- 导航抽屉 ---------- */
+/* =========================================================
+   导航抽屉：三段式
+   ---------------------------------------------------------
+   顶部固定（品牌 + 关闭 + 工具）／中部滚动（导航）／底部固定（资料条）。
+
+   旧实现的错误：整个面板 `overflow-y: auto`，而工具区靠
+   `margin-top: auto` 推到底 —— 一旦导航项稍多，工具区就被推到视口外，
+   用户必须手动滚动才能点到语言切换（报告里的 2-6）。
+   ========================================================= */
 
 .m-nav {
   position: fixed;
   inset: 0;
-  /* 高于页头（z-header = 100），否则抽屉会被粘性页头压住 */
-  z-index: calc(var(--z-header) + 10);
+  z-index: var(--z-drawer);
 }
 
 .m-nav__scrim {
@@ -90,46 +148,71 @@
 .m-nav__panel {
   position: absolute;
   inset: 0 0 0 auto;
-  width: min(84vw, 20rem);
-  /* 高度必须撑满整个遮罩：面板是 flex 列容器，若高度由内容决定，
-     `.m-nav__tools { margin-top: auto }` 就推不动，底部工具会被挤到正文上方。
-     同时 `inset: 0 0 0 auto` 只固定了 right/top/bottom，
-     高度本应由 top/bottom 撑满，这里显式写死避免被内容高度覆盖。 */
+  /*
+   * 宽度**固定**，不随视口连续变化。
+   *
+   * 旧值 `min(84vw, 20rem)` 会随视口宽度连续变化，导致行高、换行点、
+   * 图标与文字的间距全都在漂，同一套设计在不同机型上看起来不一样。
+   * 固定 19rem 之后内部布局是稳定的；`max-width` 只是兜底，
+   * 保证 320px 级小屏上右侧仍露出足够宽的遮罩区域可以点击关闭。
+   */
+  width: 19rem;
+  max-width: calc(100vw - 4rem);
+  /*
+   * 高度用 100%：`inset: 0 0 0 auto` 已经由 top/bottom 撑满，
+   * 但面板是 flex 列容器，显式写死可避免被内容高度覆盖。
+   */
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
+  /* 三段之间的间距为 0：分隔由各自的 padding + border 表达，
+     这样中部滚动区的边界才精确 */
+  gap: 0;
+  /*
+   * 安全区：横屏刘海在左，竖屏手势条在底。
+   * 加在**面板自己**而不是遮罩上：遮罩要铺满整块屏幕（`inset: 0`），
+   * 但面板内容必须避开被硬件遮挡的像素。
+   */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   background: var(--bg-surface);
   border-left: var(--border-width) solid var(--border-subtle);
   box-shadow: var(--shadow-lg);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* 面板本身**不滚动**，滚动交给中部列表 */
+  overflow: hidden;
   animation: m-slide-in var(--duration-normal) var(--ease-out);
 }
 
+/* ---------- ① 顶部：品牌 + 关闭 ---------- */
+
 .m-nav__head {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding-bottom: var(--space-3);
-  border-bottom: var(--border-width) solid var(--border-subtle);
+  padding: var(--space-3) var(--space-4);
 }
 
 .m-nav__brand {
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .m-nav__close {
   display: grid;
   place-items: center;
+  /* 44×44 热区 */
   width: 2.75rem;
   height: 2.75rem;
   margin-right: calc(var(--space-2) * -1);
   border-radius: var(--radius-md);
   color: var(--fg-muted);
+  flex-shrink: 0;
 }
 
 .m-nav__close:hover {
@@ -142,13 +225,90 @@
   height: 1.25rem;
 }
 
+/* ---------- ② 工具区：主题 + 语言（顶部固定，永远可见） ---------- */
+
+.m-nav__tools {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+/* 抽屉里的主题按钮放大到与其它触控目标一致 */
+.m-nav__tools .icon-button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+/* ---------- 语言：分段按钮（不是下拉） ---------- */
+
+/*
+ * 为什么抽屉里必须用分段按钮：
+ * 抽屉面板是 `overflow-y: auto` 的滚动容器，而 `.locale-switch__menu`
+ * 是 `position: absolute` —— 它会被滚动容器**直接裁掉**，
+ * 即使滚动到位置也弹不出来（旧实现里表现为「点了没反应」）。
+ * 分段按钮从结构上消除了这个问题，还少一次点击。
+ */
+.locale-seg {
+  display: flex;
+  flex: 1;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface-alt);
+}
+
+.locale-seg__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.locale-seg__btn.is-current {
+  background: var(--bg-surface);
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+  box-shadow: var(--shadow-sm);
+}
+
+.locale-seg__btn svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* ---------- ③ 中部：导航列表（唯一可滚区） ---------- */
+
 .m-nav__list {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: var(--space-3) var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 滚动条在这里是噪音，隐藏但它仍然可以滚 */
+  scrollbar-width: none;
+}
+
+.m-nav__list::-webkit-scrollbar {
+  display: none;
 }
 
 .m-nav__link {
@@ -186,101 +346,134 @@
   flex-shrink: 0;
 }
 
-.m-nav__tools {
-  margin-top: auto;
-  padding-top: var(--space-4);
-  border-top: var(--border-width) solid var(--border-subtle);
-}
+/* ---------- ④ 底部：精简资料条（固定，不随滚动） ---------- */
 
-.m-nav__tools-label {
-  display: block;
-  margin-bottom: var(--space-2);
-  color: var(--fg-subtle);
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
-}
-
-.m-nav__tools-row {
-  display: flex;
+/*
+ * 用户明确要求：资料卡可以存在于抽屉里，但**不要在抽屉里堆那些卡片**。
+ * 所以这里不是侧栏那张 `.profile` 大卡（80px 头像 + 简介 + 大按钮），
+ * 而是一条两行的精简信息条：小头像 + 名字，下面一行社交图标。
+ *
+ * 为什么是两行而不是一行：
+ * 面板宽 304px，减去两侧 padding 后只有 272px。若「头像 + 名字 + 4 个
+ * 社交图标」挤在一行，名字只剩约 56px —— 实测会被截断成「Eman…」。
+ * 拆成两行后名字拿到整整一行宽度，社交图标也不必被压缩到难以点中。
+ * 增加的高度只有一行（32px），换来的是「不截断 + 热区够大」，值得。
+ */
+.m-nav__profile {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-3);
-}
-
-/* 抽屉里的工具按钮放大，与主导航保持同一触控规格 */
-.m-nav__tools-row .icon-button {
-  width: 2.75rem;
-  height: 2.75rem;
-}
-
-/* ---------- 底部操作栏 ---------- */
-
-.m-bar {
-  display: none;
-}
-
-@media (max-width: 720px) {
+  gap: var(--space-1) var(--space-3);
   /*
-   * 底栏是 `position: fixed`，会盖住页面最底部的内容。
-   * 两处都要留出与底栏等高的空间：
-   * 1. 页脚（版权、链接）——否则永远被压在底栏下面；
-   * 2. `--mobile-bar-space` 供正文/其它固定定位元素复用，
-   *    避免每处各写一个魔数。
+   * 底部 padding 给到 `--space-4`（16px）而不是 `--space-3`：
+   * 这一条紧贴屏幕底边，而手机底部往往是手势条区域。
+   * 面板本身还有 `env(safe-area-inset-bottom)`，两者叠加后
+   * 在真机上图标与硬件边缘之间有足够空隙（headless 环境下 safe-area 为 0，
+   * 16px 是保底值）。
    */
-  :root {
-    --mobile-bar-space: calc(3.25rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  .site-footer {
-    padding-bottom: var(--mobile-bar-space);
-  }
-
-  .m-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: calc(var(--z-header) + 5);
-    display: flex;
-    align-items: stretch;
-    /*
-     * 安全区：iPhone 的 Home 指示条会盖住底部按钮。
-     * `env()` 在不支持的浏览器里回退到 0。
-     */
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
-    backdrop-filter: saturate(180%) blur(12px);
-    border-top: var(--border-width) solid var(--border-subtle);
-  }
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: var(--border-width) solid var(--border-subtle);
+  background: var(--bg-surface);
 }
 
-.m-bar__item {
-  flex: 1;
+.m-nav__avatar {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-subtle);
+}
+
+.m-nav__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.m-nav__who {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  /* 底部栏主体高度 52px，加上安全区仍是舒适的拇指热区 */
-  min-height: 3.25rem;
-  padding: var(--space-2) var(--space-1);
-  color: var(--fg-muted);
-  font-size: 0.68rem;
-  line-height: 1.2;
-  text-align: center;
-  /* 去掉 iOS 点击时的灰色高亮块 */
-  -webkit-tap-highlight-color: transparent;
-  transition: color var(--duration-fast) var(--ease-out);
+  gap: 0.1rem;
 }
 
-.m-bar__item:hover,
-.m-bar__item:active {
+.m-nav__name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--fg-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-nav__tagline {
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第二行：横跨两列，靠右。这样它不会和名字抢宽度。 */
+.m-nav__social {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.m-nav__social a {
+  display: grid;
+  place-items: center;
+  /* 2.25rem = 36px：一排图标彼此相邻时，这个尺寸仍远大于误触阈值 */
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-md);
+  color: var(--fg-subtle);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.m-nav__social a:hover {
   color: var(--accent);
+  background: var(--bg-surface-alt);
 }
 
-.m-bar__item svg {
-  width: 1.15rem;
-  height: 1.15rem;
+.m-nav__social svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* =========================================================
+   底部：悬浮胶囊
+   ---------------------------------------------------------
+   旧实现是通栏横条（`left: 0; right: 0; bottom: 0`），它把屏幕底部
+   整条切掉 —— 视觉上像「浏览器自己的工具栏」，和内容抢地盘，
+   也压掉了圆角屏的安全区。
+
+   现在是悬浮胶囊：左右留出边距、四角全圆、半透明毛玻璃。
+   它读起来是「浮在内容之上的一小块」，而不是「页面被截断了一条」。
+
+   ---------- 收缩成圆的几何原理 ----------
+   `left: 50%` + `transform: translateX(calc(50vw - var(--dock-inset) - 100%))`，
+   其中 `100%` 按元素**当前**宽度解析。于是：
+
+       右边缘 = 50vw + T + w = 50vw + (50vw - inset - w) + w
+              = 100vw - inset          ← 与 w 无关，恒成立
+
+   即**右边缘钉死不动，只有宽度在变**。收缩时左边缘一路向右扫过去，
+   正好是用户描述的「从左侧往右侧压缩成一个圆」。
+   由于两态的 transform 表达式完全相同（只有 width 变），
+   不需要去插值 transform，每帧按当前宽度重新解析即可。
+   ========================================================= */
+
+.m-dock {
+  display: none;
 }
 
 /* ---------- 目录浮层 ---------- */
@@ -288,7 +481,7 @@
 .m-toc {
   position: fixed;
   inset: 0;
-  z-index: calc(var(--z-header) + 10);
+  z-index: var(--z-drawer);
 }
 
 .m-toc__scrim {
@@ -305,24 +498,35 @@
 .m-toc__sheet {
   position: absolute;
   inset: auto 0 0 0;
-  max-height: 70vh;
+  /* 屏高的一半多一点：留出上方可见的页面作为「我在哪」的参照 */
+  max-height: 72dvh;
   display: flex;
   flex-direction: column;
-  padding: var(--space-4) var(--space-4) calc(var(--space-4) + 3.25rem);
+  /* 底部让出胶囊的位置：表末尾的项不该被浮起的胶囊挡住 */
+  padding: var(--space-4) var(--space-4) var(--dock-space);
   background: var(--bg-surface);
   border-top: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: var(--shadow-lg);
-  overflow-y: auto;
   overscroll-behavior: contain;
   animation: m-slide-up var(--duration-normal) var(--ease-out);
+}
+
+/* 头部固定：标题 + 回到顶部，列表才是可滚区 */
+.m-toc__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .m-toc__title {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-3);
+  margin: 0;
   color: var(--fg-subtle);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
@@ -335,10 +539,35 @@
   height: 1rem;
 }
 
+.m-toc__top {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+
+.m-toc__top svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.m-toc__top:hover {
+  color: var(--accent);
+  background: var(--bg-surface-alt);
+}
+
 .m-toc__list {
+  flex: 1;
+  min-height: 0;
   list-style: none;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .m-toc__list a {
@@ -362,6 +591,213 @@
 .m-toc__list a:active {
   color: var(--accent);
   background: var(--bg-surface-alt);
+}
+
+/* ---------- 窄屏启用 ---------- */
+
+@media (max-width: 720px) {
+  /*
+   * 正文底部空间：悬浮胶囊是浮在内容之上的，
+   * 不留白的话最后一段文字会被盖住。
+   *
+   * 旧实现只给 `.site-footer` 加了 padding，正文末尾照样被压 ——
+   * 现在两处都用同一个 `--dock-space`，不会漏。
+   */
+  .site-footer {
+    padding-bottom: var(--dock-space);
+  }
+
+  .m-dock {
+    position: fixed;
+    left: 50%;
+    /*
+     * 底部定位只用 `--dock-lift` 一个变量。
+     *
+     * 它内部已经是 `max(vv-gap, safe-area) + gap` —— 用 **max 而不是相加**。
+     * 这是用户 2-4 那条担心的正解：安全区（刘海屏手势条）与浏览器工具栏
+     * 遮挡在物理上不会同时发生在同一块像素上（工具栏可见时它自己就垫在
+     * 最底部），相加会让胶囊在两件事都「看起来成立」时被顶到离谱的高度。
+     * 取 max 才能保证「抬升量 = 真实被遮挡量 + 固定呼吸间隙」。
+     *
+     * 这里不再额外加 `--space-*`：间距已经包含在 `--dock-gap` 里，
+     * 再加一次就是同一个问题的另一种形态。
+     */
+    bottom: var(--dock-lift);
+    /*
+     * 右边缘钉死在 `100vw - inset`（推导见上方大注释）。
+     * `100%` 指元素自身宽度，两态表达式相同，只有 width 在变。
+     */
+    transform: translateX(calc(50vw - var(--dock-inset) - 100%));
+    z-index: var(--z-dock);
+    display: flex;
+    align-items: stretch;
+    /*
+     * 展开宽度：视口宽减去两侧呼吸间隙与横屏安全区。
+     * 用 min() 兜底 26rem，避免平板横屏时胶囊被拉成一整条。
+     */
+    width: min(
+      calc(
+        100vw - 2 * var(--dock-inset) - env(safe-area-inset-left, 0px) -
+          env(safe-area-inset-right, 0px)
+      ),
+      26rem
+    );
+    height: var(--dock-height);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    /*
+     * 半透明 + 毛玻璃：让内容从胶囊下方透出来，强化「浮起」的观感。
+     *
+     * 不透明度取 92% 而不是更低：实测 82% 时深色主题下正文亮色文字
+     * 会明显透出来，和胶囊自己的标签叠在一起（「首页」压着正文的「题」字），
+     * 既认不出按钮也读不了正文。92% + 20px 模糊是「能看出下面有内容、
+     * 但不干扰识别」的平衡点。
+     */
+    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    border: var(--border-width) solid var(--border-subtle);
+    box-shadow: var(--shadow-lg);
+    transition: width var(--duration-normal) var(--ease-out);
+  }
+
+  /* ---------- 收起态：右侧一个圆 ---------- */
+
+  .m-dock.is-collapsed {
+    width: var(--dock-height);
+    /* 圆角恒为 full，宽度收到 52px 时自然变成正圆 */
+    border-radius: var(--radius-full);
+  }
+
+  /* ---------- 展开态的项目 ---------- */
+
+  .m-dock__items {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    /* 宽度动画期间内容不换行、不挤成一坨 */
+    white-space: nowrap;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .m-dock__item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    /* 高度等于胶囊高度，整个格子都是热区（远超 44px） */
+    min-height: var(--dock-height);
+    padding: var(--space-1);
+    color: var(--fg-muted);
+    font-size: 0.68rem;
+    line-height: 1.2;
+    text-align: center;
+    /* 去掉 iOS 点击时的灰色高亮块 */
+    -webkit-tap-highlight-color: transparent;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .m-dock__item:hover,
+  .m-dock__item:active {
+    color: var(--accent);
+  }
+
+  .m-dock__item svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  /* ---------- 收起态：那颗圆 ---------- */
+
+  .m-dock__mini {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-full);
+    color: var(--fg-muted);
+    /* 未收起时不接收点击，也不该被读屏读到（模板里另有 aria-hidden） */
+    opacity: 0;
+    pointer-events: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .m-dock__mini svg {
+    width: 1.3rem;
+    height: 1.3rem;
+  }
+
+  .m-dock__mini:active {
+    color: var(--accent);
+  }
+
+  /* ---------- 收起态下的显隐切换 ----------
+   * 用透明度交叉淡入淡出，而不是把文字压缩变形：
+   * 展开态「图标 + 文字」与收起态「只有一个图标」尺寸差 6 倍，
+   * 强行插值会把文字挤成不可读的细条。
+   */
+  .m-dock.is-collapsed .m-dock__items {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .m-dock.is-collapsed .m-dock__mini {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* 减少动效：不做宽度动画，直接切换 */
+@media (prefers-reduced-motion: reduce) {
+  .m-dock,
+  .m-dock__items,
+  .m-dock__mini {
+    transition: none;
+  }
+}
+
+/* =========================================================
+   手机上隐藏侧栏
+   ---------------------------------------------------------
+   之前 960px / 1120px 两处降级都把侧栏 `order: 2` 堆到正文下方，
+   而 720px 断点没有任何更激进的规则 —— 于是手机上读完正文会依次看到
+   「头像资料卡 → 标签卡 → 目录卡」，多出 2~3 屏无效滚动；
+   而且目录卡与胶囊的目录按钮功能**完全重复**。
+
+   处理方式不是简单藏掉，而是**重新分配**：
+   - 资料条（精简版）→ 抽屉底部（见 `.m-nav__profile`）
+   - 标签 → 抽屉导航里的「标签」项已经覆盖，不需重复
+   - 目录 → 胶囊的章节按钮（唯一入口）
+
+   用 `display: none` 而不是 `visibility` / `order` 挪走：
+   它彻底离开排版，正文与页脚之间不再有任何空隙。
+   ========================================================= */
+
+@media (max-width: 720px) {
+  .layout__aside {
+    display: none;
+  }
+
+  /*
+   * 正文左右内边距收到 16px。
+   *
+   * 容器的 `--space-6`（24px）是桌面尺度的留白，在 375px 屏上
+   * 相当于吃掉 13% 的行宽。收到 1rem 后正文宽度 +16px，
+   * 按 16px 字号算是每行多出约 1 个字 —— 中文长文里这很可观。
+   */
+  .container {
+    padding-inline: var(--space-4);
+  }
+
+  .layout,
+  .layout--three {
+    padding-block: var(--space-5) var(--space-8);
+  }
 }
 
 /* ---------- 动画 ---------- */

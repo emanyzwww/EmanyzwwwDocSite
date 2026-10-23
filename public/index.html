@@ -2,7 +2,14 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      `viewport-fit=cover` 必须与 `.vitepress/config.ts` 里覆盖的那一条保持一致：
+      缺了它，`env(safe-area-inset-*)` 恒为 0。这个中转页会在 head 里立刻跳走，
+      但它自己也可能被短暂渲染，所以同样要给对。
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>EmanyzwwwDocSite</title>
     <meta name="robots" content="noindex, follow" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />

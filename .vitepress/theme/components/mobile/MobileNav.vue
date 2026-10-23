@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { useRoute } from 'vitepress'
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
+import { data as profile } from '../../../data/profile.data'
 import { NAV, SITE } from '../../../data/site'
 import { useI18n } from '../../i18n'
-import { href, stripRouteBase } from '../../support/paths'
+import { resolveMedia } from '../../support/media'
+import { feedPath, href, isExternal, stripRouteBase } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 import LocaleSwitch from '../site/LocaleSwitch.vue'
 import ThemeToggle from '../site/ThemeToggle.vue'
@@ -12,18 +14,34 @@ import ThemeToggle from '../site/ThemeToggle.vue'
 /**
  * 移动端导航抽屉。
  *
- * **为什么不复用桌面页头**：桌面把「品牌 + 4 个导航项 + 主题 + 语言」
+ * **为什么不复用桌面页头**：桌面把「品牌 + 4 个导航项 + 搜索 + 主题 + 语言」
  * 压在一行里，靠水平排布降低视觉重量。窄屏照搬的结果是换行成两行、
- * 页头高度翻倍（实测 65px → 150px），既挤占首屏，又会把
+ * 页头高度翻倍（实测 65px → 150px），既挤占首屏，又把
  * `--header-height` 这个布局契约顶破（进度条被盖住、锚点跳转被遮挡）。
  *
- * 移动端的做法是**把导航收进抽屉**：
- * - 页头只剩「品牌 + 汉堡」，高度恒为一行；
- * - 导航项改成纵向大热区列表（每项 ≥48px，符合触控目标尺寸建议）；
- * - 主题 / 语言这类低频操作移到抽屉底部，不占首屏。
+ * ---------- 三段式布局（本次重写的核心） ----------
  *
- * 无障碍：`role="dialog"` + `aria-modal`、打开时焦点移入、Esc 关闭、
- * 关闭后焦点还给汉堡按钮、打开时锁滚动、路由变化自动关闭。
+ * | 段   | 内容                | 滚动行为           |
+ * |------|---------------------|--------------------|
+ * | 顶部 | 品牌 + 关闭 + 工具区 | flex-shrink: 0（固定） |
+ * | 中部 | 导航列表             | flex: 1 + overflow-y: auto（唯一可滚区） |
+ * | 底部 | 精简资料条           | flex-shrink: 0（固定） |
+ *
+ * 旧实现把「主题 / 语言」放在 `margin-top: auto` 的底部工具区，
+ * 面板又是整体 `overflow-y: auto` —— 只要导航项稍多，工具区就被推到
+ * 视口之外，用户必须**手动滚动才能点到语言切换**。这正是报告里的 2-6。
+ *
+ * 而且旧的语言切换是**下拉菜单**（`position: absolute`），
+ * 在 `overflow-y: auto` 的祖先里会被直接裁掉 —— 即使滚到了位置也弹不出来。
+ * 所以在抽屉里改用**分段按钮**（简体中文 / English 并排，当前项高亮），
+ * 一次点击完成切换，既没有裁剪问题，也少一次交互。
+ *
+ * ---------- 宽度固定 ----------
+ *
+ * `width: 19rem` + `max-width: calc(100vw - 4rem)`：
+ * 固定宽度保证内部布局在任何机型上都不塌（旧值是 `min(84vw, 20rem)`，
+ * 会随视口连续变化，行高与换行点跟着漂）；`max-width` 只是兜底，
+ * 保证小屏上右侧仍露出足够的遮罩区域可以点击关闭。
  */
 
 const { m, locale } = useI18n()
@@ -32,8 +50,16 @@ const route = useRoute()
 /** 由父组件 `v-model:open` 控制，便于汉堡按钮与遮罩联动。 */
 const open = defineModel<boolean>('open', { default: false })
 
-const panel = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
+
+/** 头像地址（与侧栏资料卡同源）。 */
+const avatar = computed(() => resolveMedia(profile.avatar))
+const displayName = computed(() => profile.name || SITE.name)
+
+/** 社交链接：RSS 占位值替换成当前语言的 feed。 */
+function resolveLink(url: string): string {
+  return href(url === '/index.xml' ? feedPath(locale.value) : url)
+}
 
 /**
  * 当前页高亮。
@@ -107,7 +133,8 @@ onBeforeUnmount(() => {
       <!-- 遮罩：点击关闭。用 button 而不是 div，键盘也能触发 -->
       <button class="m-nav__scrim" type="button" :aria-label="m.closeMenu" @click="close" />
 
-      <nav ref="panel" class="m-nav__panel">
+      <nav class="m-nav__panel">
+        <!-- ① 顶部：品牌 + 关闭（固定，不随内容滚动） -->
         <header class="m-nav__head">
           <span class="m-nav__brand">{{ SITE.name }}</span>
           <button
@@ -120,6 +147,17 @@ onBeforeUnmount(() => {
           </button>
         </header>
 
+        <!--
+          ② 工具区：主题 + 语言。
+          放在顶部而不是底部，因为它必须**永远可见**——
+          这是旧实现要求用户滚动才能点语言切换的直接原因。
+        -->
+        <div class="m-nav__tools">
+          <ThemeToggle />
+          <LocaleSwitch variant="segmented" />
+        </div>
+
+        <!-- ③ 中部：导航（唯一可滚动区域） -->
         <ul class="m-nav__list">
           <li v-for="item in NAV[locale]" :key="item.link">
             <a
@@ -132,12 +170,36 @@ onBeforeUnmount(() => {
           </li>
         </ul>
 
-        <footer class="m-nav__tools">
-          <span class="m-nav__tools-label">{{ m.switchLanguage }}</span>
-          <div class="m-nav__tools-row">
-            <ThemeToggle />
-            <LocaleSwitch />
+        <!--
+          ④ 底部：精简资料条（固定贴底，不随滚动）。
+
+          用户明确要求：资料卡可以存在于抽屉里，但**不要在抽屉里堆那些卡片**。
+          所以这里不是 `.profile` 那张大卡（头像 80px + 简介 + 大按钮），
+          而是一行：小头像 + 名字 + 社交图标。信息密度与视觉重量都低得多，
+          同时保留了「我是谁 / 去哪找我」这一项真实需求。
+        -->
+        <footer class="m-nav__profile">
+          <div v-if="avatar" class="m-nav__avatar">
+            <img :src="avatar" :alt="displayName" width="36" height="36" decoding="async" />
           </div>
+
+          <div class="m-nav__who">
+            <span class="m-nav__name">{{ displayName }}</span>
+            <span v-if="profile.tagline" class="m-nav__tagline">{{ profile.tagline }}</span>
+          </div>
+
+          <ul v-if="profile.links.length" class="m-nav__social">
+            <li v-for="link in profile.links" :key="link.url">
+              <a
+                :href="resolveLink(link.url)"
+                :title="link.label"
+                :aria-label="link.label"
+                :target="isExternal(link.url) ? '_blank' : undefined"
+                :rel="isExternal(link.url) ? 'noopener noreferrer' : undefined">
+                <AppIcon :name="link.icon ?? 'link'" />
+              </a>
+            </li>
+          </ul>
         </footer>
       </nav>
     </div>
