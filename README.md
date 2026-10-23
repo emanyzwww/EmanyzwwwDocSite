@@ -1,22 +1,27 @@
 # EmanyzwwwDocSite
 
 个人站点。VitePress 1.6.4 + TypeScript，完全自定义主题（不 extends 默认主题）。
-中英双语（`/zh-cn/` + `/en/`），目录式 URL，明暗主题，RSS + sitemap。
+中英双语（`/zh-cn/` + `/en/`），目录式 URL，明暗主题，站内搜索，RSS + sitemap。
 
 ```powershell
 pnpm install     # 首次
 pnpm dev         # 本地预览 → http://127.0.0.1:5173/
 pnpm build       # 构建到 .vitepress/dist
 pnpm typecheck   # 类型检查
+pnpm test        # 单测
 pnpm format      # 格式化（内容 + 主题代码）
 ```
 
-## 两份文档
+## 三份文档
 
 | 文档                             | 讲什么                                                                       |
 | -------------------------------- | ---------------------------------------------------------------------------- |
+| [DESIGN.md](./DESIGN.md)         | **设计系统**：配色、排版、圆角、阴影、间距、无障碍对比度。视觉改动的唯一准绳 |
 | [WRITING.md](./WRITING.md)       | **写文章**：目录怎么摆、frontmatter 所有字段、图片、草稿、双语、标签、常见坑 |
 | [DEVELOPING.md](./DEVELOPING.md) | **改代码**：组件/样式/数据/路由怎么组织，加功能删功能改哪里                  |
+
+> 改任何视觉相关的东西之前先读 **DESIGN.md**。
+> `theme/styles/tokens.css` 只是它的实现，不是规范本身。
 
 ## 技术栈
 
@@ -25,18 +30,31 @@ pnpm format      # 格式化（内容 + 主题代码）
 | 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL） |
 | 语言   | TypeScript 5（strict）                            |
 | 主题   | 自定义，见 `.vitepress/theme/`                    |
-| 样式   | 三层设计令牌，见 `theme/styles/tokens.css`        |
+| 样式   | 三层设计令牌 + 深青强调色，见 `DESIGN.md`         |
+| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖             |
 | 格式化 | oxfmt（含 `.vue` / `.css` / `.ts`）               |
 | 部署   | GitHub Actions → GitHub Pages                     |
+
+## 设计系统一览
+
+| 维度     | 选择                                                        |
+| -------- | ----------------------------------------------------------- |
+| 强调色   | 深青 jade `#0f766e`（浅）/ `#4acdb4`（深）—— 全站唯一交互色 |
+| 正文     | 17px / 行高 1.75 / 测量宽度 42rem（≈39 汉字/行）            |
+| 字重     | 只用 400 / 600 / 700，刻意不用 500                          |
+| 圆角     | 6 / 10 / 14 / 20 / 28 / pill 六档                           |
+| 阴影     | 五级，但**卡片默认无阴影**——只给需要遮挡内容的浮层          |
+| 层次策略 | 靠表面色差而不是边框或投影                                  |
+| 无障碍   | 全部对比度实测，AA 以上（最低 5.29:1）                      |
 
 ## 目录一览
 
 ```text
 .vitepress/                 配置与主题（与内容分离）
-├─ config.ts                路由 / Markdown / SEO / RSS
-├─ data/                    站点信息、个人资料、侧栏卡片
+├─ config.ts                路由 / Markdown / SEO / RSS / CSP
+├─ data/                    站点信息、个人资料、侧栏卡片、搜索索引
 ├─ support/                 构建期工具（内容扫描、RSS、robots、dev 跳转）
-└─ theme/                   运行期代码（组件、样式、文案）
+└─ theme/                   运行期代码（组件、样式、文案、组合式函数）
 
 docs/                       只有内容
 ├─ zh-cn/                   中文站 → /zh-cn/
@@ -51,3 +69,9 @@ public/                     原样拷贝：favicon、根路径语言跳转页
 ```
 
 根路径 `/` 不承载内容，按浏览器语言跳到 `/zh-cn/` 或 `/en/`（匹配不上时中文）。
+
+## 移动端
+
+手机不是「桌面的缩小版」，是另一套操作模型：页头在阅读时自动隐藏、
+导航进抽屉、高频动作放悬浮胶囊（滚动收成圆）、目录从底部弹出、
+搜索从顶部抽出。详见 `DEVELOPING.md` 的「移动端设计约定」一节。

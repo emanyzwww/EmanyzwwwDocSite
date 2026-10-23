@@ -12,8 +12,8 @@
     "lint": "oxlint .vitepress docs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "oxfmt --write docs .vitepress README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
-    "format:check": "oxfmt --check docs .vitepress README.md WRITING.md DEVELOPING.md --ignore-path .oxfmtignore",
+    "format": "oxfmt --write docs .vitepress README.md WRITING.md DEVELOPING.md DESIGN.md --ignore-path .oxfmtignore",
+    "format:check": "oxfmt --check docs .vitepress README.md WRITING.md DEVELOPING.md DESIGN.md --ignore-path .oxfmtignore",
     "clean": "node -e \"for (const d of ['.vitepress/dist','.vitepress/cache','.vitepress/.temp']) require('fs').rmSync(d,{recursive:true,force:true})\""
   },
   "devDependencies": {

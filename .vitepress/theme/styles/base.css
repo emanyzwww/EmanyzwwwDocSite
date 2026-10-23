@@ -41,10 +41,18 @@ body {
   background: var(--bg-canvas);
   color: var(--fg-default);
   font-family: var(--font-sans);
+  /* 正文 17px（不是 16px）：这一像素决定页面读起来是「阅读」还是「扫描」 */
   font-size: var(--text-md);
-  line-height: var(--leading-normal);
+  line-height: var(--leading-relaxed);
+  /*
+   * 正文级字距几乎为零。负字距只属于显示级标题——
+   * 中文正文加负字距会显著降低可读性（见 DESIGN.md 3.4）。
+   */
+  letter-spacing: var(--tracking-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* 数字等宽：让日期、字数、分页在跳动时不会左右抖 */
+  font-variant-numeric: tabular-nums;
   /* 同样用 clip：hidden 会让 body 成为滚动容器，破坏 sticky */
   overflow-x: clip;
   transition:
@@ -61,7 +69,18 @@ h6 {
   margin: 0;
   font-weight: var(--weight-semibold);
   line-height: var(--leading-tight);
+  /*
+   * 字距：显示级用小档位负值，但**必须比参考稿松**。
+   * 参考稿的 -0.28px 是为拉丁字形设计的；汉字是等宽方块字，
+   * 字面占满字身框，负字距会让笔画互相碰撞（见 DESIGN.md 3.4）。
+   */
   letter-spacing: var(--tracking-tight);
+}
+
+/* 页面主标题：字重升到 700 并加大负字距 —— 它需要绝对重量 */
+h1 {
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tighter);
 }
 
 p {
@@ -70,12 +89,26 @@ p {
 
 a {
   color: var(--accent);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-out);
+  /*
+   * 下划线常驻但极细、且离文字更远。
+   *
+   * 链接不能只靠颜色区分（色盲用户），所以必须有非颜色的第二重提示。
+   * 但传统下划线在有中文的正文里显得很重，会打断阅读节奏 ——
+   * 折中方案：1px、用低透明度的当前色、`text-underline-offset` 拉开距离，
+   * 让它读起来像「一条淡淡的基准线」而不是「一个被框住的词」。
+   */
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    text-decoration-color var(--duration-fast) var(--ease-out);
 }
 
 a:hover {
   color: var(--accent-hover);
+  text-decoration-color: currentColor;
 }
 
 img,
@@ -114,7 +147,7 @@ button {
 :focus-visible {
   outline: none;
   box-shadow: var(--ring);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
 }
 
 ::selection {
@@ -142,9 +175,9 @@ hr {
    * 焦点环只在聚焦时加。
    *
    * 它平时在屏幕外（transform 上移 200%），常驻焦点环会让页面顶部
-   * 露出一条不该有的蓝边。而一旦被 Tab 到，它滑进来时**必须**带清晰的焦点
+   * 露出一条不该有的边框。而一旦被 Tab 到，它滑进来时**必须**带清晰的焦点
    * 指示——所以这里把 `:focus-visible` 的环显式搬到聚焦态上，
-   * 而不是让常驻的 `--shadow-md` 把它覆盖掉。
+   * 而不是让常驻的 `--shadow-sm` 把它覆盖掉。
    */
   box-shadow: var(--shadow-md);
   transform: translateY(-200%);

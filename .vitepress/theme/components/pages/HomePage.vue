@@ -33,7 +33,14 @@ const allPostsUrl = computed(() => href(withLocale('/posts/', locale.value)))
 
 <template>
   <TwoColumn>
-    <header class="page-header">
+    <!--
+      `page-header--hero`：首页标题走 44px 档位，其余页面 36px。
+
+      首页是唯一需要「大气」的场合——它是访客的第一印象，且没有其他
+      内容与标题竞争注意力。文章页/列表页的 h1 用 36px 就够，
+      再大会压过正文。
+    -->
+    <header class="page-header page-header--hero">
       <h1 class="page-title">{{ heading }}</h1>
       <p v-if="description" class="page-description">{{ description }}</p>
     </header>

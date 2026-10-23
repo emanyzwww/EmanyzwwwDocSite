@@ -1,49 +1,68 @@
 /* =========================================================
    设计令牌（Design Tokens）
    ---------------------------------------------------------
+   本文件是 `DESIGN.md` 的实现。**规范以 DESIGN.md 为准**，
+   这里只是把文档里的数值写成 CSS 变量。
+
    三层结构，其余样式**只引用变量、不写死数值**：
 
-   1. 原始层：颜色本身（--gray-900、--blue-600…）
+   1. 原始层：颜色本身（--gray-900、--teal-600…）
    2. 语义层：按用途命名（--bg-surface、--fg-muted、--accent…），
       明暗主题在这一层切换。
    3. 排版/间距/圆角/布局：不随主题变化。
 
-   想换主色 → 改 --blue-*；想改圆角风格 → 改 --radius-*；
+   想换主色 → 改 --teal-*；想改圆角风格 → 改 --radius-*；
    想整体调字号 → 改 --text-*；想调整间距节奏 → 改 --space-*。
+   改完配色务必重跑 `.dsh/temp/contrast.py` 验证对比度。
    ========================================================= */
 
 /* ---------- 1. 原始层 ---------- */
 
 :root {
-  /* 中性色阶 */
-  --gray-25: #fcfcfd;
-  --gray-50: #f8f9fa;
-  --gray-100: #f1f2f4;
-  --gray-200: #e4e6eb;
-  --gray-300: #d3d6db;
-  --gray-400: #a9aeb8;
-  --gray-500: #7c828d;
-  --gray-600: #5c626d;
-  --gray-700: #3f444d;
-  --gray-800: #272b31;
-  --gray-900: #181b20;
-  --gray-950: #0f1115;
+  /*
+   * 中性色阶：带极轻绿倾向的暖灰（不是纯灰）。
+   *
+   * 每个值的 G 通道略高于 R、B，肉眼几乎无法命名这一点偏移，
+   * 但和 jade 摆在一起时，纯灰会显得"脏"、纯黑会显得"硬"。
+   */
+  --gray-25: #fbfbfa;
+  --gray-50: #f4f5f3;
+  --gray-100: #eef0ed;
+  --gray-150: #e3e5e1;
+  --gray-200: #cfd2cd;
+  --gray-300: #8a918e;
+  --gray-400: #616867;
+  --gray-500: #4a5150;
+  --gray-600: #353b3a;
+  --gray-700: #252b2a;
+  --gray-800: #1a1f1e;
+  --gray-850: #131716;
+  --gray-900: #0c0f0e;
+  --gray-950: #080a0a;
 
-  /* 强调色：蓝 */
-  --blue-50: #eef4ff;
-  --blue-100: #dbe7ff;
-  --blue-200: #bcd2ff;
-  --blue-300: #92b5ff;
-  --blue-400: #6691fb;
-  --blue-500: #4571f0;
-  --blue-600: #3358d9;
-  --blue-700: #2946ae;
-  --blue-800: #253c8a;
-  --blue-900: #23366e;
+  /*
+   * 强调色：深青（jade）。
+   *
+   * 为什么不是蓝：蓝色是技术站最拥挤的选择，无法建立辨识度；
+   * jade 有工程语境（终端、示波器、PCB 铜氧化），且明暗两端都能
+   * 拿到 5:1 以上的文字对比度。
+   *
+   * 600 用于浅色主题（白卡 5.47:1），300 用于深色主题（深卡 9.19:1）。
+   * 700/800 用于悬停与按下态。
+   */
+  --teal-50: #e9f5f2;
+  --teal-100: #cdece4;
+  --teal-200: #a4ddcf;
+  --teal-300: #4acdb4;
+  --teal-400: #6ddac6;
+  --teal-500: #14a08f;
+  --teal-600: #0f766e;
+  --teal-700: #115e59;
+  --teal-800: #0d4a46;
 
   /* 高亮色：琥珀，`==文字==` 的底色 */
-  --amber-100: #fef3c7;
-  --amber-200: #fde68a;
+  --amber-100: #fdf0c4;
+  --amber-200: #fae38c;
   --amber-300: #fcd34d;
 
   --white: #ffffff;
@@ -55,55 +74,58 @@
 :root {
   color-scheme: light;
 
-  --bg-canvas: var(--gray-50);
+  --bg-canvas: var(--gray-25);
   --bg-surface: var(--white);
-  --bg-surface-alt: var(--gray-100);
+  --bg-surface-alt: var(--gray-50);
   --bg-inset: var(--gray-100);
-  --bg-code: var(--gray-900);
+  --bg-code: #11161a;
 
-  --fg-default: var(--gray-900);
+  --fg-default: #14181a;
   /*
    * 三级文字色，每一级都满足 WCAG AA（4.5:1），层次靠**亮度差**而不是靠
-   * 「压到看不清」来区分：
+   * 「压到看不清」来区分（实测值见 DESIGN.md 第二节）：
    *
-   *   默认 gray-900  17.26:1（白卡）
-   *   次级 gray-700   9.79:1
-   *   三级 gray-600   6.14:1
-   *
-   * 之前三级用的是 gray-500（#7c828d）：白卡上只有 3.86:1、canvas 上 3.67:1，
-   * 低于 AA。而它恰好被用在日期、字数、页脚版权这类 12.5–14px 的小字上——
-   * 小字对对比度的要求只会更严，不会更松。
+   *   默认 #14181a   白卡 17.87:1
+   *   次级 #4a5150    白卡  8.13:1
+   *   三级 #616867    白卡  5.70:1
    */
-  --fg-muted: var(--gray-700);
-  --fg-subtle: var(--gray-600);
+  --fg-muted: var(--gray-500);
+  --fg-subtle: var(--gray-400);
   --fg-invert: var(--white);
 
-  --border-subtle: var(--gray-200);
-  --border-strong: var(--gray-300);
+  /*
+   * 边框分两类，这个区分很重要（详见 DESIGN.md 2.5）：
+   * - subtle / strong 是**装饰**（卡片描边、分隔线），WCAG 1.4.11 不约束它们；
+   * - control 是**控件边界**（输入框、搜索框），必须 ≥ 3:1。
+   *
+   * 把装饰边框也压到 3:1 会让界面变成一堆灰框，反而削弱真正的控件边界。
+   */
+  --border-subtle: var(--gray-150);
+  --border-strong: var(--gray-200);
+  --border-control: var(--gray-300);
 
-  --accent: var(--blue-600);
-  --accent-hover: var(--blue-700);
-  --accent-soft: var(--blue-50);
-  --accent-border: var(--blue-200);
+  --accent: var(--teal-600);
+  --accent-hover: var(--teal-700);
+  --accent-soft: var(--teal-50);
+  --accent-border: var(--teal-200);
 
-  /* `==高亮==` 的底色与文字色。浅色主题下用淡琥珀 + 原字色，
-     深色主题另配（见下方 .dark），而不是直接沿用同一个值。 */
+  /* `==高亮==` 的底色与文字色 */
   --mark-bg: var(--amber-100);
-  --mark-fg: var(--gray-900);
+  --mark-fg: var(--fg-default);
 
-  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
-  --shadow-md: 0 2px 8px -1px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.04);
-  --shadow-lg: 0 8px 24px -4px rgb(16 24 40 / 0.12), 0 2px 6px -2px rgb(16 24 40 / 0.06);
+  /* 五级阴影（浅色）。使用纪律见 DESIGN.md 6.2：卡片默认无阴影 */
+  --shadow-xs: 0 1px 2px rgb(16 24 20 / 0.04);
+  --shadow-sm: 0 1px 3px rgb(16 24 20 / 0.06), 0 1px 2px rgb(16 24 20 / 0.04);
+  --shadow-md: 0 4px 12px -2px rgb(16 24 20 / 0.08), 0 2px 4px -2px rgb(16 24 20 / 0.04);
+  --shadow-lg: 0 12px 32px -8px rgb(16 24 20 / 0.12), 0 4px 8px -4px rgb(16 24 20 / 0.06);
+  --shadow-xl: 0 24px 56px -16px rgb(16 24 20 / 0.16), 0 8px 16px -8px rgb(16 24 20 / 0.08);
 
   /*
-   * 焦点环。
+   * 焦点环：**双环**。
    *
-   * 之前是 `rgb(69 113 240 / 0.35)`（35% 透明的主色），在白色卡片上合成出来
-   * 只有 **1.58:1**、深色主题下 2.44:1 —— WCAG 2.2 的 1.4.11 要求非文本对比度
-   * ≥ 3:1。半透明色叠在什么背景上就变成什么颜色，等于「焦点看不见」。
-   *
-   * 改法：**双环**。内层 2px 用画布色「挖空」紧贴元素，外层 2px 用实色主色。
-   * 实色保证对比度，内层留白保证焦点环在彩色按钮上也不糊成一片。
+   * 内层 2px 用画布色「挖空」紧贴元素，外层 2px 用实色强调色。
+   * 单层半透明环不行：半透明色叠在什么背景上就变成什么颜色，
+   * 在彩色按钮上会糊成一片，在白卡上可能低到 1.58:1（低于 3:1 要求）。
    */
   --ring: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
 }
@@ -115,99 +137,151 @@
 .dark {
   color-scheme: dark;
 
-  --bg-canvas: var(--gray-950);
-  --bg-surface: #16191e;
-  --bg-surface-alt: #1c2027;
-  --bg-inset: #21252c;
-  --bg-code: #0d1014;
+  /*
+   * 深色主题不是浅色的反相，是独立设计的一套：
+   * - 表面不用纯 #000（纯黑会让卡片边界消失）；
+   * - 卡片比画布**亮**，而不是靠阴影「浮起来」（深色下阴影几乎不可见）。
+   */
+  --bg-canvas: var(--gray-900);
+  --bg-surface: var(--gray-850);
+  --bg-surface-alt: var(--gray-800);
+  --bg-inset: #202524;
+  --bg-code: #0a0d0c;
 
-  --fg-default: #e6e8ec;
-  /* 深色主题同样三级，全部 ≥ 7:1（深色下 AA 的松紧与浅色一致） */
-  --fg-muted: #b6bcc7;
-  --fg-subtle: #949aa6;
-  --fg-invert: var(--gray-950);
+  --fg-default: #e8eae8;
+  /* 深色三级同样全部 ≥ 6:1（实测见 DESIGN.md 2.4） */
+  --fg-muted: #b2b9b6;
+  --fg-subtle: #8f9794;
+  --fg-invert: var(--gray-900);
 
-  --border-subtle: #272b32;
-  --border-strong: #343943;
+  --border-subtle: var(--gray-700);
+  --border-strong: #343b39;
+  --border-control: #5f6866;
 
-  --accent: var(--blue-300);
-  --accent-hover: var(--blue-200);
-  --accent-soft: rgb(69 113 240 / 0.14);
-  --accent-border: rgb(69 113 240 / 0.32);
+  /* 深色下强调色必须换成浅色版：#0f766e 在深底上只有 2.1:1，完全不可读 */
+  --accent: var(--teal-300);
+  --accent-hover: var(--teal-400);
+  --accent-soft: rgb(74 205 180 / 0.14);
+  --accent-border: rgb(74 205 180 / 0.32);
 
-  /* 深色主题下淡琥珀太刺眼，改成低饱和半透明底 + 略亮的字色 */
-  --mark-bg: rgb(253 224 71 / 0.22);
+  /*
+   * 深色下不用实色黄底——亮黄在深色页面上像一块补丁。
+   * 改用 18% 半透明叠层，视觉上是「泛出」而不是「贴上」。
+   */
+  --mark-bg: rgb(250 204 21 / 0.18);
   --mark-fg: var(--amber-200);
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 2px 8px -1px rgb(0 0 0 / 0.5);
-  --shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.6);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.4), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 4px 8px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 24px 56px -16px rgb(0 0 0 / 0.7), 0 8px 16px -8px rgb(0 0 0 / 0.4);
 
-  /* 深色主题的焦点环同理：内层用 canvas 挖空，外层用实色主色 */
   --ring: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
 }
 
-/* ---------- 3. 排版 ---------- */
+/* ---------- 3. 排版 ----------
+   字体栈把 -apple-system 放第一位：Mac/iOS 上直接命中 SF Pro / 苹方，
+   与参考稿一致。**不加载 Web 字体**——中文 Web 字体动辄数 MB，
+   而系统字体在各自平台上本来就是最清晰的（见 DESIGN.md 3.1）。 */
 
 :root {
   --font-sans:
-    'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, 'Segoe UI',
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, 'PingFang SC',
+    'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   --font-mono:
     'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'SFMono-Regular', monospace;
 
-  --text-xs: 0.78rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-md: 1.0625rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 1.875rem;
-  --text-3xl: 2.25rem;
+  /*
+   * 字号阶梯。**正文 17px 而不是 16px** —— 这是从参考稿借来的关键决策：
+   * 17px 让页面读起来是「阅读」，16px 读起来是「扫描」。
+   */
+  --text-2xs: 0.75rem; /* 12px overline */
+  --text-xs: 0.8125rem; /* 13px */
+  --text-sm: 0.875rem; /* 14px */
+  --text-base: 1rem; /* 16px */
+  --text-md: 1.0625rem; /* 17px 正文 */
+  --text-lg: 1.125rem; /* 18px 导语 */
+  --text-xl: 1.375rem; /* 22px h3 */
+  --text-2xl: 1.75rem; /* 28px h2 */
+  --text-3xl: 2.25rem; /* 36px h1 */
+  --text-4xl: 2.75rem; /* 44px hero */
 
-  --leading-tight: 1.3;
-  --leading-normal: 1.7;
+  /*
+   * 行高。正文 1.75 明显大于参考稿的 1.47：
+   * 参考稿是营销页（短段落、大字），本站是长文，需要更松的行距。
+   */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-snug: 1.45;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
   --leading-loose: 1.9;
 
+  /*
+   * 字重阶梯：**只用 400 / 600 / 700，刻意不用 500**。
+   *
+   * 500 是「几乎看不出差别」的档位——在中文字体里它与 400 的视觉差异，
+   * 远小于与 600 的差异，用它只会制造「好像强调了但不确定」的模糊感。
+   */
   --weight-normal: 400;
-  --weight-medium: 500;
+  --weight-medium: 400; /* 保留别名，指向 400，防止旧代码引用消失 */
   --weight-semibold: 600;
   --weight-bold: 700;
 
-  --tracking-tight: -0.015em;
+  /*
+   * 字距。参考稿的 "Apple tight" 依赖显示级负字距，但那是**为拉丁字形设计的**。
+   * 汉字是等宽方块字，字面占满整个字身框，负字距会直接让笔画互相碰撞。
+   * 因此这里只在显示级用小档位，且中英混排时宁可放松一档（见 DESIGN.md 3.4）。
+   */
+  --tracking-tighter: -0.022em;
+  --tracking-tight: -0.018em;
+  --tracking-snug: -0.01em;
+  --tracking-normal: 0;
   --tracking-wide: 0.02em;
+  --tracking-wider: 0.08em;
 }
 
 /* ---------- 4. 间距（4px 基准） ---------- */
 
 :root {
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-  --space-20: 5rem;
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem; /* 24 */
+  --space-8: 2rem; /* 32 */
+  --space-10: 2.5rem; /* 40 */
+  --space-12: 3rem; /* 48 */
+  --space-16: 4rem; /* 64 */
+  --space-20: 5rem; /* 80 */
+  --space-24: 6rem; /* 96 */
 }
 
-/* ---------- 5. 圆角 / 描边 / 动效 / 层级 ---------- */
+/* ---------- 5. 圆角 / 动效 / 层级 ---------- */
 
 :root {
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-full: 999px;
+  /*
+   * 圆角六档。**不做「中等圆角」之外的随意插值。**
+   *
+   * 同心圆规则：嵌套时内层半径 = 外层半径 − 内边距。
+   * 例如卡片 20px 内含 16px 内边距，内部图片用 6px（不是 20px）。
+   */
+  --radius-xs: 6px; /* 行内代码、键帽 chip、徽章 */
+  --radius-sm: 10px; /* 次级按钮、小图标按钮 */
+  --radius-md: 14px; /* 中号容器、提示块、目录项 */
+  --radius-lg: 20px; /* 卡片（默认）、搜索面板 */
+  --radius-xl: 28px; /* 抽屉面板、大浮层顶部圆角 */
+  --radius-full: 999px; /* 主按钮、标签、胶囊、头像 */
 
   --border-width: 1px;
 
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* 进入：快起慢收 */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* 状态间往返 */
   --duration-fast: 120ms;
   --duration-normal: 200ms;
+  --duration-slow: 320ms;
 
   /*
    * ---------- 层级阶梯 ----------
@@ -237,13 +311,13 @@
   --z-skip: 150;
   /*
    * 页头高度。这是**布局契约**，不只是「页头自己的事」：
-   * - `.reading-progress` 用 `top: var(--header-height)` 贴在页头下沿；
+   * - `.reading-progress` 贴在页头下沿；
    * - `scroll-padding-top`（经 `--anchor-offset`）用它给锚点跳转留空隙；
    * - `useActiveAnchor` 直接读 `--anchor-offset` 算目录高亮线。
    *
    * 三处都依赖它，所以它一旦与实际页头高度不符，会同时表现为
    * 「进度条被页头盖住」和「点目录跳转后标题被页头吃掉」。
-   * 窄屏页头会换行变高，必须同步覆盖（见 base.css 的移动端媒体查询）。
+   * 窄屏页头会换行变高，必须同步覆盖（见 mobile.css）。
    */
   --header-height: 4rem;
   /* 锚点跳转时给粘性页头留的空隙：scroll-padding-top 与目录高亮共用这一个值 */
@@ -268,35 +342,30 @@
 :root {
   /*
    * 停靠抬升量：**唯一的**安全区补偿入口。
-   *
-   * 安全区（刘海屏手势条）在这里；浏览器工具栏那部分由 `dvh` 容器负责，
-   * 两者职责不重叠，因此也不存在「叠加抬高」的问题（用户 2-4 的担心）。
+   * 安全区（刘海屏手势条）在这里；浏览器工具栏那部分由 `dvh` 容器负责。
    */
   --dock-gap: 12px;
   --dock-lift: calc(env(safe-area-inset-bottom, 0px) + var(--dock-gap));
   /*
    * 胶囊左右距屏幕边缘的呼吸间隙。
-   *
-   * 收缩成圆的几何推导依赖它（见 `mobile.css` 里 `.m-dock` 的注释）：
+   * 收缩成圆的几何推导依赖它（见 mobile.css 里 `.m-dock` 的注释）：
    * 胶囊右边缘恒等于 `100vw - var(--dock-inset)`。
-   * 所以它必须是一个**长度值**，不能写成 0（那会让胶囊贴边，
-   * 收起时又变成「又一条通栏横条」）。
    */
   --dock-inset: var(--space-4);
-  /*
-   * 胶囊本体高度。正文与页脚需要预留这么多空间，否则滚动到底时
-   * 最后一行字会被悬浮胶囊盖住（通栏底栏时代这个值叫 --mobile-bar-space）。
-   */
+  /* 胶囊本体高度 */
   --dock-height: 3.25rem;
   /* 给正文/页脚预留的总高度：胶囊高度 + 抬升 + 一点余量 */
   --dock-space: calc(var(--dock-height) + var(--dock-lift) + var(--space-2));
 }
 
-/* ---------- 6. 布局 ---------- */
+/* ---------- 6. 布局 ----------
+   `--layout-measure` 从 44rem 收到 42rem（704px → 672px）：
+   17px 字号下，672px 约为 39 个汉字/行，正好落在中文舒适区间（35–45）内。
+   见 DESIGN.md 5.3。 */
 
 :root {
-  --layout-max: 82rem; /* 主体最大宽度 */
-  --layout-measure: 44rem; /* 正文最佳阅读宽度 */
+  --layout-max: 82rem; /* 1312px 主体最大宽度 */
+  --layout-measure: 42rem; /* 672px 正文最佳阅读宽度 */
   --layout-gap: var(--space-8);
   --aside-width: 16rem; /* 左右侧栏宽度 */
 }

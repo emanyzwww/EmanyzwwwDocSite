@@ -1,7 +1,7 @@
 # 写作指南
 
 **这份文档只讲一件事：怎么写内容。** 不涉及代码。
-改代码请见 [DEVELOPING.md](./DEVELOPING.md)。
+改代码请见 [DEVELOPING.md](./DEVELOPING.md)，视觉规范请见 [DESIGN.md](./DESIGN.md)。
 
 目录：
 

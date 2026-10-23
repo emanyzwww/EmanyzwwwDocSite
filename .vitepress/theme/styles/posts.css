@@ -5,37 +5,62 @@
 /* ---------- 页面 / 文章头部 ---------- */
 
 .page-header {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-10);
 }
 
+/*
+ * 页面主标题用 36px / 700 / -0.022em。
+ * 这是全站最大的常规字号（首页 hero 另有 44px 档），
+ * 字重 700 只留给它 —— 正文标题一律 600（见 DESIGN.md 3.3）。
+ */
 .page-title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-2xl);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-3xl);
   font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
 }
 
 .page-description {
   margin: 0;
   color: var(--fg-muted);
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
 }
 
+/*
+ * 首页 hero：唯一的 44px 场合。
+ *
+ * 只有首页用这个档位——它是访客的第一印象，且没有其他内容与标题竞争。
+ * 其他页面的 h1 停在 36px，再大会压过正文。
+ */
+.page-header--hero .page-title {
+  font-size: var(--text-4xl);
+  letter-spacing: var(--tracking-tighter);
+}
+
+.page-header--hero .page-description {
+  font-size: var(--text-xl);
+  color: var(--fg-muted);
+  line-height: var(--leading-snug);
+}
+
+/* overline：全大写的极小标签。全大写需要**正**字距才透气 */
 .page-eyebrow {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-3);
   color: var(--fg-subtle);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  letter-spacing: var(--tracking-wide);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
 }
 
 .post-header {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-10);
 }
 
 .post-header .page-title {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 /* 文章元信息：日期 / 字数 / 标签 / 草稿 */
@@ -43,7 +68,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   color: var(--fg-subtle);
   font-size: var(--text-sm);
 }
@@ -66,6 +91,7 @@
 
 .post-meta a {
   color: var(--fg-subtle);
+  text-decoration: none;
 }
 
 .post-meta a:hover {
@@ -74,8 +100,8 @@
 
 /* 文章尾部：返回列表 / RSS */
 .post-footer {
-  margin-top: var(--space-10);
-  padding-top: var(--space-6);
+  margin-top: var(--space-12);
+  padding-top: var(--space-8);
   border-top: var(--border-width) solid var(--border-subtle);
   display: flex;
   flex-wrap: wrap;
@@ -89,7 +115,7 @@
 .timeline {
   display: flex;
   flex-direction: column;
-  gap: var(--space-10);
+  gap: var(--space-12);
 }
 
 /* 年份标题：年份 + 数量紧挨在左，右侧延伸一条细线（用伪元素画） */
@@ -97,10 +123,11 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-sm);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
   color: var(--fg-subtle);
 }
@@ -119,6 +146,7 @@
   font-size: var(--text-xs);
   font-weight: var(--weight-normal);
   letter-spacing: 0;
+  text-transform: none;
 }
 
 .tl-list {
@@ -142,7 +170,7 @@
   color: var(--fg-subtle);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tracking-normal);
   white-space: nowrap;
 }
 
@@ -156,11 +184,11 @@
 .tl__title {
   color: var(--fg-default);
   font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  line-height: 1.5;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
   text-decoration: underline;
   text-decoration-color: transparent;
-  text-underline-offset: 3px;
+  text-underline-offset: 0.2em;
   text-decoration-thickness: 1px;
   transition:
     color var(--duration-fast) var(--ease-out),
@@ -176,7 +204,7 @@
 .tl__summary {
   color: var(--fg-subtle);
   font-size: var(--text-sm);
-  line-height: 1.6;
+  line-height: var(--leading-normal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -205,6 +233,7 @@
 
 .tl__tags a {
   color: var(--fg-subtle);
+  text-decoration: none;
 }
 
 .tl__tags a:hover {
@@ -267,24 +296,32 @@
   border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  text-decoration: none;
+  /*
+   * 悬停**不加阴影、不上浮**。
+   *
+   * 卡片默认无阴影是本系统的核心纪律（见 DESIGN.md 6.2）：
+   * 阴影只给需要遮挡内容的浮层。卡片悬停改用「描边变深 + 标题变色」
+   * ——足以表达可点，又不会让整个列表在鼠标划过时上下抖动。
+   */
   transition:
     border-color var(--duration-normal) var(--ease-out),
-    box-shadow var(--duration-normal) var(--ease-out),
-    transform var(--duration-normal) var(--ease-out);
+    background-color var(--duration-normal) var(--ease-out);
 }
 
 .post-card:hover {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  background: var(--bg-surface-alt);
+  text-decoration: none;
 }
 
 .post-card__title {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   color: var(--fg-default);
-  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-snug);
 }
 
 .post-card:hover .post-card__title {
@@ -299,7 +336,7 @@
 }
 
 .post-card__summary {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-4);
   color: var(--fg-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
@@ -313,7 +350,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-2) var(--space-4);
   color: var(--fg-subtle);
   font-size: var(--text-xs);
   min-width: 0;
@@ -332,6 +369,7 @@
 
 .post-card__meta a {
   color: var(--fg-muted);
+  text-decoration: none;
 }
 
 .post-card__meta a:hover {
@@ -344,14 +382,20 @@
 
 /* 首页「查看全部文章」按钮放在列表下方 */
 .post-list__more {
-  margin-top: var(--space-6);
+  margin-top: var(--space-8);
 }
 
 /* 与移动端判定一致（含手机横屏）：横屏可视高度只有 ~390px，
    大标题会吃掉正文首屏，同样需要缩小 */
 @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .page-title {
+    font-size: var(--text-2xl);
+  }
+
+  /* h2 在手机上也要收：28px 在 375px 宽上折行太多 */
+  .prose h2 {
     font-size: var(--text-xl);
+    margin-top: var(--space-10);
   }
 
   .post-card {
@@ -369,10 +413,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-3);
-  font-size: var(--text-xs);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-wide);
+  letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
   color: var(--fg-subtle);
 }
@@ -396,11 +440,16 @@
 
 .toc__list a {
   display: block;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  /* 左侧竖线是目录的层级指示器，2px 宽度足以在 14px 文字旁被看见 */
   border-left: 2px solid var(--border-subtle);
   color: var(--fg-muted);
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--leading-snug);
+  text-decoration: none;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 
   /* 目录项固定单行：右栏只有 16rem，长标题折行会把整块撑高、
      还会让扫视节奏变乱。超出部分用省略号，完整标题在 title 属性里
@@ -428,7 +477,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  margin-top: var(--space-10);
+  margin-top: var(--space-12);
   list-style: none;
   font-size: var(--text-sm);
 }
@@ -440,15 +489,19 @@
   min-width: 2.25rem;
   height: 2.25rem;
   padding-inline: var(--space-2);
-  border-radius: var(--radius-md);
-  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  /* 分页是控件：边界走 control 令牌（≥ 3:1） */
+  border: var(--border-width) solid var(--border-control);
   background: var(--bg-surface);
   color: var(--fg-muted);
+  text-decoration: none;
 }
 
 .pagination a:hover {
   color: var(--fg-default);
-  border-color: var(--border-strong);
+  border-color: var(--fg-subtle);
+  background: var(--bg-surface-alt);
+  text-decoration: none;
 }
 
 .pagination .is-current {
@@ -482,15 +535,20 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-4);
+  padding: var(--space-5);
   border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
-  transition: border-color var(--duration-fast) var(--ease-out);
+  text-decoration: none;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 .post-nav__link:hover {
-  border-color: var(--accent-border);
+  border-color: var(--border-strong);
+  background: var(--bg-surface-alt);
+  text-decoration: none;
 }
 
 .post-nav__link--next {
@@ -502,7 +560,10 @@
   align-items: center;
   gap: var(--space-1);
   color: var(--fg-subtle);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
 }
 
 .post-nav__link--next .post-nav__label {
@@ -511,8 +572,9 @@
 
 .post-nav__title {
   color: var(--fg-default);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   font-size: var(--text-sm);
+  line-height: var(--leading-snug);
 }
 
 /* ---------- 阅读进度条 ----------
@@ -570,12 +632,13 @@
 .notfound__code {
   font-size: clamp(4rem, 15vw, 7rem);
   font-weight: var(--weight-bold);
-  line-height: 1;
-  letter-spacing: -0.04em;
+  line-height: var(--leading-none);
+  letter-spacing: var(--tracking-tighter);
   color: var(--accent);
 }
 
 .notfound__text {
   margin: var(--space-4) 0 var(--space-8);
   color: var(--fg-muted);
+  font-size: var(--text-lg);
 }

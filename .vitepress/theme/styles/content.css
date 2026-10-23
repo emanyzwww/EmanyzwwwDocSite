@@ -1,5 +1,29 @@
 /* =========================================================
    正文排版 + 代码块
+   ---------------------------------------------------------
+   这是**独立的第二个样式系统**，不是站点外壳层的一部分。
+
+   本站的样式分三层，共用下面两层、独立最上面一层：
+
+     ① 令牌层     tokens.css —— 颜色 / 字号 / 间距 / 圆角 / 阴影
+                    ↑ 外壳与正文**共用**
+     ② 外壳层     base / layout / components / posts / widgets
+                  / search / mobile —— 页头、卡片、导航、时间线…
+                    ↑ 只管 chrome，不碰正文
+     ③ 正文层     本文件 —— 全部规则挂在 `.prose` 命名空间下
+
+   为什么要分开（三个理由，都很实际）：
+
+   1. **Markdown 是外部输入**。正文 DOM 由 VitePress 从用户写的 `.md` 生成，
+      我们控制不了它的 class。只能靠 `.prose` 作用域去隔离，
+      否则「给文章 h2 加下边框」会连带把侧栏卡片的 h2 也改掉。
+   2. **密度需求相反**。外壳要紧凑（14px 为主，一屏放更多信息），
+      正文要宽松（17px / 行高 1.9，连续长文更耐读）。共用一套字号会互相牵制。
+   3. **可替换**。将来换渲染器（如从 VitePress 换走）只需重写本文件，
+      外壳完全不受影响。
+
+   纪律：**本文件里不允许出现不依赖 `.prose` 的选择器**。
+   需要影响全站的东西（字体、链接、焦点环）请放到 base.css。
    ========================================================= */
 
 /* ---------- 正文容器 ----------
@@ -9,16 +33,21 @@
 
 .prose {
   font-size: var(--text-md);
+  /*
+   * 行高 **1.9**，比 `body` 的 1.75 更松 —— 这不是疏漏，是刻意的。
+   *
+   * 中文没有词间空格，行距不足时眼睛在换行处容易串行。外壳里的文字是
+   * 短句 + 高密度（导航、卡片摘要），1.75 够用；文章是连续长文，需要 1.9。
+   * 详见 DESIGN.md 3.2「正文的行高有两个值」。
+   */
   line-height: var(--leading-loose);
   color: var(--fg-default);
   overflow-wrap: break-word;
 
   /* 正文宽度上限。
      实测三栏布局下主栏本身只有 688px（82rem 容器 − 两侧 16rem 侧栏 − 间距），
-     已经小于 44rem = 704px，所以这条上限平时不会触发；它真正的价值是
-     **兜底**：以后若加宽 --layout-max、或去掉某一侧栏，正文不会跟着无限变宽。
-     之前 layout.css 里有个 `.content-measure` 想干这件事，但没有任何组件
-     用过那个 class，规则从未生效——那个是死代码，已删除。 */
+     已经小于 42rem = 672px，所以这条上限大部分时候刚好贴边；它真正的价值是
+     **兜底**：以后若加宽 --layout-max、或去掉某一侧栏，正文不会跟着无限变宽。 */
   max-width: var(--layout-measure);
 }
 
@@ -26,9 +55,22 @@
   position: static !important;
 }
 
-/* 第一层子元素之间统一间距（覆盖包裹层内部的那一层） */
-.prose > * + *,
-.prose > div > div > * + * {
+/*
+ * 第一层子元素之间统一间距（覆盖包裹层内部的那一层）。
+ *
+ * **必须用 `:where()` 把特异性降到 0。**
+ *
+ * 之前写的是 `.prose > div > div > * + *`，特异性 (0,1,2)；
+ * 而 `.prose h2` 只有 (0,1,1)。也就是说这条「通用兜底间距」的优先级
+ * **高于**标题自己的节奏规则 —— 于是 h2 的 48px 上间距被 20px 覆盖，
+ * 整站的标题节奏其实从未生效（实测 h2MarginTop 一直是 20px）。
+ *
+ * 包一层 `:where()` 后，这条规则的特异性变成 (0,0,2)，
+ * 任何具名规则（`.prose h2` 等）都能正常覆盖它。
+ * 这类「兜底规则压过具体规则」是 CSS 里最常见、也最难发现的坑之一。
+ */
+:where(.prose) > * + *,
+:where(.prose) > div > div > * + * {
   margin-top: var(--space-5);
 }
 
@@ -41,26 +83,44 @@
   margin-top: 0;
 }
 
-.prose > div > div > h2 + *,
-.prose > h2 + * {
-  margin-top: var(--space-3);
-}
+/*
+ * ---------- 标题节奏 ----------
+ *
+ * **标题上方的空间必须明显大于下方**（h2 是 48:16 = 3:1）。
+ *
+ * 这是排版里最容易被忽略、但效果最明显的一条：它把标题「绑」到它
+ * 下面那段内容上，而不是让它浮在两个段落中间左右都不是。
+ * 标题上方的空白属于「上一段的结束」，下方的空白属于「这一段的开始」。
+ *
+ * 见 DESIGN.md 5.2。
+ */
 
 .prose h2 {
   margin-top: var(--space-12);
+  margin-bottom: var(--space-4);
   padding-bottom: var(--space-2);
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  /* 下划边从 1px 实线改成极淡的一条，避免和正文的链接下划线视觉打架 */
   border-bottom: var(--border-width) solid var(--border-subtle);
 }
 
 .prose h3 {
-  margin-top: var(--space-8);
-  font-size: var(--text-lg);
+  margin-top: var(--space-10);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-snug);
 }
 
 .prose h4 {
-  margin-top: var(--space-6);
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-2);
   font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-normal);
 }
 
 /* 标题旁的自定义锚点：默认隐藏，悬停或聚焦时出现 */
@@ -96,16 +156,25 @@
   margin-top: var(--space-2);
 }
 
+/*
+ * 正文链接：下划线常驻但极淡，悬停时加深。
+ *
+ * 链接**不能只靠颜色区分**（色盲用户），所以必须有非颜色的第二重提示。
+ * 但传统下划线在中英混排的正文里显得很重，会打断阅读节奏 ——
+ * 折中：1px、低透明度当前色、拉开 offset，让它是「一条淡基准线」
+ * 而不是「一个被框住的词」。见 DESIGN.md 未列出的 base.css 同名规则。
+ */
 .prose a {
   color: var(--accent);
   text-decoration: underline;
-  text-decoration-color: var(--accent-border);
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1.5px;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  transition: text-decoration-color var(--duration-fast) var(--ease-out);
 }
 
 .prose a:hover {
-  text-decoration-color: var(--accent);
+  text-decoration-color: currentColor;
 }
 
 .prose strong {
@@ -116,7 +185,7 @@
 
 .prose mark {
   padding: 0.1em 0.25em;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--mark-bg);
   color: var(--mark-fg);
   /* 圆角会让行内元素的底色在跨行处断开，这里交给浏览器按行盒各自渲染 */
@@ -186,7 +255,15 @@
 
 .prose img {
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  /*
+   * 图片**不加阴影**。
+   *
+   * 阴影只给需要遮挡内容的浮层（见 DESIGN.md 6.2）。
+   * 正文图片是内容本身，平贴在页面上；加投影会让每张图都像被「贴起来」，
+   * 反而削弱了图片与文字之间的编辑整体感。
+   * 用极淡描边收边即可——它在深色主题下提供必要的边界。
+   */
+  border: var(--border-width) solid color-mix(in srgb, currentColor 8%, transparent);
 }
 
 .prose figure {
@@ -212,24 +289,32 @@
 
 .prose th,
 .prose td {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-bottom: var(--border-width) solid var(--border-subtle);
   text-align: left;
 }
 
 .prose th {
+  font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
-  color: var(--fg-muted);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
   background: var(--bg-surface-alt);
+}
+
+.prose td {
+  color: var(--fg-muted);
 }
 
 /* ---------- 行内代码 ---------- */
 
 .prose :not(pre) > code {
   padding: 0.15em 0.4em;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-xs);
   background: var(--bg-inset);
   font-family: var(--font-mono);
+  /* 行内代码略微缩小，避免等宽字体在中文正文里显得过大 */
   font-size: 0.9em;
   font-weight: inherit;
 }
@@ -237,14 +322,19 @@
 /* ---------- 代码块 ----------
    VitePress 输出结构：
      <div class="language-xxx"><button class="copy"></button><span class="lang">xxx</span><pre><code>…</code></pre></div>
-   高亮用 Shiki 单主题（github-dark），因此代码块在明暗两种主题下都是深色。 */
+   高亮用 Shiki 单主题（github-dark-default），因此代码块在明暗两种主题下都是深色。 */
 
 .prose div[class*='language-'] {
   position: relative;
-  margin-block: var(--space-5);
+  margin-block: var(--space-6);
   border-radius: var(--radius-md);
   background: var(--bg-code);
-  box-shadow: var(--shadow-sm);
+  /*
+   * 代码块在浅色页面上是一块**深色矩形**，本身就足够「浮起」，
+   * 不加阴影 —— 阴影只给需要遮挡内容的浮层（见 DESIGN.md 6.2）。
+   * 用一条极淡的内描边让它在深色主题下也能和页面分开。
+   */
+  border: var(--border-width) solid color-mix(in srgb, currentColor 8%, transparent);
   overflow: hidden;
 }
 
@@ -254,7 +344,7 @@
   background: var(--bg-code) !important;
   overflow-x: auto;
   font-size: var(--text-sm);
-  line-height: 1.65;
+  line-height: var(--leading-relaxed);
 }
 
 /* 代码块本身由外层容器负责样式，`pre` 只做滚动容器；
@@ -287,8 +377,10 @@
   top: var(--space-2);
   right: var(--space-3);
   z-index: 2;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
   color: var(--gray-400);
   user-select: none;
   transition: opacity var(--duration-fast) var(--ease-out);
