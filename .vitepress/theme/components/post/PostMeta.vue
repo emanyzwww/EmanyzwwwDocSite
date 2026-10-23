@@ -14,7 +14,7 @@ import AppIcon from '../common/AppIcon.vue'
  * `variant` 只控制容器与日期格式，不复制三份模板：
  * - `full`：文章页，带日历图标与完整日期
  * - `compact`：卡片，纯日期
- * - `timeline`：时间线行内的 `<span>` 容器
+ * - `timeline`：时间线行内，**不显示日期**（日期已由左侧 `.tl__date` 独立展示）
  */
 
 const props = withDefaults(
@@ -37,15 +37,21 @@ const wrapperClass = computed(() => ({
 }))
 
 const showWordCount = computed(() => SITE.wordCount)
+
+/**
+ * 是否渲染日期。
+ *
+ * 时间线布局把日期放在行首的独立列（`.tl__date`），如果这里再渲染一次，
+ * 每一行会出现两个一模一样的「10-19」——视觉冗余，读屏还会读两遍。
+ */
+const showDate = computed(() => props.variant !== 'timeline')
 </script>
 
 <template>
   <component :is="tag" :class="wrapperClass">
-    <span class="post-meta__item">
+    <span v-if="showDate" class="post-meta__item">
       <AppIcon v-if="props.variant === 'full'" name="calendar" />
-      <time :datetime="post.isoDate">{{
-        props.variant === 'timeline' ? post.dateShort : post.dateText
-      }}</time>
+      <time :datetime="post.isoDate">{{ post.dateText }}</time>
     </span>
 
     <span v-if="showWordCount" class="post-meta__item">

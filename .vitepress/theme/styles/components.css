@@ -207,37 +207,23 @@
   background: var(--accent-soft);
 }
 
-/* ---------- 页头响应式 ---------- */
+/* ---------- 页头结构 ----------
+ * 宽屏 / 窄屏是**两套 DOM**，不是同一套靠换行挤：
+ * 窄屏由 mobile.css 接管（隐藏这份、显示汉堡结构）。
+ * 默认（宽屏）在这里定义。
+ */
 
-@media (max-width: 720px) {
-  .site-header__inner {
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding-block: var(--space-3);
-  }
+.site-header__mobile {
+  display: none;
+}
 
-  .site-header__right {
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-left: 0;
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .site-header__right nav {
-    min-width: 0;
-    order: 2;
-    width: 100%;
-  }
-
-  .site-nav {
-    width: 100%;
-    padding-bottom: var(--space-1);
-  }
-
-  .site-tools {
-    margin-left: auto;
-  }
+.site-header__desktop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--header-height);
 }
 
 /* ---------- 页脚 ---------- */

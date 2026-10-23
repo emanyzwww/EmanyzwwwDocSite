@@ -95,6 +95,12 @@ export type IconName =
   | 'twitter'
   | 'mail'
   | 'link'
+  | 'menu'
+  | 'close'
+  | 'search'
+  | 'home'
+  | 'toc'
+  | 'arrow-up'
 
 /** 个人资料中的一条社交链接。 */
 export interface ProfileLink {
@@ -224,6 +230,40 @@ export interface Messages {
   recentPosts: string
   copyCode: string
   copied: string
+
+  // ---------- 移动端专属交互 ----------
+  /** 打开导航抽屉（汉堡按钮的无障碍名）。 */
+  openMenu: string
+  /** 关闭导航抽屉。 */
+  closeMenu: string
+  /** 抽屉标题。 */
+  menuTitle: string
+  /** 底部操作栏：回到顶部。 */
+  backToTop: string
+  /** 底部操作栏：打开本页目录。 */
+  openToc: string
+  /** 搜索入口。 */
+  search: string
+  /** 搜索框占位符。 */
+  searchPlaceholder: string
+  /** 搜索无结果。 */
+  searchEmpty: string
+  /** 搜索提示（输入几个字开始）。 */
+  searchHint: string
+  /** 搜索结果的计数。 */
+  searchResults: string
+  /** 搜索结果导航提示。 */
+  searchNavigate: string
+  /** 底部操作栏：首页。 */
+  navHome: string
+  /** 底部操作栏：文章列表。 */
+  navPosts: string
+  /**
+   * 单数形式。中文不分单复数，`zh-cn.ts` 里与复数填同一句；
+   * 英文必须区分（否则会出现「1 posts」「1 tags」）。
+   */
+  termCountOne: string
+  taxonomyOverviewOne: string
 }
 
 /** 语言元信息。 */

@@ -34,11 +34,28 @@ function resolveLink(url: string): string {
 
 <template>
   <section class="card profile">
+    <!--
+      这里**不用** loading="lazy"：头像是侧栏首屏元素，懒加载反而会推迟
+      它的解码时机（LCP 候选之一），与「优化首屏」的目的相反。
+      用 decoding="async" 让解码不阻塞渲染即可。
+    -->
     <div v-if="avatar" class="profile__avatar">
-      <img :src="avatar" :alt="displayName" loading="lazy" width="80" height="80" />
+      <img
+        :src="avatar"
+        :alt="displayName"
+        width="80"
+        height="80"
+        decoding="async"
+        fetchpriority="low" />
     </div>
 
-    <h2 class="profile__name">{{ displayName }}</h2>
+    <!--
+      用 `<p>` 而不是 `<h2>`：侧栏在 DOM 里排在 `<main>` 之前，
+      用 h2 会让每一页的大纲都从「Emanyzwww」这个侧栏标题开始，
+      正文的真正 h1 反而被埋在后面（读屏的「按标题导航」会先读到人名）。
+      人名不是页面结构的标题，只是卡片里的标识。
+    -->
+    <p class="profile__name">{{ displayName }}</p>
     <p v-if="profile.tagline" class="profile__tagline">{{ profile.tagline }}</p>
 
     <!-- eslint-disable-next-line vue/no-v-html — 内容来自本地 profile.ts，构建期渲染 -->

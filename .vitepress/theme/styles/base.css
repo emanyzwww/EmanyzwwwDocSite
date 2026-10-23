@@ -138,10 +138,22 @@ hr {
   background: var(--bg-surface);
   color: var(--fg-default);
   border-radius: var(--radius-sm);
+  /*
+   * 焦点环只在聚焦时加。
+   *
+   * 它平时在屏幕外（transform 上移 200%），常驻焦点环会让页面顶部
+   * 露出一条不该有的蓝边。而一旦被 Tab 到，它滑进来时**必须**带清晰的焦点
+   * 指示——所以这里把 `:focus-visible` 的环显式搬到聚焦态上，
+   * 而不是让常驻的 `--shadow-md` 把它覆盖掉。
+   */
   box-shadow: var(--shadow-md);
   transform: translateY(-200%);
   transition: transform var(--duration-fast) var(--ease-out);
   z-index: calc(var(--z-header) + 1);
+}
+
+.skip-link:focus-visible {
+  box-shadow: var(--ring);
 }
 
 .skip-link:focus {

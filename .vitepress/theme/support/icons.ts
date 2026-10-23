@@ -113,6 +113,39 @@ export const ICONS: Record<IconName, IconDef> = {
     mode: 'stroke',
     body: `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />`,
   },
+  // ---------- 移动端专用（抽屉导航 / 底部操作栏） ----------
+  menu: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    strokeWidth: 2,
+    body: `<path d="M4 6h16M4 12h16M4 18h16" />`,
+  },
+  close: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    strokeWidth: 2,
+    body: `<path d="M18 6 6 18M6 6l12 12" />`,
+  },
+  search: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />`,
+  },
+  home: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h5v-6h4v6h5V9.5" />`,
+  },
+  toc: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<path d="M4 6h10M4 12h10M4 18h6" /><path d="M18 8v8" /><path d="m15.5 13.5 2.5 2.5 2.5-2.5" />`,
+  },
+  'arrow-up': {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<path d="M12 19V5M5 12l7-7 7 7" />`,
+  },
 }
 
 /** 取图标定义；名字非法时回退到 `link`，避免整页渲染失败。 */

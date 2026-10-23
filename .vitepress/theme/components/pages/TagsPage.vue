@@ -24,6 +24,13 @@ const { tags } = useTaxonomy()
 
 /** 页面大标题用 `page.title`，不含站点名后缀。 */
 const heading = computed(() => page.value.title)
+
+/** 标签总览说明：只有 1 个标签时英文要用单数（中文两者相同）。 */
+const overview = computed(() =>
+  format(tags.value.length === 1 ? m.value.taxonomyOverviewOne : m.value.taxonomyOverview, {
+    count: tags.value.length,
+  }),
+)
 </script>
 
 <template>
@@ -32,7 +39,7 @@ const heading = computed(() => page.value.title)
       <h1 class="page-title">{{ heading }}</h1>
       <p v-if="frontmatter.description" class="page-description">{{ frontmatter.description }}</p>
       <p v-if="tags.length" class="page-description">
-        {{ format(m.taxonomyOverview, { count: tags.length }) }}
+        {{ overview }}
       </p>
     </header>
 

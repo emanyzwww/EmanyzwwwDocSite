@@ -14,9 +14,9 @@ import { dirname, join } from 'node:path'
 
 import { LOCALE_CODES, LOCALES, SITE } from '../data/site'
 import type { LocaleCode, PostSummary } from '../types'
-import { readDocs, readPosts } from './content'
+import { readPosts } from './content'
 import { formatRfc822 } from './format'
-import { renderMarkdown } from './markdown'
+import { getRenderedContent } from './rendered'
 import { decodePath } from './urls'
 
 /**
@@ -24,6 +24,11 @@ import { decodePath } from './urls'
  *
  * 这样部署到 GitHub Pages 项目站点（或临时预览域名）时，
  * RSS 里的绝对链接不会仍然指向正式域名。
+ *
+ * **注意它可能已经含部署子路径**（CI 传入的是
+ * `https://owner.github.io/<repo>`），所以任何「站内路径 → 绝对地址」
+ * 的转换都必须先把路径里的 base 剥掉、再拼这个前缀，
+ * 否则会出现 `/<repo>/<repo>/assets/...` 这种重复拼接。
  */
 const SITE_URL = (process.env.VP_SITE_URL ?? SITE.url).replace(/\/$/, '')
 
@@ -54,18 +59,52 @@ function homeUrl(locale: LocaleCode): string {
 
 /**
  * 订阅源里某篇文章的全文 HTML。
- * 相对链接补成绝对地址，避免阅读器按 feed 地址解析导致图片/链接失效。
+ *
+ * 取的是**VitePress 已渲染好的正文**（`transformHtml` 阶段收集，见
+ * `support/rendered.ts`），而不是自己再渲染一遍 Markdown。这样做解决了三个问题：
+ *
+ * 1. **图片地址正确**：网页上的图是 `/assets/banner.<hash>.webp`（Vite 指纹化），
+ *    裸 markdown-it 渲染出的却是 `./banner.webp` —— 后者部署后不存在，阅读器必裂图。
+ * 2. **`{width=100}` 不泄漏**：那是 VitePress 的 attrs 语法，已由它的渲染器消费；
+ *    裸 markdown-it 不认识，会把字面量原样留在正文里。
+ * 3. **代码高亮 / 标题锚点 / 任务列表**与网页完全一致，不再有两套渲染口径。
+ *
+ * 剩下的唯一工作是**把站内链接补成绝对地址**：`<img src="/repo/x.webp">`
+ * 在网页里没问题（同源），但阅读器不知道站点的 base，必须补全。
  */
-function articleHtml(post: PostSummary, docs: Map<string, string>): string {
-  const source = docs.get(toSourcePath(post.url))
-  if (!source) return ''
+function articleHtml(post: PostSummary, base: string): string {
+  const sourcePath = toSourcePath(post.url)
+  const rendered = getRenderedContent(sourcePath)
+  if (!rendered) return ''
 
-  const absolute = `${SITE_URL}${post.url}`
-  return renderMarkdown(source).replace(/(src|href)="\/(?!\/)/g, `$1="${absolute}`)
+  /*
+   * 两种情况要分清：
+   * 1. 渲染产物里的站内地址**已带 base**（VitePress 的 `withBase` 在渲染期
+   *    就拼好了，例如 `/EmanyzwwwDocSite/assets/banner.<hash>.webp`）；
+   * 2. 而 `SITE_URL` 从 CI 传入时**也可能已含子路径**。
+   *
+   * 两者直接相加就会得到 `/<repo>/<repo>/assets/...`（实测踩过）。
+   * 所以先把 path 里的 base 剥掉，让 path 变成纯站点路径，
+   * 再整体拼到 `SITE_URL` 上——此时 `SITE_URL` 承担全部前缀。
+   */
+  const bareBase = base.replace(/\/$/, '')
+
+  return rendered.replace(/(src|href)="([^"]+)"/g, (whole, attr: string, url: string) => {
+    // 已经是完整 URL / 协议相对 / 纯锚点 / data URI 的，原样保留
+    if (/^(?:[a-z][a-z\d+.-]*:|#|\/\/)/i.test(url)) return whole
+
+    // 站内路径：先剥掉可能已存在的 base，再拼站点根
+    let path = url.startsWith('/') ? url : `/${url}`
+    if (bareBase && (path === bareBase || path.startsWith(`${bareBase}/`))) {
+      path = path.slice(bareBase.length) || '/'
+    }
+
+    return `${attr}="${SITE_URL}${path}"`
+  })
 }
 
 /** 生成一个语言的 RSS XML。 */
-function buildFeed(locale: LocaleCode, posts: PostSummary[], docs: Map<string, string>): string {
+function buildFeed(locale: LocaleCode, posts: PostSummary[], base: string): string {
   const meta = LOCALES[locale]
   const home = homeUrl(locale)
   const feedUrl = `${home}index.xml`
@@ -81,7 +120,7 @@ function buildFeed(locale: LocaleCode, posts: PostSummary[], docs: Map<string, s
         `      <guid isPermaLink="true">${escapeXml(link)}</guid>`,
         `      <pubDate>${formatRfc822(new Date(post.date), SITE.timeZone)}</pubDate>`,
         `      <description>${escapeXml(post.summary)}</description>`,
-        `      <content:encoded>${escapeXml(articleHtml(post, docs))}</content:encoded>`,
+        `      <content:encoded>${escapeXml(articleHtml(post, base))}</content:encoded>`,
         ...post.tags.map((tag) => `      <category>${escapeXml(tag.label)}</category>`),
         '    </item>',
       ].join('\n')
@@ -109,17 +148,20 @@ ${items}
  * 为每种语言写出订阅源。`outDir` 是构建产物目录。
  *
  * 每种语言一个 feed，落在该语言的前缀下：`/zh-cn/index.xml`、`/en/index.xml`。
- * `docs` 的 key 用**含语言前缀**的 `filePath`，与 `post.url` 反推出来的路径一致。
+ *
+ * 正文来自 `support/rendered.ts` 收集的**已渲染 HTML**（`transformHtml` 阶段），
+ * 因此这里不再需要读 Markdown 源码或自己渲染。`base` 是部署子路径
+ * （`/EmanyzwwwDocSite/`），用来把 `/assets/...` 补成完整的绝对地址。
  */
 export function writeFeeds(outDir: string): void {
-  // 正文只读一次，避免每篇文章都全量扫描
-  const docs = new Map(readDocs().map((doc) => [doc.filePath, doc.body]))
+  const base = process.env.VP_BASE ?? '/'
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
 
   for (const locale of LOCALE_CODES) {
     const posts = readPosts(locale)
     const target = join(outDir, locale, 'index.xml')
 
     mkdirSync(dirname(target), { recursive: true })
-    writeFileSync(target, buildFeed(locale, posts, docs), 'utf-8')
+    writeFileSync(target, buildFeed(locale, posts, normalizedBase), 'utf-8')
   }
 }

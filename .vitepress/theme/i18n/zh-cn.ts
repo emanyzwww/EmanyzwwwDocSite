@@ -36,4 +36,21 @@ export const zhCN: Messages = {
   recentPosts: '最近文章',
   copyCode: '复制代码',
   copied: '已复制',
+
+  openMenu: '打开导航菜单',
+  closeMenu: '关闭导航菜单',
+  menuTitle: '导航',
+  backToTop: '回到顶部',
+  openToc: '本页目录',
+  search: '搜索',
+  searchPlaceholder: '搜索文章…',
+  searchEmpty: '没有找到匹配的内容。',
+  searchHint: '输入关键词开始搜索',
+  searchResults: '共 {count} 条结果',
+  searchNavigate: '↑↓ 选择，Enter 打开，Esc 关闭',
+  navHome: '首页',
+  navPosts: '文章',
+  // 中文没有单复数变化，与复数形式保持一致即可（但键必须存在，类型会检查）
+  termCountOne: '共 {count} 篇文章',
+  taxonomyOverviewOne: '全站共有 {count} 个标签，点击任意一个查看相关文章',
 }

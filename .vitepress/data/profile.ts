@@ -9,8 +9,17 @@
 import type { Profile } from '../types'
 
 export const PROFILE: Profile = {
-  // 头像文件名（位于 media/）；留空则不显示头像
-  avatar: 'avatar.png',
+  /*
+   * 头像文件名（位于 `media/`）；留空则不显示头像。
+   *
+   * 用 160×160 WebP，而不是原来那张 640×640 的「avatar.png」：
+   * - 那个文件其实是 JPEG（魔数 FF D8 FF E0），却以 image/png 下发；
+   * - 显示尺寸只有 80×80 CSS px（2x 屏也只要 160px），640 的像素完全浪费。
+   *
+   * 换成 160×160 WebP 后从 41.9KB 降到 4.5KB（-89%），
+   * 首屏传输量因此少了约四分之一。
+   */
+  avatar: 'avatar.webp',
 
   name: 'Emanyzwww',
 

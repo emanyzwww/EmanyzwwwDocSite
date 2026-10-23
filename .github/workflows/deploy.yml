@@ -8,6 +8,13 @@
 #  - 产物目录是 .vitepress/dist（配置里显式声明，不随命令行 root 变化）
 #  - 首次使用需在仓库里设置一次：
 #    Settings -> Pages -> Build and deployment -> Source 选「GitHub Actions」
+#
+#  为什么 action 都钉到 40 位 commit SHA 而不是 `@v4`：
+#  可变 tag 可以让上游仓库在任何时候把代码指过去。GitHub Actions 的
+#  `uses:` 是**以 GITHUB_TOKEN 权限执行上游代码**，一旦某个 action 被入侵
+#  或 tag 被移动，攻击者就能在 CI 里篡改即将发布的 dist —— 对静态站来说
+#  这就是「干净域名发布恶意 JS」，且没有回滚审计、没有 integrity 校验。
+#  钉 SHA 后，升级必须是一次显式提交（Dependabot 会帮你发这种 PR）。
 # =========================================================
 name: Deploy to GitHub Pages
 
@@ -17,6 +24,9 @@ on:
   # 也可在 Actions 页面手动触发
   workflow_dispatch:
 
+# 最小权限：contents 只读、pages 写、id-token 仅用于 Pages 的 OIDC 部署。
+# 这三项是 GitHub Pages 官方部署路径的硬性要求，无法再收紧。
+# 刻意**不用** `pull_request_target`：那是 Actions 最经典的提权入口。
 permissions:
   contents: read
   pages: write
@@ -36,21 +46,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      # 质量门禁：lint / 类型 / 测试 必须在构建前通过。
+      #
+      # `pnpm audit` 刻意用 `--prod`：生产依赖树是空的（所有依赖都在
+      # devDependencies），所以它必然是干净的；而裸 `pnpm audit` 会报
+      # vite/esbuild 的 dev-only 漏洞（2 high / 6 moderate），
+      # 那些只在 dev server 与构建期生效、不进产物、线上零影响，
+      # 却会让 CI 永久红灯 —— 那等于把门禁关掉。
+      - name: Quality gate
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm audit --prod
 
       # 计算本次部署的 base 与站点地址：
       #   仓库名形如 xxx.github.io  -> 用户站点，根路径
@@ -88,7 +111,7 @@ jobs:
           echo "产物文件数：$(find ./.vitepress/dist -type f | wc -l)"
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: ./.vitepress/dist
 
@@ -101,4 +124,40 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+      # 部署后冒烟：补上「部署成功了但线上是坏的」这个盲区。
+      # 历史上踩过 VP_BASE/VP_SITE_URL 解析错导致全站相对链接断掉的问题，
+      # 而那种故障在 Actions 里显示为绿色，只能靠肉眼发现。
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          # job 之间不共享 step outputs，这里按与 build 完全相同的规则重算一次
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [[ "${REPO}" == *.github.io ]]; then
+            BASE="/"
+            HOME="https://${GITHUB_REPOSITORY_OWNER}.github.io"
+          else
+            BASE="/${REPO}/"
+            HOME="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO}"
+          fi
+          HOME="${HOME%/}"
+          ROOT="${HOME}${BASE}"
+
+          fail=0
+          for path in "" "zh-cn/" "en/" "zh-cn/posts/" "sitemap.xml" "robots.txt" "zh-cn/index.xml" "en/index.xml"; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-delay 2 "${ROOT}${path}")
+            echo "  ${path:-/} -> ${code}"
+            if [ "${code}" != "200" ]; then
+              echo "::error::冒烟失败：${ROOT}${path} 返回 ${code}"
+              fail=1
+            fi
+          done
+
+          # 关键内容探针：确认拿到的是真实页面而不是空壳/兜底页
+          if ! curl -sS --max-time 20 "${ROOT}hashmap.json" | grep -q 'zh-cn_index'; then
+            echo "::error::冒烟失败：hashmap.json 缺 zh-cn_index"
+            fail=1
+          fi
+
+          exit "${fail}"

@@ -4,7 +4,7 @@ import { computed } from 'vue'
 
 import { NAV } from '../../../data/site'
 import { useI18n } from '../../i18n'
-import { href } from '../../support/paths'
+import { href, stripRouteBase } from '../../support/paths'
 
 /**
  * 顶部导航。
@@ -25,7 +25,13 @@ const items = computed(() => NAV[locale.value])
 const homeLink = computed(() => `/${locale.value}/`)
 
 function isActive(link: string): boolean {
-  const path = route.path
+  /*
+   * 必须先剥掉部署 base：`route.path` 是含 base 的（`/repo/zh-cn/posts/`），
+   * 而 `item.link` 是不含 base 的站点路径（`/zh-cn/posts/`）。
+   * 不剥的话两者永不相等，`aria-current="page"` 永远不会输出，
+   * CSS 里那条 `.site-nav a[aria-current='page']` 高亮规则就等于不存在。
+   */
+  const path = stripRouteBase(route.path)
   if (link === homeLink.value) return path === link
   const normalized = link.endsWith('/') ? link : `${link}/`
   return path === normalized || path.startsWith(normalized)

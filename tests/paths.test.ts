@@ -4,6 +4,7 @@ import { asLocale, DEFAULT_LOCALE, LOCALE_CODES, LOCALES } from '../.vitepress/d
 import {
   localeOfPath,
   postListPath,
+  stripBase,
   stripLocale,
   withLocale,
 } from '../.vitepress/support/locale-paths'
@@ -82,6 +83,62 @@ describe('postListPath', () => {
   it('第 2 页起带页码', () => {
     expect(postListPath('zh-cn', 2)).toBe('/zh-cn/posts/page/2/')
     expect(postListPath('en', 3)).toBe('/en/posts/page/3/')
+  })
+})
+
+describe('stripBase', () => {
+  it('去掉部署子路径', () => {
+    expect(stripBase('/repo/zh-cn/about/', '/repo/')).toBe('/zh-cn/about/')
+    expect(stripBase('/repo/', '/repo/')).toBe('/')
+  })
+
+  it('base 为根部署时是恒等函数', () => {
+    expect(stripBase('/zh-cn/about/', '/')).toBe('/zh-cn/about/')
+    expect(stripBase('/zh-cn/about/', '')).toBe('/zh-cn/about/')
+  })
+
+  it('base 结尾不带斜杠也正确', () => {
+    expect(stripBase('/repo/zh-cn/about/', '/repo')).toBe('/zh-cn/about/')
+  })
+
+  it('不误伤以 base 同名前缀开头的其它路径', () => {
+    // /repository/ 不该被 /repo 剥成 /sitory/
+    expect(stripBase('/repository/x/', '/repo/')).toBe('/repository/x/')
+  })
+
+  it('不带 base 的路径原样返回', () => {
+    expect(stripBase('/zh-cn/about/', '/repo/')).toBe('/zh-cn/about/')
+  })
+})
+
+/**
+ * 回归测试：GitHub Pages 子路径部署下，`route.path` 是**含 base** 的，
+ * 而站点内所有内容路径（`pages.data.ts` 的 `readPageUrls()`）**不含 base**。
+ *
+ * 线上曾因此让「语言切换」永远退回目标语言首页、导航高亮全站失效。
+ * 本地 dev 的 base 是 `/`，这个 bug 在本地完全看不出来，所以必须在此锁住。
+ */
+describe('剥离顺序：先 stripBase 再 stripLocale', () => {
+  const BASE = '/EmanyzwwwDocSite/'
+
+  it('子路径部署下能得到正确的不含 base 的裸路径', () => {
+    expect(stripLocale(stripBase('/EmanyzwwwDocSite/zh-cn/about/', BASE))).toBe('/about/')
+    expect(stripLocale(stripBase('/EmanyzwwwDocSite/en/posts/', BASE))).toBe('/posts/')
+  })
+
+  it('语言首页也一样', () => {
+    expect(stripLocale(stripBase('/EmanyzwwwDocSite/zh-cn/', BASE))).toBe('/')
+    expect(stripLocale(stripBase('/EmanyzwwwDocSite/en/', BASE))).toBe('/')
+  })
+
+  it('顺序反了就得不出正确结果（这正是线上 bug 的成因）', () => {
+    // 先剥语言：路径开头是 /EmanyzwwwDocSite，语言正则匹配不上
+    expect(stripLocale('/EmanyzwwwDocSite/zh-cn/about/')).toBe('/EmanyzwwwDocSite/zh-cn/about/')
+  })
+
+  it('能从裸路径重建出目标语言的对应页面', () => {
+    const bare = stripLocale(stripBase('/EmanyzwwwDocSite/zh-cn/about/', BASE))
+    expect(withLocale(bare, 'en')).toBe('/en/about/')
   })
 })
 

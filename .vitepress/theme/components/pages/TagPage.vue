@@ -30,6 +30,12 @@ const tag = computed(() => findTag(slug.value))
 
 /** 其他标签：排除自己，按文章数取前若干个。 */
 const others = computed(() => tags.value.filter((item) => item.slug !== slug.value))
+
+/** 文章数说明：只有 1 篇时英文用单数（中文两者相同）。 */
+const countText = computed(() => {
+  const count = tag.value?.count ?? 0
+  return format(count === 1 ? m.value.termCountOne : m.value.termCount, { count })
+})
 </script>
 
 <template>
@@ -40,7 +46,7 @@ const others = computed(() => tags.value.filter((item) => item.slug !== slug.val
         <span class="tag tag--current">{{ tag?.label ?? slug }}</span>
       </h1>
       <p v-if="tag" class="page-description">
-        {{ format(m.termCount, { count: tag.count }) }}
+        {{ countText }}
       </p>
     </header>
 

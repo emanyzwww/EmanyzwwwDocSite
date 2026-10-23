@@ -1,0 +1,51 @@
+# Dependabot：依赖与 CI action 的自动升级。
+#
+# 为什么需要它（而不只是「有空手动升」）：
+# 1. npm 依赖：升级 PR 由 bot 发，`--frozen-lockfile` 保证升级可复现；
+# 2. GitHub Actions：本仓库的 action 全部钉在 commit SHA（供应链硬化），
+#    钉死之后**不会自动收到安全更新**——Dependabot 是唯一能同时做到
+#    「钉 SHA 防投毒」和「及时拿到上游修复」的组合。
+#
+# 分组策略：devDependencies 这类同源升级合成一个 PR，避免大量噪音 PR
+# 把真正的安全更新淹没掉。
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      # 周一凌晨：周末没人推代码，升级 PR 有整个工作日可以看
+      day: monday
+      time: '04:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      # 开发依赖一起升：它们不进产物，风险低、噪音大，必须合并
+      dev-dependencies:
+        dependency-type: development
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    ignore:
+      # vitepress 1.x 已停止跟进 vite 的安全更新，2.x 仍是 alpha。
+      # 跨大版本升级需要单独评估（API breaking），不让 bot 自动发 PR。
+      - dependency-name: vitepress
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(ci)'
+    groups:
+      # 所有 action 合成一个 PR：它们通常一起发布，分开看没意义
+      actions:
+        patterns: ['*']

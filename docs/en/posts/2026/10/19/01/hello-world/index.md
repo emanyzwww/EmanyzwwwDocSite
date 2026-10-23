@@ -7,7 +7,7 @@ description: Every programmer starts somewhere, and for many, that beginning is 
 
 In the world of computing, writing a "Hello, World!" program is a time-honored first step for beginners. There's something satisfying about writing a few lines of code and watching them work for the very first time.
 
-![hello, world](./banner.webp)
+![hello, world](./banner.webp){width=1200 height=675}
 
 ## Where Did "Hello, World!" Come From?
 

@@ -16,7 +16,7 @@ import { computed } from 'vue'
 import { data as pages } from '../../data/pages.data'
 import { asLocale, LOCALE_CODES, LOCALES } from '../../data/site'
 import type { LocaleCode } from '../../types'
-import { stripLocale, withLocale } from '../support/paths'
+import { stripLocale, stripRouteBase, withLocale } from '../support/paths'
 
 export interface LocaleOption {
   code: LocaleCode
@@ -37,7 +37,14 @@ export function useLocaleSwitch() {
 
   /** 任意语言的入口列表（含当前语言，供下拉菜单渲染）。 */
   const options = computed<LocaleOption[]>(() => {
-    const bare = stripLocale(route.path)
+    /*
+     * 两步剥离，顺序不能反：
+     * 1. `stripRouteBase` 去掉部署 base（`/repo/zh-cn/about/` → `/zh-cn/about/`）。
+     *    `route.path` 是**含 base** 的，而 `knownPages` 里全是**不含 base** 的
+     *    站点路径，不减这一步的话下面三级回退会全部失配、永远落到语言首页。
+     * 2. `stripLocale` 去掉语言前缀（`/zh-cn/about/` → `/about/`）。
+     */
+    const bare = stripLocale(stripRouteBase(route.path))
 
     return LOCALE_CODES.map((code) => {
       const meta = LOCALES[code]
@@ -45,6 +52,7 @@ export function useLocaleSwitch() {
         code,
         label: meta.label,
         lang: meta.lang,
+        // 当前语言直接用 `route.path`（已含 base，可直接当 href）
         url: code === current.value ? route.path : resolveTarget(bare, code),
         current: code === current.value,
       }

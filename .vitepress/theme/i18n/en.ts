@@ -36,4 +36,21 @@ export const en: Messages = {
   recentPosts: 'Recent posts',
   copyCode: 'Copy code',
   copied: 'Copied',
+
+  openMenu: 'Open navigation menu',
+  closeMenu: 'Close navigation menu',
+  menuTitle: 'Navigation',
+  backToTop: 'Back to top',
+  openToc: 'On this page',
+  search: 'Search',
+  searchPlaceholder: 'Search posts…',
+  searchEmpty: 'No matching content.',
+  searchHint: 'Type to start searching',
+  searchResults: '{count} results',
+  searchNavigate: '↑↓ to select, Enter to open, Esc to close',
+  navHome: 'Home',
+  navPosts: 'Posts',
+  // 英文必须区分单复数，否则会出现「1 posts」「1 tags」
+  termCountOne: '{count} post',
+  taxonomyOverviewOne: '{count} tag in total. Click it to see related posts.',
 }

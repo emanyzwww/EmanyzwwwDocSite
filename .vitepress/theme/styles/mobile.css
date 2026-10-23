@@ -1,0 +1,396 @@
+/* =========================================================
+   移动端专属层
+   ---------------------------------------------------------
+   这个文件的全部规则都只在「触屏 / 窄屏」下生效。
+   设计原则与桌面不同：
+
+   - 桌面靠「同屏并置」降低操作成本（导航、目录、正文同时可见）；
+   - 手机屏幕容不下并置，改为「拇指可达 + 按需唤出」：
+     导航进抽屉、目录进浮层、高频动作放底部固定栏。
+
+   断点选 720px：与 `--header-height` 的切换点一致，
+   保证「页头结构」和「页头高度」永远同一时刻变化。
+   ========================================================= */
+
+/* ---------- 页头：两套结构互斥 ----------
+ * 宽屏基线（`.site-header__desktop` 显示、`.site-header__mobile` 隐藏）
+ * 定义在 components.css；这里只负责窄屏的切换。
+ */
+
+@media (max-width: 720px) {
+  .site-header__desktop {
+    display: none;
+  }
+
+  .site-header__mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    /*
+     * 移动端页头恒为一行，高度固定 56px。
+     *
+     * 这个值同时写进 `--header-height`（见下方 :root 覆盖），
+     * 因为进度条定位、锚点偏移、目录高亮线都读那个变量。
+     * 两者必须同步改，否则又会出现「进度条藏进页头」「跳转后标题被盖」。
+     */
+    min-height: 3.5rem;
+  }
+
+  /* 页头高度契约：与上面 .site-header__mobile 的实际高度保持一致 */
+  :root {
+    --header-height: 3.5rem;
+  }
+}
+
+/* ---------- 汉堡按钮 ---------- */
+
+.m-burger {
+  display: grid;
+  place-items: center;
+  /* 44×44 是触控目标的最小建议尺寸（WCAG 2.5.5 / Material） */
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: calc(var(--space-1) * -1);
+  border-radius: var(--radius-md);
+  color: var(--fg-default);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.m-burger:hover {
+  background: var(--bg-surface-alt);
+}
+
+.m-burger svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+/* ---------- 导航抽屉 ---------- */
+
+.m-nav {
+  position: fixed;
+  inset: 0;
+  /* 高于页头（z-header = 100），否则抽屉会被粘性页头压住 */
+  z-index: calc(var(--z-header) + 10);
+}
+
+.m-nav__scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: rgb(0 0 0 / 0.5);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  animation: m-fade-in var(--duration-normal) var(--ease-out);
+}
+
+.m-nav__panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(84vw, 20rem);
+  /* 高度必须撑满整个遮罩：面板是 flex 列容器，若高度由内容决定，
+     `.m-nav__tools { margin-top: auto }` 就推不动，底部工具会被挤到正文上方。
+     同时 `inset: 0 0 0 auto` 只固定了 right/top/bottom，
+     高度本应由 top/bottom 撑满，这里显式写死避免被内容高度覆盖。 */
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border-left: var(--border-width) solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: m-slide-in var(--duration-normal) var(--ease-out);
+}
+
+.m-nav__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.m-nav__brand {
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.m-nav__close {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: calc(var(--space-2) * -1);
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+}
+
+.m-nav__close:hover {
+  color: var(--fg-default);
+  background: var(--bg-surface-alt);
+}
+
+.m-nav__close svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.m-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.m-nav__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  /*
+   * 纵向列表是移动端的主导航，热区必须够大：
+   * 3rem（48px）高于 WCAG 2.5.5 的 44px 建议值。
+   */
+  min-height: 3rem;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--fg-default);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.m-nav__link:hover,
+.m-nav__link[aria-current='page'] {
+  background: var(--bg-surface-alt);
+}
+
+/* 当前页用主色强调：手机上更依赖颜色判断位置 */
+.m-nav__link[aria-current='page'] {
+  color: var(--accent);
+}
+
+.m-nav__link svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--fg-subtle);
+  flex-shrink: 0;
+}
+
+.m-nav__tools {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+.m-nav__tools-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.m-nav__tools-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 抽屉里的工具按钮放大，与主导航保持同一触控规格 */
+.m-nav__tools-row .icon-button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+/* ---------- 底部操作栏 ---------- */
+
+.m-bar {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  /*
+   * 底栏是 `position: fixed`，会盖住页面最底部的内容。
+   * 两处都要留出与底栏等高的空间：
+   * 1. 页脚（版权、链接）——否则永远被压在底栏下面；
+   * 2. `--mobile-bar-space` 供正文/其它固定定位元素复用，
+   *    避免每处各写一个魔数。
+   */
+  :root {
+    --mobile-bar-space: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .site-footer {
+    padding-bottom: var(--mobile-bar-space);
+  }
+
+  .m-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: calc(var(--z-header) + 5);
+    display: flex;
+    align-items: stretch;
+    /*
+     * 安全区：iPhone 的 Home 指示条会盖住底部按钮。
+     * `env()` 在不支持的浏览器里回退到 0。
+     */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+    backdrop-filter: saturate(180%) blur(12px);
+    border-top: var(--border-width) solid var(--border-subtle);
+  }
+}
+
+.m-bar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  /* 底部栏主体高度 52px，加上安全区仍是舒适的拇指热区 */
+  min-height: 3.25rem;
+  padding: var(--space-2) var(--space-1);
+  color: var(--fg-muted);
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+  /* 去掉 iOS 点击时的灰色高亮块 */
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.m-bar__item:hover,
+.m-bar__item:active {
+  color: var(--accent);
+}
+
+.m-bar__item svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* ---------- 目录浮层 ---------- */
+
+.m-toc {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-header) + 10);
+}
+
+.m-toc__scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: rgb(0 0 0 / 0.5);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  animation: m-fade-in var(--duration-normal) var(--ease-out);
+}
+
+.m-toc__sheet {
+  position: absolute;
+  inset: auto 0 0 0;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + 3.25rem);
+  background: var(--bg-surface);
+  border-top: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: m-slide-up var(--duration-normal) var(--ease-out);
+}
+
+.m-toc__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.m-toc__title svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.m-toc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.m-toc__list a {
+  display: block;
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* H3 缩进 + 弱化：手机屏幕窄，层级只能靠这两点区分 */
+.m-toc__list li[data-level='3'] a {
+  padding-left: var(--space-5);
+  font-size: var(--text-xs);
+  color: var(--fg-subtle);
+}
+
+.m-toc__list a:hover,
+.m-toc__list a:active {
+  color: var(--accent);
+  background: var(--bg-surface-alt);
+}
+
+/* ---------- 动画 ---------- */
+
+@keyframes m-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes m-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes m-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* 用户要求减少动效时，抽屉直接出现（base.css 里已把 duration 压到 0.01ms，
+   这里额外移除位移动画，避免「瞬间闪现」的观感） */
+@media (prefers-reduced-motion: reduce) {
+  .m-nav__panel,
+  .m-toc__sheet,
+  .m-nav__scrim,
+  .m-toc__scrim {
+    animation: none;
+  }
+}

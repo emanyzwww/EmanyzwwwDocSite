@@ -11,9 +11,11 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
-import { buildTagIndex, readPosts } from './support/content'
+import { buildTagIndex, readPageUrls, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
 import { extendMarkdown } from './support/markdown-plugins'
+import { writeNotFoundFallback } from './support/not-found'
+import { collectRenderedContent } from './support/rendered'
 import { writeRobots } from './support/robots'
 import { writeFeeds } from './support/rss'
 import { toPageUrl } from './support/urls'
@@ -65,36 +67,88 @@ function tagIndexOf(locale: LocaleCode): Map<string, TagRef> {
 /**
  * 语言互指的 `<link rel="alternate" hreflang>` 组。
  *
- * 中英是**平级前缀**，两种语言的同一页面地址只差第一段，因此直接替换语言段即可。
- * 另外补一个 `x-default` 指向默认语言，告诉搜索引擎「语言匹配不上时用哪个」。
+ * **只在「目标语言确实存在该页面」时才输出那一条。**
+ *
+ * 中英两种语言的普通页面地址只差第一段，直接替换语言段就对；但**标签页不是**：
+ * 中英标签的 slug 不同（`随笔` vs `Essay`），盲目替换会得到
+ * `/en/tags/%E9%9A%8F%E7%AC%94/` —— 实测 404。
+ *
+ * 按 Google 的 hreflang 规范，指向 404 的互指会让**整组失效**
+ * （连本可生效的 about / posts 页也可能被一起丢弃），
+ * 因此「不输出错的互指」比「输出了但指向 404」好得多。
+ *
+ * 存在性判断复用 `readPageUrls()`（全站内容页的编码后地址），
+ * 与 `pages.data.ts` 下发给客户端的索引同源，不另建一套口径。
  */
-function alternateLinks(relativePath: string, path: string): [string, Record<string, string>][] {
+function alternateLinks(
+  relativePath: string,
+  path: string,
+  known: Set<string>,
+): [string, Record<string, string>][] {
   const locale = localeOfPage(relativePath)
   const bare = path.slice(locale.length + 1) // `/zh-cn/about/` → `/about/`
 
-  const links = LOCALE_CODES.map(
-    (code) =>
-      [
-        'link',
-        {
-          rel: 'alternate',
-          hreflang: LOCALES[code].lang,
-          href: `${SITE_URL}/${code}${bare}`,
-        },
-      ] as [string, Record<string, string>],
-  )
+  const links: [string, Record<string, string>][] = []
 
-  links.push([
-    'link',
-    {
-      rel: 'alternate',
-      hreflang: 'x-default',
-      href: `${SITE_URL}/${DEFAULT_LOCALE}${bare}`,
-    },
-  ])
+  for (const code of LOCALE_CODES) {
+    const target = `/${code}${bare}`
+
+    /*
+     * 当前语言的这一页**一定存在**（我们正在渲染它），无条件输出。
+     *
+     * 其它语言则必须确认页面真实存在再输出：标签页的 URL 由 `index.paths.ts`
+     * 在构建期按实际标签动态生成，`readPageUrls()` 里只有模板文件
+     * `tags/[tag]/index.md`，拿不到 `tags/随笔/`；因此宁可少输出一条，
+     * 也不要输出一条指向 404 的互指（那会让整组 hreflang 失效）。
+     */
+    const exists = code === locale || known.has(target)
+    if (!exists) continue
+
+    links.push([
+      'link',
+      { rel: 'alternate', hreflang: LOCALES[code].lang, href: `${SITE_URL}${target}` },
+    ])
+  }
+
+  // 只有至少存在一个有效互指时才补 x-default，否则单条 x-default 也无意义
+  if (links.length > 1) {
+    links.push([
+      'link',
+      {
+        rel: 'alternate',
+        hreflang: 'x-default',
+        href: `${SITE_URL}/${DEFAULT_LOCALE}${bare}`,
+      },
+    ])
+  }
 
   return links
 }
+
+/**
+ * 全站内容页路径集合（编码后的站点路径，不含 base）。
+ *
+ * 用于判断「另一种语言有没有同名页面」，避免 hreflang 指向 404。
+ * 与 `data/pages.data.ts` 下发给客户端的索引同源（都走 `readPageUrls()`），
+ * 所以构建期与运行期的「页面是否存在」判断永远一致。
+ *
+ * 懒建：只在第一次 `transformHead` 时遍历一次，避免 config 加载期就扫盘。
+ */
+let knownPagesCache: Set<string> | null = null
+function knownPages(): Set<string> {
+  knownPagesCache ??= new Set(readPageUrls())
+  return knownPagesCache
+}
+
+/**
+ * 社交分享缩略图（绝对地址）。
+ *
+ * 只在 `media/` 里存在分享图时才输出 `og:image`。
+ * 现在还没有专门的分享图，因此留空 —— 等放了一张 1200×630 的
+ * `media/og.png` 之后，把文件名填进这里即可自动生效。
+ */
+const OG_IMAGE_NAME = ''
+const OG_IMAGE = OG_IMAGE_NAME ? `${SITE_URL}${BASE}${OG_IMAGE_NAME}` : ''
 
 export default defineConfig({
   // ---------- 基础 ----------
@@ -160,8 +214,15 @@ export default defineConfig({
 
   // ---------- Markdown ----------
   markdown: {
-    // 与原站一致：代码块在明暗主题下都保持深色，因此用单主题
-    theme: 'github-dark',
+    /*
+     * 代码块在明暗主题下都保持深色，因此用单主题。
+     *
+     * 用 `github-dark-default`（GitHub 现行配色）而不是旧的 `github-dark`：
+     * 旧主题的注释色 `#6a737d` 在 `--bg-code #0d1014` 上只有 **3.96:1**，
+     * 低于 WCAG AA 的 4.5:1 —— 而本站正文明亮、代码块恒深色，
+     * 注释是最常被扫读的部分之一。新主题的注释色 `#8b949e` 是 **6.20:1**。
+     */
+    theme: 'github-dark-default',
     lineNumbers: false,
     // 右栏目录收集哪些级别的标题。H1 留给页面标题（模板已渲染），所以正文从 ## 起。
     // 想收更多层级就加数字，例如 [2, 3, 4]；只收两级就用 [2, 3]。
@@ -185,6 +246,50 @@ export default defineConfig({
     ['link', { rel: 'icon', href: `${BASE}favicon.svg`, type: 'image/svg+xml' }],
     ['meta', { name: 'color-scheme', content: 'light dark' }],
     ['meta', { name: 'author', content: SITE.author }],
+
+    /*
+     * ---------- 安全相关的 meta ----------
+     *
+     * GitHub Pages **不允许自定义响应头**，所以 CSP / Referrer-Policy 这类
+     * 只能靠 `<meta>` 补齐（能补的部分）。
+     *
+     * 1. Referrer：meta 形式与响应头等价，现代浏览器都认。
+     *    本站外链只有 GitHub / X / VitePress 官网，默认只发 origin、
+     *    不发具体文章路径，避免把「你在读哪篇笔记」泄漏给外链站点。
+     *
+     * 2. CSP：**注意两处硬限制**
+     *    - `frame-ancestors`、`report-uri`、`sandbox` 在 meta 里被浏览器
+     *      忽略（MDN 有明确说明），所以「点击劫持」这一项在 Pages 上补不了，
+     *      只能将来换托管或前置 CDN 时用真实响应头解决；
+     *    - VitePress 会内联 3 段脚本（明暗初始化、mac 检测、站点数据），
+     *      因此 `script-src` 必须留 `'unsafe-inline'`，否则暗色模式、
+     *      路由数据全挂。这些脚本都是构建产物、不含任何用户输入，
+     *      留 `'unsafe-inline'` 的实际风险远小于「把本站当攻击入口」。
+     *
+     *    `form-action 'none'` 是安全的：全站 0 个 `<form>`。
+     *    `object-src 'none'` 禁掉 Flash/Java 时代的插件内容。
+     */
+    ['meta', { name: 'referrer', content: 'strict-origin-when-cross-origin' }],
+    [
+      'meta',
+      {
+        'http-equiv': 'Content-Security-Policy',
+        content: [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline'",
+          // 头像等图片走同源 + data:（Vite 可能内联小图）
+          "img-src 'self' data:",
+          "font-src 'self'",
+          "connect-src 'self'",
+          "media-src 'self'",
+          "manifest-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'none'",
+        ].join('; '),
+      },
+    ],
   ],
 
   // ---------- 页面数据 ----------
@@ -245,8 +350,8 @@ export default defineConfig({
     return [
       ['link', { rel: 'canonical', href: canonical }],
       ['link', { rel: 'alternate', type: 'application/rss+xml', href: feed, title: meta.title }],
-      // 语言互指：中英是平级前缀，缺了这组标签搜索引擎不知道两者是同一内容的译本
-      ...alternateLinks(pageData.relativePath, path),
+      // 语言互指：只在目标语言的同名页面真实存在时才输出（标签页 slug 中英不同）
+      ...alternateLinks(pageData.relativePath, path, knownPages()),
       ['meta', { property: 'og:title', content: title }],
       ['meta', { property: 'og:description', content: description }],
       [
@@ -258,13 +363,41 @@ export default defineConfig({
       ],
       ['meta', { property: 'og:url', content: canonical }],
       ['meta', { property: 'og:site_name', content: meta.title }],
-      ['meta', { name: 'twitter:card', content: 'summary' }],
+      // 社交分享缩略图：没有 og:image 时，各平台只能抓一张随机图或留白
+      ...(OG_IMAGE
+        ? ([['meta', { property: 'og:image', content: OG_IMAGE }]] as [
+            string,
+            Record<string, string>,
+          ][])
+        : []),
+      ['meta', { name: 'twitter:card', content: OG_IMAGE ? 'summary_large_image' : 'summary' }],
     ]
   },
 
-  // ---------- 构建结束：写 RSS 与 robots ----------
+  // ---------- 构建结束：写 RSS、robots、404 兜底 ----------
   buildEnd(siteConfig) {
     writeFeeds(siteConfig.outDir)
     writeRobots(siteConfig.outDir, `${SITEMAP_HOSTNAME}sitemap.xml`)
+    // 404 页是纯 SPA 空壳，补一段无 JS 也能用的返回入口
+    writeNotFoundFallback(siteConfig.outDir, BASE.endsWith('/') ? BASE : `${BASE}/`)
+  },
+
+  transformHtml(code, _id, ctx) {
+    /*
+     * 收集「VitePress 已渲染好的正文」，供 RSS 复用。
+     *
+     * 只有这个时机能拿到最终 HTML：图片已被 Vite 指纹化成
+     * `/assets/banner.<hash>.webp`、`{width=100}` 这类 attrs 已被消费、
+     * 代码块已高亮、标题已有锚点。RSS 直接用这份 HTML，
+     * 就不会再出现「feed 里的图是 ./banner.webp（部署后不存在）」的问题。
+     *
+     * `pageData.relativePath` 含语言前缀（实测 `zh-cn/posts/.../index.md`），
+     * 与 `RawDoc.filePath` 同一口径，因此可以直接当 Map 的 key。
+     */
+    const relativePath = ctx.pageData?.relativePath
+    if (relativePath) {
+      collectRenderedContent(relativePath, code)
+    }
+    return code
   },
 })

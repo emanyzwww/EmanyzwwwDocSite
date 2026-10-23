@@ -7,7 +7,7 @@ description: 在搞机这个行业里，每个新手入门必须要经历的一�
 
 在搞机这个行业里，每个新手入门必须要经历的一个过程就是——亲手完成一个“hello, world”项目。
 
-![hello, world](./banner.webp)
+![hello, world](./banner.webp){width=1200 height=675}
 
 ## “hello, world” 的由来
 
