@@ -242,6 +242,10 @@ export interface Messages {
   backToTop: string
   /** 底部操作栏：打开本页目录。 */
   openToc: string
+  /** 关闭本页目录浮层。与 `closeMenu` 区分：那个说的是导航抽屉。 */
+  closeToc: string
+  /** 抽屉里导航列表的地标名，避免与抽屉 dialog 的 aria-label 重名。 */
+  drawerNav: string
   /** 搜索入口。 */
   search: string
   /** 搜索框占位符。 */

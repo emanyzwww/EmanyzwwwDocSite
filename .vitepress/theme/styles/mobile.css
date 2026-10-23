@@ -30,7 +30,28 @@
  * 定义在 components.css；这里只负责窄屏的切换。
  */
 
-@media (max-width: 720px) {
+/* =========================================================
+   移动端判定条件（本文件所有结构规则共用这一个）
+   ---------------------------------------------------------
+   `@media (max-width: 720px), (pointer: coarse) and (max-height: 500px)`
+
+   为什么要两个分支：
+   - 第一个：窄屏。桌面窄窗口、竖屏手机都落在这里。
+   - 第二个：**手机横屏**。iPhone 横屏宽度可达 932px（> 720），
+     只按宽度判定会退回桌面布局 —— 手机上出现桌面页头 + 侧栏堆在正文后，
+     既没抽屉也没胶囊，等于丢掉全部移动端交互。而横屏时可视高度只有
+     390~430px，恰恰**最需要**省垂直空间。
+
+   为什么第二个分支要加 `max-height: 500px`：
+   只有 `pointer: coarse` 会把 1024px 宽的 iPad 也算进来，把它的侧栏一并
+   藏掉 —— 平板宽度完全放得下并置布局。横屏手机高度 ≤ 500px，
+   平板横屏高度通常 ≥ 700px，这个值与设备形态一一对应。
+
+   **改动这里时必须同步改本文件其余三处 `@media`**，
+   否则会出现「侧栏藏了但胶囊没出来」这类半套布局。
+   ========================================================= */
+
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .site-header__desktop {
     display: none;
   }
@@ -73,7 +94,7 @@
  * 只在窄屏启用：桌面有足够空间，页头常驻更符合鼠标用户预期。
  */
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .site-header {
     transition:
       transform var(--duration-normal) var(--ease-out),
@@ -159,10 +180,19 @@
   width: 19rem;
   max-width: calc(100vw - 4rem);
   /*
-   * 高度用 100%：`inset: 0 0 0 auto` 已经由 top/bottom 撑满，
-   * 但面板是 flex 列容器，显式写死可避免被内容高度覆盖。
+   * 高度用 `100dvh` 而不是 `100%`。
+   *
+   * `height: 100%` 解析的是**包含块**（这里等于 layout viewport）的高度，
+   * 而移动浏览器地址栏/底部工具栏展开时，layout viewport 比可视区域高：
+   * 工具栏展开时多出的那几十像素会让面板底部（正好是工具区）落到屏幕外，
+   * 「关闭按钮在、但底部工具区被工具栏盖住」。
+   *
+   * `dvh`（dynamic viewport height）由浏览器在合成阶段按**当前**可视高度
+   * 求值，工具栏收放时会自动重算。前面保留一行 `100vh` 作为旧浏览器兜底
+   * （不支持 dvh 时会落到 100vh，即旧行为，不会更糟）。
    */
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   /* 三段之间的间距为 0：分隔由各自的 padding + border 表达，
@@ -472,7 +502,8 @@
    不需要去插值 transform，每帧按当前宽度重新解析即可。
    ========================================================= */
 
-.m-dock {
+/* 宽屏下整个停靠层都不存在（不只是隐藏胶囊） */
+.m-dock-layer {
   display: none;
 }
 
@@ -593,9 +624,9 @@
   background: var(--bg-surface-alt);
 }
 
-/* ---------- 窄屏启用 ---------- */
+/* ---------- 窄屏 / 触屏启用 ---------- */
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   /*
    * 正文底部空间：悬浮胶囊是浮在内容之上的，
    * 不留白的话最后一段文字会被盖住。
@@ -607,20 +638,58 @@
     padding-bottom: var(--dock-space);
   }
 
-  .m-dock {
+  /*
+   * ---------- 动态视口容器 ----------
+   *
+   * 这是「浏览器工具栏收放时胶囊要跟手」的正解，也是整块移动端里
+   * **最容易被写错**的一处，值得完整说明。
+   *
+   * 问题：`position: fixed; bottom: 0` 贴的是 **layout viewport**。
+   * 移动浏览器收起/展开地址栏与底部工具栏时，layout viewport 不会逐帧变化，
+   * 只有 visual viewport 变 —— 于是固定元素在动画期间钉在原地，
+   * 等浏览器重算完才「跳」上来（用户感知「过一会才浮上来」）。
+   *
+   * 曾经尝试过（已废弃）：监听 `window.visualViewport`，用
+   * `innerHeight - (offsetTop + height)` 算差值写进 `--vv-gap`。
+   * 它在 **iOS 上不可靠**：工具栏收放时 iOS 是同步重排 layout viewport，
+   * `innerHeight` 与 `vv.height` 一起变，差值恒为 0 —— 补偿等于没做。
+   * 而且它每帧写一次 CSS 变量会触发整文档重算，观感从「跳变」变成「抖动」。
+   *
+   * 现在的做法：把胶囊放进一个高度为 `100dvh` 的固定层。
+   * `dvh`（dynamic viewport height）由**浏览器在合成阶段**按当前可视高度
+   * 求值，工具栏收放时自动重算，零 JS、零 reflow。
+   * 层本身 `pointer-events: none`，只有胶囊接收点击，不会挡住正文。
+   */
+  .m-dock-layer {
+    /*
+     * `display: block` 不能省：基线（宽屏）里这层是 `display: none`，
+     * 媒体查询只改定位属性不会把它变回来 —— 少这一行胶囊完全不显示。
+     */
+    display: block;
     position: fixed;
+    inset: 0;
+    /* 旧浏览器兜底：不支持 dvh 时退化成 100vh（即旧行为，不会更糟） */
+    height: 100vh;
+    height: 100dvh;
+    /* 层只是定位参照，不该拦截页面滚动与点击 */
+    pointer-events: none;
+    /* 比页头高、比任何模态低 */
+    z-index: var(--z-dock);
+  }
+
+  .m-dock {
+    position: absolute;
     left: 50%;
     /*
      * 底部定位只用 `--dock-lift` 一个变量。
      *
-     * 它内部已经是 `max(vv-gap, safe-area) + gap` —— 用 **max 而不是相加**。
-     * 这是用户 2-4 那条担心的正解：安全区（刘海屏手势条）与浏览器工具栏
-     * 遮挡在物理上不会同时发生在同一块像素上（工具栏可见时它自己就垫在
-     * 最底部），相加会让胶囊在两件事都「看起来成立」时被顶到离谱的高度。
-     * 取 max 才能保证「抬升量 = 真实被遮挡量 + 固定呼吸间隙」。
+     * 它内部是 `max(safe-area-inset-bottom, ...) + gap` —— 用 **max 而不是相加**。
+     * 安全区（刘海屏手势条）与浏览器工具栏遮挡在物理上不会同时发生在同一块
+     * 像素上（工具栏可见时它自己就垫在最底部），相加会让胶囊在两件事都
+     * 「看起来成立」时被顶到离谱的高度。取 max 才是「抬升量 = 真实被遮挡量」。
      *
-     * 这里不再额外加 `--space-*`：间距已经包含在 `--dock-gap` 里，
-     * 再加一次就是同一个问题的另一种形态。
+     * 浏览器工具栏那部分已经由外层的 `100dvh` 容器解决了，
+     * 所以这里只需要处理硬件安全区。
      */
     bottom: var(--dock-lift);
     /*
@@ -628,7 +697,6 @@
      * `100%` 指元素自身宽度，两态表达式相同，只有 width 在变。
      */
     transform: translateX(calc(50vw - var(--dock-inset) - 100%));
-    z-index: var(--z-dock);
     display: flex;
     align-items: stretch;
     /*
@@ -645,6 +713,8 @@
     height: var(--dock-height);
     border-radius: var(--radius-full);
     overflow: hidden;
+    /* 外层 pointer-events: none，这里必须显式收回 */
+    pointer-events: auto;
     /*
      * 半透明 + 毛玻璃：让内容从胶囊下方透出来，强化「浮起」的观感。
      *
@@ -652,7 +722,11 @@
      * 会明显透出来，和胶囊自己的标签叠在一起（「首页」压着正文的「题」字），
      * 既认不出按钮也读不了正文。92% + 20px 模糊是「能看出下面有内容、
      * 但不干扰识别」的平衡点。
+     *
+     * 前面那条纯色是 `color-mix()` 的兜底：不支持的浏览器会整条丢弃
+     * 半透明声明，没有兜底就会变成**完全透明**（胶囊消失，图标浮在正文上）。
      */
+    background: var(--bg-surface);
     background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
     backdrop-filter: saturate(180%) blur(20px);
     border: var(--border-width) solid var(--border-subtle);
@@ -691,7 +765,12 @@
     min-height: var(--dock-height);
     padding: var(--space-1);
     color: var(--fg-muted);
-    font-size: 0.68rem;
+    /*
+     * 0.72rem ≈ 11.5px。比之前小（0.68rem ≈ 10.9px），但仍然刻意小于正文：
+     * 胶囊是图标优先的，标签只做辅助识别。11.5px 是在「不挤占图标空间」
+     * 和「中文小字仍可辨认」之间的下限，不要再往下调。
+     */
+    font-size: 0.72rem;
     line-height: 1.2;
     text-align: center;
     /* 去掉 iOS 点击时的灰色高亮块 */
@@ -778,7 +857,35 @@
    它彻底离开排版，正文与页脚之间不再有任何空隙。
    ========================================================= */
 
-@media (max-width: 720px) {
+/*
+ * ---------- 手机上隐藏侧栏 ----------
+ *
+ * 之前 960px / 1120px 两处降级都把侧栏 `order: 2` 堆到正文下方，
+ * 而 720px 断点没有任何更激进的规则 —— 于是手机上读完正文会依次看到
+ * 「头像资料卡 → 标签卡 → 目录卡」，多出 2~3 屏无效滚动；
+ * 而且目录卡与胶囊的目录按钮功能**完全重复**。
+ *
+ * 处理方式不是简单藏掉，而是**重新分配**：
+ * - 资料条（精简版）→ 抽屉底部（见 `.m-nav__profile`）
+ * - 标签 → 抽屉导航里的「标签」项已经覆盖，不需重复
+ * - 目录 → 胶囊的章节按钮（唯一入口）
+ *
+ * 用 `display: none` 而不是 `visibility` / `order` 挪走：
+ * 它彻底离开排版，正文与页脚之间不再有任何空隙。
+ *
+ * ---------- 为什么还要 `(pointer: coarse) and (max-height: 500px)` ----------
+ *
+ * 之前只按宽度判定。问题是**手机横屏**（如 iPhone 14 的 844×390）宽度超过
+ * 720px，会退回桌面布局 —— 于是手机上出现「桌面页头 + 侧栏堆在正文后」，
+ * 既没有抽屉也没有胶囊，等于完全丢失移动端交互。
+ * 横屏其实更需要省垂直空间（可视高度只有 390px，页头就吃掉 57px）。
+ *
+ * 条件写成「触屏 **且** 高度不足 500px」而不是只写 `pointer: coarse`：
+ * 后者会把 1024px 宽的 iPad 也算作移动端、把它的侧栏一并藏掉，
+ * 而平板的宽度完全放得下并置布局。`max-height: 500px` 是横屏手机的
+ * 特征（竖屏手机高度通常 ≥ 600px，平板横屏高度通常 ≥ 700px）。
+ */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .layout__aside {
     display: none;
   }

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import { data as searchIndex } from '../../../data/search.data'
 import { format, useI18n } from '../../i18n'
+import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
 import { href } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
@@ -29,6 +30,10 @@ const open = defineModel<boolean>('open', { default: false })
 const query = ref('')
 const activeIndex = ref(0)
 const inputEl = ref<HTMLInputElement | null>(null)
+/** 面板本体（焦点陷阱的边界）。 */
+const panelEl = ref<HTMLElement | null>(null)
+/** 焦点陷阱的清理函数。 */
+let releaseTrap: (() => void) | null = null
 
 /** 当前语言的可搜索页面（中英互不干扰）。 */
 const candidates = computed(() => searchIndex.docs.filter((doc) => doc.locale === locale.value))
@@ -132,12 +137,21 @@ watch(open, async (isOpen) => {
   if (isOpen) {
     query.value = ''
     activeIndex.value = 0
-    document.body.style.overflow = 'hidden'
+    /*
+     * 锁滚动用引用计数：抽屉也持有同一把锁。
+     * 旧实现两处各自写 `body.style.overflow`，先开抽屉再开搜索、
+     * 然后关搜索，会把抽屉的锁一并清掉（背景突然能滚）；
+     * 反序则会锁死（都关了页面却滚不动）。详见 support/overlay.ts。
+     */
+    acquireScrollLock()
+    releaseTrap = trapFocus(() => panelEl.value)
     document.addEventListener('keydown', onGlobalKeydown)
     await nextTick()
     inputEl.value?.focus()
   } else {
-    document.body.style.overflow = ''
+    releaseScrollLock()
+    releaseTrap?.()
+    releaseTrap = null
     document.removeEventListener('keydown', onGlobalKeydown)
   }
 })
@@ -160,7 +174,10 @@ if (typeof window !== 'undefined') {
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', onShortcut)
     document.removeEventListener('keydown', onGlobalKeydown)
-    document.body.style.overflow = ''
+    // 卸载时必须释放，否则路由跳转销毁面板时锁会残留
+    releaseScrollLock()
+    releaseTrap?.()
+    releaseTrap = null
   })
 }
 </script>
@@ -172,7 +189,7 @@ if (typeof window !== 'undefined') {
     <div v-if="open" class="search" role="dialog" aria-modal="true" :aria-label="m.search">
       <button class="search__scrim" type="button" :aria-label="m.closeMenu" @click="close" />
 
-      <div class="search__panel">
+      <div ref="panelEl" class="search__panel">
         <div class="search__field">
           <AppIcon name="search" />
           <input

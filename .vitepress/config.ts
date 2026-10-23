@@ -259,8 +259,8 @@ export default defineConfig({
      * `interactive-widget=resizes-content`：Chrome Android 的默认值是
      * `resizes-visual`（虚拟键盘弹出时不重排 layout viewport），改成
      * `resizes-content` 后底部固定元素会跟着一起重排。
-     * 它与 `useViewportInset` 的 `--vv-gap` 互补：一个覆盖 Android，
-     * 一个覆盖 iOS Safari（那边没有这个属性可用）。
+     * **它只管键盘，不管工具栏**，而且 iOS Safari 不支持 ——
+     * 工具栏收放的跟随由 `MobileDock` 外层的 `100dvh` 容器负责，别混为一谈。
      */
     [
       'meta',

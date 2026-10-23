@@ -217,7 +217,9 @@
   color: var(--border-strong);
 }
 
-@media (max-width: 720px) {
+/* 条件与 `mobile.css` 的移动端判定一致：含手机横屏（触屏 + 高度不足 500px）。
+   否则横屏下时间线仍是桌面三列，而页头已经切成移动端，节奏错位。 */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .timeline {
     gap: var(--space-8);
   }
@@ -345,7 +347,9 @@
   margin-top: var(--space-6);
 }
 
-@media (max-width: 720px) {
+/* 与移动端判定一致（含手机横屏）：横屏可视高度只有 ~390px，
+   大标题会吃掉正文首屏，同样需要缩小 */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .page-title {
     font-size: var(--text-xl);
   }

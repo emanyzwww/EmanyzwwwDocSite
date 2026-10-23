@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
       后代创建包含块，浮层会被裁进胶囊的尺寸里。
     -->
     <div v-if="tocOpen" class="m-toc" role="dialog" aria-modal="true" :aria-label="m.openToc">
-      <button class="m-toc__scrim" type="button" :aria-label="m.closeMenu" @click="closeToc" />
+      <button class="m-toc__scrim" type="button" :aria-label="m.closeToc" @click="closeToc" />
 
       <div class="m-toc__sheet">
         <div class="m-toc__head">
@@ -194,56 +194,66 @@ onBeforeUnmount(() => {
     </div>
   </Teleport>
 
-  <!-- 胶囊本体 -->
-  <nav
-    class="m-dock"
-    :class="{ 'is-collapsed': collapsed }"
-    :data-mode="mode"
-    :aria-label="m.menuTitle">
-    <!-- 展开态：横向胶囊 -->
-    <div class="m-dock__items" :aria-hidden="collapsed ? 'true' : undefined">
-      <a class="m-dock__item" :href="homeHref" :tabindex="collapsed ? -1 : 0">
-        <AppIcon name="home" />
-        <span>{{ m.navHome }}</span>
-      </a>
+  <!--
+    胶囊本体。
 
-      <a class="m-dock__item" :href="postsHref" :tabindex="collapsed ? -1 : 0">
-        <AppIcon name="list" />
-        <span>{{ m.navPosts }}</span>
-      </a>
+    外面这层 `.m-dock-layer` 是**动态视口容器**，不是多余的包装：
+    `position: fixed` 的元素贴的是 layout viewport，而移动浏览器地址栏 /
+    底部工具栏展开时它比可视区域高。胶囊放进一个 `height: 100dvh` 的固定层后，
+    由浏览器在合成阶段按**当前**可视高度求值，工具栏收放时胶囊才能跟手
+    （详见 mobile.css 里 `.m-dock-layer` 的注释）。
+  -->
+  <div class="m-dock-layer">
+    <nav
+      class="m-dock"
+      :class="{ 'is-collapsed': collapsed }"
+      :data-mode="mode"
+      :aria-label="m.menuTitle">
+      <!-- 展开态：横向胶囊 -->
+      <div class="m-dock__items" :aria-hidden="collapsed ? 'true' : undefined">
+        <a class="m-dock__item" :href="homeHref" :tabindex="collapsed ? -1 : 0">
+          <AppIcon name="home" />
+          <span>{{ m.navHome }}</span>
+        </a>
 
-      <button
-        class="m-dock__item"
-        type="button"
-        :tabindex="collapsed ? -1 : 0"
-        @click="emit('search')">
-        <AppIcon name="search" />
-        <span>{{ m.search }}</span>
-      </button>
+        <a class="m-dock__item" :href="postsHref" :tabindex="collapsed ? -1 : 0">
+          <AppIcon name="list" />
+          <span>{{ m.navPosts }}</span>
+        </a>
 
+        <button
+          class="m-dock__item"
+          type="button"
+          :tabindex="collapsed ? -1 : 0"
+          @click="emit('search')">
+          <AppIcon name="search" />
+          <span>{{ m.search }}</span>
+        </button>
+
+        <button
+          v-if="hasOutline"
+          class="m-dock__item"
+          type="button"
+          :tabindex="collapsed ? -1 : 0"
+          :aria-expanded="tocOpen ? 'true' : 'false'"
+          @click="openToc">
+          <AppIcon name="toc" />
+          <span>{{ m.openToc }}</span>
+        </button>
+      </div>
+
+      <!-- 收起态：一个圆，即章节导航按钮 -->
       <button
         v-if="hasOutline"
-        class="m-dock__item"
+        class="m-dock__mini"
         type="button"
-        :tabindex="collapsed ? -1 : 0"
+        :tabindex="collapsed ? 0 : -1"
+        :aria-hidden="collapsed ? undefined : 'true'"
         :aria-expanded="tocOpen ? 'true' : 'false'"
+        :aria-label="m.openToc"
         @click="openToc">
         <AppIcon name="toc" />
-        <span>{{ m.openToc }}</span>
       </button>
-    </div>
-
-    <!-- 收起态：一个圆，即章节导航按钮 -->
-    <button
-      v-if="hasOutline"
-      class="m-dock__mini"
-      type="button"
-      :tabindex="collapsed ? 0 : -1"
-      :aria-hidden="collapsed ? undefined : 'true'"
-      :aria-expanded="tocOpen ? 'true' : 'false'"
-      :aria-label="m.openToc"
-      @click="openToc">
-      <AppIcon name="toc" />
-    </button>
-  </nav>
+    </nav>
+  </div>
 </template>

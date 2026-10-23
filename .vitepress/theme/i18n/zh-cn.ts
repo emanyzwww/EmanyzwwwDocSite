@@ -42,6 +42,8 @@ export const zhCN: Messages = {
   menuTitle: '导航',
   backToTop: '回到顶部',
   openToc: '本页目录',
+  closeToc: '关闭本页目录',
+  drawerNav: '站点导航',
   search: '搜索',
   searchPlaceholder: '搜索文章…',
   searchEmpty: '没有找到匹配的内容。',

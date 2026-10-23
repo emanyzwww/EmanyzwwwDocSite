@@ -6,6 +6,7 @@ import { data as profile } from '../../../data/profile.data'
 import { NAV, SITE } from '../../../data/site'
 import { useI18n } from '../../i18n'
 import { resolveMedia } from '../../support/media'
+import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
 import { feedPath, href, isExternal, stripRouteBase } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 import LocaleSwitch from '../site/LocaleSwitch.vue'
@@ -50,6 +51,8 @@ const route = useRoute()
 /** 由父组件 `v-model:open` 控制，便于汉堡按钮与遮罩联动。 */
 const open = defineModel<boolean>('open', { default: false })
 
+/** 抽屉面板本体（焦点陷阱的边界）。 */
+const panel = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
 
 /** 头像地址（与侧栏资料卡同源）。 */
@@ -76,6 +79,8 @@ function isActive(link: string): boolean {
 
 /** 打开前记录焦点，关闭时还回去（读屏用户不会丢失位置）。 */
 let previousFocus: HTMLElement | null = null
+/** 焦点陷阱的清理函数。 */
+let releaseTrap: (() => void) | null = null
 
 function close(): void {
   open.value = false
@@ -92,14 +97,21 @@ watch(open, (isOpen) => {
 
   if (isOpen) {
     previousFocus = document.activeElement as HTMLElement | null
-    // 锁滚动：抽屉打开时背景不该跟着滚
-    document.body.style.overflow = 'hidden'
+    /*
+     * 锁滚动用引用计数，不能直接写 `body.style.overflow`：
+     * 搜索面板也持有同一把锁，两处各自写会互相清掉（见 support/overlay.ts）。
+     */
+    acquireScrollLock()
     document.addEventListener('keydown', onKeydown)
+    // Tab 不能跑出抽屉：aria-modal 只是声明，浏览器不会真的拦住
+    releaseTrap = trapFocus(() => panel.value)
     // 等 DOM 渲染完再移焦点，否则元素还不存在
     requestAnimationFrame(() => closeButton.value?.focus())
   } else {
-    document.body.style.overflow = ''
+    releaseScrollLock()
     document.removeEventListener('keydown', onKeydown)
+    releaseTrap?.()
+    releaseTrap = null
     previousFocus?.focus()
     previousFocus = null
   }
@@ -115,7 +127,14 @@ watch(
 
 onBeforeUnmount(() => {
   if (typeof document === 'undefined') return
-  document.body.style.overflow = ''
+  /*
+   * 必须释放锁：抽屉可能因为路由跳转被直接销毁（`v-if` 跟随 `open`），
+   * 那样 `watch` 的 else 分支不一定会跑到，锁会永久残留 → 页面再也滚不动。
+   * `releaseScrollLock` 内部有「计数不小于 0」的保护，重复调用是安全的。
+   */
+  releaseScrollLock()
+  releaseTrap?.()
+  releaseTrap = null
   document.removeEventListener('keydown', onKeydown)
 })
 </script>
@@ -133,7 +152,7 @@ onBeforeUnmount(() => {
       <!-- 遮罩：点击关闭。用 button 而不是 div，键盘也能触发 -->
       <button class="m-nav__scrim" type="button" :aria-label="m.closeMenu" @click="close" />
 
-      <nav class="m-nav__panel">
+      <nav ref="panel" class="m-nav__panel" :aria-label="m.drawerNav">
         <!-- ① 顶部：品牌 + 关闭（固定，不随内容滚动） -->
         <header class="m-nav__head">
           <span class="m-nav__brand">{{ SITE.name }}</span>
@@ -157,7 +176,14 @@ onBeforeUnmount(() => {
           <LocaleSwitch variant="segmented" />
         </div>
 
-        <!-- ③ 中部：导航（唯一可滚动区域） -->
+        <!--
+          ③ 中部：导航（唯一可滚动区域）。
+
+          `.m-nav__panel` 本身就是 `<nav>`，这里是它内部的列表，
+          不再额外加 `aria-label`：`<ul>` 不是地标，加了也不产生新地标；
+          而旧实现在 dialog 的 `aria-label="导航"` 与内层 `<nav aria-label="导航">`
+          上写了同名标签，读屏的「地标列表」里会出现两条一模一样的条目。
+        -->
         <ul class="m-nav__list">
           <li v-for="item in NAV[locale]" :key="item.link">
             <a

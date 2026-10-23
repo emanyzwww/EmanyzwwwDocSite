@@ -9,6 +9,15 @@
   top: 0;
   z-index: var(--z-header);
   flex-shrink: 0;
+  /*
+   * `color-mix()` 前面必须先有一条**纯色**声明兜底。
+   *
+   * 不支持 `color-mix` 的浏览器（Safari < 16.2）会**整条丢弃**该声明，
+   * 而不是退化成某个近似色 —— 结果就是页头完全透明，
+   * 正文直接压在品牌名与导航上。纯色兜底即使不透明，也只是「没有毛玻璃」，
+   * 属于可接受的降级。
+   */
+  background: var(--bg-canvas);
   background: color-mix(in srgb, var(--bg-canvas) 85%, transparent);
   backdrop-filter: saturate(180%) blur(12px);
   border-bottom: var(--border-width) solid var(--border-subtle);

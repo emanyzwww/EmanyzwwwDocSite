@@ -251,34 +251,29 @@
 }
 
 /*
- * ---------- 视口补偿与停靠高度 ----------
+ * ---------- 停靠高度 ----------
  *
- * `--vv-gap`：visual viewport 与 layout viewport 的底边差值，由
- * `theme/composables/useViewportInset.ts` 在运行时写入 `documentElement`。
+ * 注意：这里**没有** `--vv-gap`，也就是说没有 JS 参与视口补偿。
  *
- * 为什么需要它：`position: fixed; bottom: 0` 贴的是 **layout viewport**。
- * 移动浏览器收起/展开地址栏与底部工具栏时，layout viewport 不会随之逐帧变化，
- * 只有 visual viewport 变了 —— 于是固定底栏在动画期间「钉在原地」，
- * 等浏览器重算 layout viewport 后才「跳」上来（用户感知为「过一会才反应过来」）。
- * 用这个差值把底栏往上推，就能逐帧跟随工具栏动画。
+ * 浏览器地址栏 / 底部工具栏收放时的跟随，靠 `MobileDock` 外层那个
+ * `height: 100dvh` 的容器解决——`dvh` 由浏览器在合成阶段按当前可视高度
+ * 求值，工具栏动画期间会自动重算。
  *
- * 默认 0：桌面、以及任何不支持 visualViewport 的环境都退化成「贴 layout 底」。
+ * 曾经写过基于 `window.visualViewport` 的 `--vv-gap` 方案，已删除：
+ * iOS 在工具栏收放时**同步重排 layout viewport**（`innerHeight` 与
+ * `visualViewport.height` 一起变），差值恒为 0，补偿等于没做；
+ * 而且它每帧写一次自定义属性会触发整文档样式重算，观感从「跳变」变「抖动」。
+ * 别再把它加回来。
  */
 :root {
-  --vv-gap: 0px;
   /*
-   * 停靠抬升量：**唯一的**安全区 / 工具栏补偿入口。
+   * 停靠抬升量：**唯一的**安全区补偿入口。
    *
-   * 关键点：这里是 `max()` 而不是相加。安全区（刘海屏手势条）与
-   * 工具栏遮挡在物理上**不会同时发生**（工具栏可见时它自己就垫在底部），
-   * 相加会让底栏在两件事都「看起来成立」时被顶到离谱的高度。
-   * 取 max 才能保证「补偿量 = 真实被遮挡量」。
-   *
-   * `--dock-gap` 是胶囊与屏幕边缘之间的呼吸间隙（同理参与 max，
-   * 不额外相加，避免两层 padding 累加）。
+   * 安全区（刘海屏手势条）在这里；浏览器工具栏那部分由 `dvh` 容器负责，
+   * 两者职责不重叠，因此也不存在「叠加抬高」的问题（用户 2-4 的担心）。
    */
   --dock-gap: 12px;
-  --dock-lift: calc(max(var(--vv-gap), env(safe-area-inset-bottom, 0px)) + var(--dock-gap));
+  --dock-lift: calc(env(safe-area-inset-bottom, 0px) + var(--dock-gap));
   /*
    * 胶囊左右距屏幕边缘的呼吸间隙。
    *

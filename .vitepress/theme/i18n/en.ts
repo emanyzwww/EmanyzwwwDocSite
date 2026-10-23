@@ -42,6 +42,8 @@ export const en: Messages = {
   menuTitle: 'Navigation',
   backToTop: 'Back to top',
   openToc: 'On this page',
+  closeToc: 'Close table of contents',
+  drawerNav: 'Site navigation',
   search: 'Search',
   searchPlaceholder: 'Search posts…',
   searchEmpty: 'No matching content.',
