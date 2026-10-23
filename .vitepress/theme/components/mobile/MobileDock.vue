@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { useData } from 'vitepress'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { SITE } from '../../../data/site'
 import { useDockState } from '../../composables/useDockState'
 import { useI18n } from '../../i18n'
+import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
 import { href, withLocale } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
@@ -25,8 +26,8 @@ import AppIcon from '../common/AppIcon.vue'
  *
  * | 形态    | 样子                       | 触发                     |
  * |---------|----------------------------|--------------------------|
- * | 展开    | 居中横向胶囊（4 个图标+文字） | 顶部 / 向上滚 / 上滑手势 |
- * | 收起    | 右下角一个圆（只有目录图标）  | 向下滚进入阅读态         |
+ * | 展开    | 居中横向胶囊（4 个图标+文字） | 顶部 / 上滚 60px / 程序化跳转 |
+ * | 收起    | 右下角一个圆（只有目录图标）  | 下滚 60px 进入阅读态     |
  *
  * 收缩动画的关键：胶囊右边缘**固定不动**，只有宽度在变。
  * 用 `translateX(calc(50vw - 1.25rem - 50%))` 配 `left: 50%`，
@@ -75,6 +76,9 @@ const collapsed = computed(() => canCollapse.value && mode.value === 'reading')
 /* ---------- 目录 sheet ---------- */
 
 const tocOpen = ref(false)
+/** 目录浮层本体（焦点陷阱边界）。 */
+const tocSheet = ref<HTMLElement | null>(null)
+let releaseTrap: (() => void) | null = null
 
 function openToc(): void {
   // 打开目录说明用户要找东西了：先把 chrome 恢复，再开 sheet
@@ -86,13 +90,49 @@ function closeToc(): void {
   tocOpen.value = false
 }
 
+/*
+ * 目录浮层同样是模态：打开期间背景不该能滚。
+ *
+ * 用户反馈「抽屉和搜索打开后仍能滑动内容」—— 目录浮层有同一个问题。
+ * 这里复用同一把引用计数锁（`support/overlay.ts`），
+ * 与抽屉、搜索共享计数，不会互相清锁。
+ */
+watch(tocOpen, (isOpen) => {
+  if (typeof document === 'undefined') return
+
+  if (isOpen) {
+    acquireScrollLock()
+    releaseTrap = trapFocus(() => tocSheet.value)
+    // 等渲染完再移焦点
+    requestAnimationFrame(() => tocSheet.value?.querySelector('a')?.focus())
+  } else {
+    releaseScrollLock()
+    releaseTrap?.()
+    releaseTrap = null
+  }
+})
+
 function goTo(slug: string): void {
   tocOpen.value = false
+  /*
+   * 跳转后**必须保持展开态**，无论目标在下方还是上方。
+   *
+   * 根因：`html { scroll-behavior: smooth }` 会让跳转变成一段动画，
+   * 期间持续产生 `scroll` 事件。跳到下方章节时那是一长串**向下**滚动 ——
+   * 不抑制的话，动画结束后状态机刚好判定为 `reading`，
+   * 于是「向上跳 → 展开，向下跳 → 隐藏」，同一个操作两种结果。
+   *
+   * `reset()` 现在带 holdUntil（默认 700ms），足够盖住平滑滚动动画：
+   * 期间强制 rest 且不累计位移，动画结束后状态就稳定在展开。
+   */
+  reset()
   window.location.hash = slug
 }
 
 function backToTop(): void {
   tocOpen.value = false
+  // 同样是程序化滚动：抑制判定，否则平滑上滚会被误判成状态切换
+  reset()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -111,25 +151,18 @@ const flatOutline = computed(() => {
   return out
 })
 
-/* ---------- 手势：从圆心恢复全部菜单 ---------- */
-
-/*
- * 用户的原话是「想回去的话就往上滑一点」。滚动本身也能恢复
- * （`useDockState` 对向上滚动很敏感），但快速滑动时滚动事件会被合并，
- * 手势能更跟手。这里只**读**手势、不 `preventDefault`，页面照常滚动。
+/* ---------- 恢复展开 ----------
+ *
+ * 第一版在这里挂了 `touchstart` / `touchmove`，手指一放上去就记起点，
+ * 上移 12px 就恢复 —— 结果是「手指刚碰屏幕还没滑，胶囊就弹开了」，
+ * 紧接着继续下滚又收回去，来回抽搐。
+ *
+ * **触摸本身不携带意图，滚动位移才携带。** 所以手势全部删掉，
+ * 只保留滚动判定（`useDockState`）。它现在有对称滞回（上滚 60px 才恢复）
+ * 和冷却期，不会因为一次手势里的微小抖动来回翻。
+ *
+ * 只保留一条：滚回顶部时确保展开 —— 这是**位置**约束，与手势无关。
  */
-let touchStartY = 0
-
-function onTouchStart(event: TouchEvent): void {
-  touchStartY = event.touches[0]?.clientY ?? 0
-}
-
-function onTouchMove(event: TouchEvent): void {
-  if (!collapsed.value) return
-  const y = event.touches[0]?.clientY ?? 0
-  // 手指上移 12px 就恢复：足够宽松，不会和点击冲突
-  if (touchStartY - y >= 12) reset()
-}
 
 /** 滚回顶部时确保胶囊展开，否则停在圆形态会让人找不到菜单。 */
 function onScrollGuard(): void {
@@ -144,21 +177,21 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(() => {
-  /*
-   * 手势监听挂在 window 上（不是胶囊上）：收起后胶囊只有 52px，
-   * 手指大概率落在胶囊外面，挂在胶囊上会收不到手势。
-   */
-  window.addEventListener('touchstart', onTouchStart, { passive: true })
-  window.addEventListener('touchmove', onTouchMove, { passive: true })
   window.addEventListener('scroll', onScrollGuard, { passive: true })
   document.addEventListener('keydown', onKeydown)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('touchstart', onTouchStart)
-  window.removeEventListener('touchmove', onTouchMove)
   window.removeEventListener('scroll', onScrollGuard)
   document.removeEventListener('keydown', onKeydown)
+  /*
+   * 卸载时必须释放锁：路由切换可能直接销毁组件（`v-if` 跟着页面走），
+   * 那时 `watch(tocOpen)` 的 else 分支不一定会跑，锁会永久残留。
+   * `releaseScrollLock` 内部有「计数不小于 0」保护，重复调用安全。
+   */
+  releaseScrollLock()
+  releaseTrap?.()
+  releaseTrap = null
 })
 </script>
 
@@ -173,7 +206,7 @@ onBeforeUnmount(() => {
     <div v-if="tocOpen" class="m-toc" role="dialog" aria-modal="true" :aria-label="m.openToc">
       <button class="m-toc__scrim" type="button" :aria-label="m.closeToc" @click="closeToc" />
 
-      <div class="m-toc__sheet">
+      <div ref="tocSheet" class="m-toc__sheet">
         <div class="m-toc__head">
           <p class="m-toc__title">
             <AppIcon name="toc" />

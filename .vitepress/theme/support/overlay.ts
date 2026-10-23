@@ -31,9 +31,15 @@
  */
 
 let lockCount = 0
-/** iOS 兜底模式下保存的原滚动位置。 */
+/** 锁定时保存的原滚动位置。 */
 let savedScrollY = 0
-let savedStyle: { position: string; top: string; width: string; overflow: string } | null = null
+let savedStyle: {
+  htmlOverflow: string
+  bodyPosition: string
+  bodyTop: string
+  bodyWidth: string
+  bodyOverflow: string
+} | null = null
 
 /** 是否是 iOS（含 iPadOS，它的 UA 伪装成 Mac，用触点数区分）。 */
 function isIOS(): boolean {
@@ -49,6 +55,19 @@ function isIOS(): boolean {
  *
  * 必须在 `releaseScrollLock()` 配对调用（组件卸载时也要调，
  * 否则浮层因路由切换被销毁时锁会永久残留）。
+ *
+ * ---------- 为什么锁的是 `<html>` 而不是 `<body>` ----------
+ *
+ * 这是本文件最容易被写错的一处。`base.css` 给 `html` 和 `body` 都设了
+ * `overflow-x: clip`（那是为了不破坏 sticky），效果是：
+ * **`body` 的 `overflow-y` 不再传播到视口**。
+ *
+ * CSS 规范里「body 的 overflow 传给视口」只在 html 的 overflow 为
+ * `visible` 时成立。一旦 html 有了非 visible 的值，body 就不是视口代表，
+ * 给它设 `overflow: hidden` 只会裁掉 body 自己的内容，**页面照样能滚**。
+ *
+ * 所以非 iOS 路径锁的是 `documentElement`。iOS 路径另外还要把 body
+ * 固定住，因为老版本 Safari 即使 html 设了 hidden 也能滚。
  */
 export function acquireScrollLock(): void {
   if (typeof document === 'undefined') return
@@ -56,25 +75,27 @@ export function acquireScrollLock(): void {
   lockCount += 1
   if (lockCount > 1) return
 
+  savedScrollY = window.scrollY
+  const html = document.documentElement
+  const body = document.body
+  savedStyle = {
+    htmlOverflow: html.style.overflow,
+    bodyPosition: body.style.position,
+    bodyTop: body.style.top,
+    bodyWidth: body.style.width,
+    bodyOverflow: body.style.overflow,
+  }
+
+  // 统一先锁 html：这是唯一真正能阻止页面滚动的元素
+  html.style.overflow = 'hidden'
+
   if (isIOS()) {
-    // iOS：overflow 无效，改用「固定 body + 记住位置」
-    savedScrollY = window.scrollY
-    const body = document.body
-    savedStyle = {
-      position: body.style.position,
-      top: body.style.top,
-      width: body.style.width,
-      overflow: body.style.overflow,
-    }
+    // iOS 兜底：html 锁不住时把 body 固定住，并记住位置
     body.style.position = 'fixed'
     body.style.top = `-${savedScrollY}px`
     body.style.width = '100%'
-    // overflow 也写上，让不依赖 fixed 的浏览器（如 Android）行为一致
     body.style.overflow = 'hidden'
-    return
   }
-
-  document.body.style.overflow = 'hidden'
 }
 
 /** 释放一次锁；计数归零时真正解锁。 */
@@ -87,19 +108,22 @@ export function releaseScrollLock(): void {
   lockCount -= 1
   if (lockCount > 0) return
 
-  if (isIOS() && savedStyle) {
-    const body = document.body
-    body.style.position = savedStyle.position
-    body.style.top = savedStyle.top
-    body.style.width = savedStyle.width
-    body.style.overflow = savedStyle.overflow
-    savedStyle = null
-    // 固定 body 时页面回顶了，这里滚回原位
-    window.scrollTo(0, savedScrollY)
-    return
-  }
+  if (!savedStyle) return
 
-  document.body.style.overflow = ''
+  const html = document.documentElement
+  const body = document.body
+
+  html.style.overflow = savedStyle.htmlOverflow
+  body.style.position = savedStyle.bodyPosition
+  body.style.top = savedStyle.bodyTop
+  body.style.width = savedStyle.bodyWidth
+  body.style.overflow = savedStyle.bodyOverflow
+
+  const restorePosition = body.style.position === '' ? savedScrollY : 0
+  savedStyle = null
+
+  // 固定 body 时页面视觉上回顶了，这里滚回原位
+  if (restorePosition) window.scrollTo(0, restorePosition)
 }
 
 /**

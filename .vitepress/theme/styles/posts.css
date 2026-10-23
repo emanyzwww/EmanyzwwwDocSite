@@ -516,33 +516,41 @@
 }
 
 /* ---------- 阅读进度条 ----------
-   它被渲染在 `.site-header` **内部**（绝对定位贴页头下沿），而不是全屏 fixed。
-   这样带来三个好处：
-   1. 页头在移动端隐藏时，进度条自动跟着隐藏，不需要额外联动逻辑；
-   2. 它天然处于页头的层叠上下文里，因此永远不会盖住抽屉/目录/搜索；
-   3. 不再需要用 `top: var(--header-height)` 去「猜」页头高度，
-      也就不会出现「页头实际 57px、进度条贴在 56px」那种 1px 错位。 */
+   它是**独立于页头**的 fixed 元素，不在 `<header>` 内部。
+
+   为什么不能放页头里：页头在移动端阅读态用 `translateY(-100%)` 整体移出屏幕，
+   放进去的元素会跟着消失。但进度条反映的是**阅读进度**——
+   在「chrome 已隐藏、用户正沉浸」的时刻，它是唯一的定位反馈，
+   这时候最不该消失。用户反馈也明确要求：页头隐藏后进度条仍贴顶存在。
+
+   定位：`--header-height + 1px` 正好是页头下沿（页头 min-height 是
+   `--header-height`，另有 1px `border-bottom`）。这比旧写法
+   `top: var(--header-height)` 精确 —— 那个漏算了边框，永远差 1px。
+
+   页头隐藏时用相邻选择器把它顶到 `top: 0`，配合 `transition` 与页头
+   同步滑动，看起来就是「页头退场、进度条升到最顶端继续工作」。 */
 
 .reading-progress {
-  position: absolute;
-  /*
-   * 负的 1px（= 页头下边框宽度）：让进度条**正好吃掉页头最底下那 2px**，
-   * 与页头的视觉边缘完全平齐。
-   *
-   * 为什么不用 `bottom: 0`：那是 padding box 的底边，进度条会停在
-   * 1px 下边框**上方**，看起来还差一条缝 —— 也就是用户说的「没完全依附」。
-   * 也不再用旧写法 `top: var(--header-height)`：那是拿变量去**猜**页头
-   * 真实高度，而真实高度还含 1px 边框，猜出来必然差 1px。
-   *
-   * 现在进度条的定位只依赖「它在页头内部」这个事实，与页头多高无关。
-   */
-  bottom: calc(var(--border-width) * -1);
+  position: fixed;
+  top: calc(var(--header-height) + var(--border-width));
   left: 0;
   right: 0;
   z-index: var(--z-progress);
   height: 2px;
   background: transparent;
   pointer-events: none;
+  transition: top var(--duration-normal) var(--ease-out);
+}
+
+/* 页头在阅读态整体上移出屏时，进度条升到视口顶端继续显示 */
+.site-header.is-hidden + .reading-progress {
+  top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-progress {
+    transition: none;
+  }
 }
 
 .reading-progress__bar {

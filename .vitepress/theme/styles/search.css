@@ -190,7 +190,22 @@
   }
 }
 
-/* ---------- 手机：贴底全宽 ----------
+/* ---------- 手机：贴顶全宽 ----------
+ *
+ * **为什么贴在顶部，而不是像目录那样从底部弹出**：
+ * 搜索面板一打开，手机输入法就会占据下半屏。此时「输入」是第一要事，
+ * 结果列表是第二等公民 —— 面板必须待在**键盘不会覆盖的那一半**。
+ *
+ * 从底部弹出的面板（旧实现）会有两个问题：
+ * 1. 面板顶部（输入框）被顶到屏幕中部，手指要够到那里才能打字；
+ * 2. 结果列表被键盘从下方推挤，可用高度只剩一点点。
+ *
+ * 改成贴顶后：输入框在屏幕最上方（手指自然落点 + 正好在键盘对侧），
+ * 键盘弹起时结果列表被压缩，但**输入框始终可见可编辑**。
+ *
+ * 本页目录（`MobileDock` 里的 `.m-toc`）保持从底部弹出 —— 那里第一公民
+ * 是「跳转」，列表要占满屏幕靠下的拇指区，两者的优先级本来就不同。
+ *
  * 条件与 `mobile.css` 的移动端判定保持一致：不只是窄屏，也包括手机横屏
  * （触屏 + 高度不足 500px）。两条断点若不一致，横屏下会出现
  * 「胶囊出来了但搜索面板还是桌面居中浮层」的半套状态。
@@ -198,17 +213,22 @@
 
 @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .search__panel {
-    top: auto;
-    bottom: 0;
+    top: 0;
+    bottom: auto;
     left: 0;
     transform: none;
     width: 100%;
-    /* 用 dvh 而不是 vh：移动浏览器工具栏收放时 vh 不跟随，面板会被切掉 */
+    /*
+     * 用 dvh：键盘弹起时（`interactive-widget=resizes-content`）它会缩小，
+     * 面板跟着缩短，结果列表留在键盘上方而不是被压到键盘底下。
+     */
     max-height: 85dvh;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    border-bottom: 0;
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--space-2));
-    animation: search-slide-up var(--duration-normal) var(--ease-out);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    border-top: 0;
+    /* 顶部让出状态栏/刘海 */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: var(--space-2);
+    animation: search-slide-down var(--duration-normal) var(--ease-out);
   }
 
   .search__item {
@@ -240,9 +260,10 @@
   }
 }
 
-@keyframes search-slide-up {
+/* 手机端：面板贴在顶部，所以从「上方」滑入（而不是旧实现的从底部） */
+@keyframes search-slide-down {
   from {
-    transform: translateY(100%);
+    transform: translateY(-100%);
   }
 }
 

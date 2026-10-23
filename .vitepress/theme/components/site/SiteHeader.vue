@@ -142,9 +142,17 @@ watch(
       </div>
     </div>
 
-    <!-- 进度条：贴在页头下边框上，随页头一起隐藏 -->
-    <ProgressBar v-if="isPost" selector="[data-article-body]" />
+    <!--
+      进度条**不能**放在 `<header>` 里。
+      页头在阅读态用 `transform: translateY(-100%)` 整体移出屏幕，
+      放在里面的元素会跟着一起消失 —— 但进度条是**阅读进度**，
+      它恰恰是「已经隐藏了 chrome、你正读到哪」的唯一反馈，
+      隐藏时最不该消失。
 
+      所以它独立于页头（fixed 贴视口顶），页头隐藏时自动「浮上来」占据顶端。
+    -->
     <MobileNav v-model:open="menuOpen" />
   </header>
+
+  <ProgressBar v-if="isPost" selector="[data-article-body]" />
 </template>
