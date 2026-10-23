@@ -143,16 +143,24 @@ watch(
     </div>
 
     <!--
-      进度条**不能**放在 `<header>` 里。
-      页头在阅读态用 `transform: translateY(-100%)` 整体移出屏幕，
-      放在里面的元素会跟着一起消失 —— 但进度条是**阅读进度**，
-      它恰恰是「已经隐藏了 chrome、你正读到哪」的唯一反馈，
-      隐藏时最不该消失。
+      进度条**在页头内部**，属于页头的一部分。
 
-      所以它独立于页头（fixed 贴视口顶），页头隐藏时自动「浮上来」占据顶端。
+      它在视觉与语义上都是「页头的边界装饰」——贴在页头下沿、指示本页
+      读到哪里，跟着页头一起出现。分开放（旧写法）导致了一个真实 bug：
+      `is-hidden` 类在桌面端也会被加上，而让它位移的 CSS 只在移动端媒体查询里，
+      于是桌面端页头纹丝不动、进度条却被相邻选择器顶到了屏幕顶端，
+      两者彻底分离（实测 gap = -65px，进度条穿进页头里）。
+
+      注意这里用 `position: fixed`（见 posts.css 的说明）：
+      固定定位会脱离页头的 `transform` 影响，因此移动端页头整体上移出屏时，
+      进度条仍然留在屏幕顶端继续显示 —— 这既是用户明确要求的行为
+      （「我被滑走的是 header，但我仍然希望进度条存在」），
+      也保证了桌面端与移动端逻辑一致：进度条永远贴在「页头所在的位置」。
+
+      `v-if` 判断是不是文章页，由 `useCurrentPost` 提供，与 DocPage 同源。
     -->
+    <ProgressBar v-if="isPost" selector="[data-article-body]" />
+
     <MobileNav v-model:open="menuOpen" />
   </header>
-
-  <ProgressBar v-if="isPost" selector="[data-article-body]" />
 </template>

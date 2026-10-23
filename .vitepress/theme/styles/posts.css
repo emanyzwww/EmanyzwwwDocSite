@@ -578,22 +578,37 @@
 }
 
 /* ---------- 阅读进度条 ----------
-   它是**独立于页头**的 fixed 元素，不在 `<header>` 内部。
+   它是 `<header class="site-header">` 的**子元素**，是页头的一部分。
 
-   为什么不能放页头里：页头在移动端阅读态用 `translateY(-100%)` 整体移出屏幕，
-   放进去的元素会跟着消失。但进度条反映的是**阅读进度**——
-   在「chrome 已隐藏、用户正沉浸」的时刻，它是唯一的定位反馈，
-   这时候最不该消失。用户反馈也明确要求：页头隐藏后进度条仍贴顶存在。
+   ---------- 为什么是 `position: fixed`，以及为什么只需要一个 `top` 值 ----------
 
-   定位：`--header-height + 1px` 正好是页头下沿（页头 min-height 是
-   `--header-height`，另有 1px `border-bottom`）。这比旧写法
-   `top: var(--header-height)` 精确 —— 那个漏算了边框，永远差 1px。
+   `.site-header` 有 `backdrop-filter`（毛玻璃）和移动端的 `transform`，
+   两者都会为 `position: fixed` 的后代**创建包含块**。所以进度条的定位参照
+   是**页头自己**，不是视口 —— 这恰好让它能自动跟随页头：
 
-   页头隐藏时用相邻选择器把它顶到 `top: 0`，配合 `transition` 与页头
-   同步滑动，看起来就是「页头退场、进度条升到最顶端继续工作」。 */
+   | 状态 | 页头位置 | 进度条（`top` = 页头高 + 1px 边框） | 视口位置 |
+   |------|----------|--------------------------------------|----------|
+   | 静止 | 0        | 57px（相对页头）                     | **57px = 页头下沿** ✓ |
+   | 阅读态（移动端） | -57px | 57px（相对页头）              | **0 = 屏幕顶端** ✓ |
+
+   同一个 `top` 值在两种状态下都得出正确位置，所以**不需要任何状态覆盖规则**。
+   这比旧实现干净得多——旧写法是「兄弟元素 + `+ .is-hidden` 选择器」去猜
+   页头的状态，而那个类在桌面端也会被加上（位移 CSS 却只在移动端），
+   结果桌面端页头不动、进度条被顶到 `top: 0`，穿过整个页头（实测 gap = -65px）。
+
+   > 一度想在这里加一条 `@media (mobile) { .is-hidden .reading-progress { top: 0 } }`。
+   > **千万不要加**：阅读态下包含块已经是页头，再设 `top: 0` 会把进度条推到
+   > 「页头顶边」= 视口 -57px，直接飞出屏幕外。
+
+   ---------- 为什么不用 `position: absolute` ----------
+   `absolute` 会把进度条算进页头的可滚动溢出，且移动端页头位移时
+   它跟着一起飞出屏幕——而用户明确要求「滑走的是 header，进度条要留着」。
+   `fixed` 因为包含块是页头，天然满足了这两个要求。
+*/
 
 .reading-progress {
   position: fixed;
+  /* 页头下沿：min-height 是 --header-height，另有 1px border-bottom */
   top: calc(var(--header-height) + var(--border-width));
   left: 0;
   right: 0;
@@ -602,11 +617,6 @@
   background: transparent;
   pointer-events: none;
   transition: top var(--duration-normal) var(--ease-out);
-}
-
-/* 页头在阅读态整体上移出屏时，进度条升到视口顶端继续显示 */
-.site-header.is-hidden + .reading-progress {
-  top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
