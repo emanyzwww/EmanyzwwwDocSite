@@ -1,0 +1,26 @@
+# 统一行尾：仓库里一律存 LF，检出时也保持 LF。
+#
+# 为什么必须有这个文件：在 Windows 上 `core.autocrlf=true` 是常见默认值，
+# 没有本文件时工作区里的 Markdown 会是 CRLF、仓库里存的是 LF。这会导致两个真实问题：
+#
+# 1. `pnpm format:check` 在 Windows 上报错、在 Linux CI 上通过 —— 因为 oxfmt 配置了
+#    `endOfLine: "lf"`，它看到的是 CRLF 文件。同一份提交在两边结论不同，
+#    等于把格式化门禁变成了「看你在哪台机器上跑」。
+# 2. `pnpm fix` 写回文件时必须猜换行风格，猜错就会把整篇正文标记成改动。
+#
+# 项目里没有需要在 Windows 记事本里直接打开的历史包袱（编辑器都支持 LF），
+# 因此统一成 LF 是安全的。
+* text=auto eol=lf
+
+# 二进制文件不要做行尾转换（否则会损坏内容）
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# 锁文件由 pnpm 自己维护，保持原样
+pnpm-lock.yaml text eol=lf

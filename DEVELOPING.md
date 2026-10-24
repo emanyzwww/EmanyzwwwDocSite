@@ -73,6 +73,7 @@ Vue 组件  ──►  HTML
 │
 ├─ data/                  纯数据与数据加载器（*.data.ts 是加载器）
 │  ├─ site.ts             ★ 站点名、域名、导航、页脚、分页数、侧栏顺序、语言表
+│  ├─ frontmatter.ts      ★ 文章 frontmatter 的字段表（命令与内容管线共用）
 │  ├─ profile.ts          ★ 个人信息、头像、社交链接
 │  ├─ widgets.ts          ★ 自定义侧栏卡片内容
 │  ├─ taxonomy.ts         标签 slug / 显示名覆盖（可选）
@@ -118,6 +119,24 @@ docs/                      ← 只有内容
 │  └─ tags/               标签总览 + [tag]/ 动态路由
 └─ en/                    英文站（URL `/en/`），结构完全对应
 
+scripts/                   ← 命令行脚本（内容侧工具，不参与构建）
+├─ run.ts                 统一入口：按命令名分发，并提供统一的参数与错误处理
+├─ new.ts                 pnpm new    新建文章（北京时间 + 当日序号 + 补全 frontmatter）
+├─ posts.ts               pnpm posts  列出文章（按日期 / 语言 / 标签）
+├─ check.ts               pnpm check  检查 frontmatter 与路径规范
+├─ fix.ts                 pnpm fix    自动修可修的项（排序、补字段、日期规范化）
+├─ stats.ts               pnpm stats  统计文章数 / 字数 / 分布
+├─ tags.ts                pnpm tags   标签及文章数
+├─ clean.ts               pnpm clean  清理构建产物与缓存
+└─ lib/                   共享内核（纯函数，可单测）
+   ├─ site.ts             仓库路径、语言表、时区（从 .vitepress 再导出）
+   ├─ dates.ts            北京时间的日期换算与 ISO 序列化
+   ├─ frontmatter.ts      frontmatter 的解析与序列化（保持仓库写作风格）
+   ├─ posts.ts            文章路径解析与收集
+   ├─ create.ts           建目录、分配序号、生成 slug
+   ├─ args.ts             命令行参数解析
+   └─ ui.ts               颜色、按显示宽度对齐、表格
+
 media/                     ← 会换的图（头像等），走 Vite 指纹
 public/                    ← 原样拷贝：favicon、根路径语言跳转页
 ```
@@ -133,16 +152,21 @@ public/                    ← 原样拷贝：favicon、根路径语言跳转页
 > （`fileURLToPath(new URL('../public', import.meta.url))`），
 > 否则 favicon 与根路径跳转页都不会进产物。
 
-### 两类 `support/` 的区别（容易混）
+### 三类 `support/` 与 `lib/` 的区别（容易混）
 
-|                | `.vitepress/support/`                  | `.vitepress/theme/support/` |
-| -------------- | -------------------------------------- | --------------------------- |
-| 运行环境       | 构建期（Node）                         | 浏览器                      |
-| 能用 `node:fs` | ✅                                     | ❌                          |
-| 典型内容       | 读文件、生成 RSS                       | 路径拼接、图标表、滚动监听  |
-| 被谁引用       | `config.ts`、`*.data.ts`、`*.paths.ts` | Vue 组件                    |
+|                | `.vitepress/support/`                  | `.vitepress/theme/support/` | `scripts/lib/`             |
+| -------------- | -------------------------------------- | --------------------------- | -------------------------- |
+| 运行环境       | 构建期（Node）                         | 浏览器                      | 命令行（Node）             |
+| 能用 `node:fs` | ✅                                     | ❌                          | ✅                         |
+| 典型内容       | 读文件、生成 RSS                       | 路径拼接、图标表、滚动监听  | 参数解析、建文章、终端输出 |
+| 被谁引用       | `config.ts`、`*.data.ts`、`*.paths.ts` | Vue 组件                    | `scripts/*.ts`             |
 
 例外：`format.ts` 在构建期目录里，但它是纯函数，两边都能用。
+
+**脚本为什么不自己定义一套站点常量**：语言的权威定义在 `.vitepress/data/site.ts`，
+frontmatter 字段的权威定义在 `.vitepress/data/frontmatter.ts`。
+`scripts/lib/site.ts` 只是把前者**再导出**给命令行用，一个字都不复制——
+否则加一门语言、加一个 frontmatter 字段时，构建期与命令行会各说各话。
 
 ---
 
@@ -865,7 +889,117 @@ export const TAG_LABELS: Record<string, string> = {
 - 分页计算：`theme/support/pagination.ts`（纯函数）
 - 页码越界会自动夹到 `[1, totalPages]`，不会白屏
 
-### 加一个动态路由
+### 命令行脚本体系
+
+写文章时用得最多的是 `pnpm new` 与 `pnpm posts`，它们**不是**各自独立的脚本，
+而是共享同一套内核。
+
+**为什么单入口 + 共享内核**
+
+`package.json` 里所有自有命令都指向 `tsx scripts/run.ts <命令>`：
+
+```text
+pnpm new    →  tsx scripts/run.ts new
+pnpm posts  →  tsx scripts/run.ts posts
+pnpm check  →  tsx scripts/run.ts check
+```
+
+`run.ts` 按命令名动态 `import` 对应模块，并统一负责参数透传与错误出口
+（业务代码只管 `throw new Error('人话')`，由它打印成一行 `✗ 原因` 并置非零退出码）。
+
+这样做的好处很具体：8 个命令如果各有各的入口，就有 8 份 `try/catch`、
+8 份颜色开关判断、8 份「仓库根在哪」。共享内核后这些只有一份。
+
+**为什么命令脚本要复用 `.vitepress` 里的定义**
+
+这是本次重构的核心判断：脚本与站点**一定**有重合部分，重合的就是「事实来源」。
+
+| 事实                  | 唯一来源                         | 谁在用                      |
+| --------------------- | -------------------------------- | --------------------------- |
+| 有哪些语言            | `.vitepress/data/site.ts`        | 构建期、主题、**命令行**    |
+| 站点时区              | `.vitepress/data/site.ts`        | RSS、日期格式化、**命令行** |
+| 文章 frontmatter 字段 | `.vitepress/data/frontmatter.ts` | 内容管线、**命令行**        |
+| 什么算一篇文章        | `.vitepress/support/content.ts`  | 列表/标签/RSS、**命令行**   |
+
+因此 `scripts/lib/` **不复制**这些定义，只做再导出。加一门语言或加一个
+frontmatter 字段时，改一处，构建与命令一起跟上。
+
+**`pnpm list` 为什么不存在**
+
+`list` 是 pnpm 的内置命令，会在执行脚本之前先解析参数并直接失败：
+
+```text
+$ pnpm list 20261024 -l=zh-cn
+error: unexpected argument '-l' found
+```
+
+脚本根本不会启动。所以对外统一用 `pnpm posts`；`list` 只作为
+`pnpm run list`（显式走 run）的别名保留，注意 `pnpm run list …` 可以，
+裸 `pnpm list …` 不行。
+
+同理 `pnpm help` 也是内置命令，所以查看总帮助用 **`pnpm guide`**。
+
+**`pnpm clean --help` 会被 pnpm 截获**
+
+`clean` 这个**命令名**可以正常覆盖内置的同名命令（`package.json` 里定义了
+`clean` 脚本时，`pnpm clean` 执行的是我们的脚本）。但 `--help` / `-h` 是
+pnpm 的**全局**标志，它在决定「跑哪个命令」之前就把 `--help` 消费掉了：
+
+```text
+$ pnpm clean --help
+Safely remove `node_modules` directories ...   ← pnpm 内置 clean 的帮助
+```
+
+要看本项目的 clean 帮助，直接调脚本：
+
+```powershell
+npx tsx scripts/run.ts clean --help
+```
+
+这是 pnpm 参数解析顺序导致的，改不了。**其余命令没有这个问题**
+（`pnpm new --help`、`pnpm posts --help` 等都正常），因为它们不是内置命令名。
+
+**`pnpm new` 的日期与序号**
+
+```text
+docs/<lang>/posts/YYYY/MM/DD/NN/<slug>/index.md
+                   ↑ 北京时间的今天   ↑ 当天的第几篇
+```
+
+- 日期取**站点时区**（`Asia/Shanghai`），不是运行机器的本地时区，
+  否则 CI（UTC）与本地可能差一天；
+- 序号扫**目录名**得出（不是扫 frontmatter），`01`、`02`…自动递增，
+  中间有空号时优先补空号；满 `99` 直接报错而不是变成三位；
+- frontmatter 的**全部字段**一次写全（`title` / `date` / `tags` /
+  `description` / `draft` / `outline`），字段表来自 `data/frontmatter.ts`；
+- `date` 写成带显式偏移的完整 ISO 串（`2026-10-24T22:49:28+08:00`），
+  不用裸日期——裸日期会被不同构建机按不同时区解读。
+
+只想看看会生成什么、不落盘：
+
+```powershell
+pnpm new -t="标题" --dry-run
+```
+
+**`pnpm check` / `pnpm fix` 的边界**
+
+`check` 只报告、不改文件，分两级：`error`（会坏内容/构建）与 `warn`（不合规范）。
+有 `error` 时退出码为 1，可直接接进 CI；只有 `warn` 时为 0。
+
+`fix` 只做**安全**的修改：重排字段顺序、补齐可选字段、把裸日期补成带时区的格式、
+规范化标签。它**不改**标题、正文、目录名，也不删废弃字段——那些改错了没有撤销按钮。
+
+`fix` 的行为有两条硬约束，都是踩过坑之后加的：
+
+1. 判断「日期是否已合规」必须读**文件里的原始字面量**。
+   `gray-matter` 会把 `date` 解析成 `Date` 对象，解析后无法区分
+   `2026-10-19T04:09:28+08:00` 与 `2026-10-19`；早期按解析值判断，
+   导致 `fix` 把每个文件都当成需要修并全部重写。
+2. 写回时必须**跟随正文的换行风格**。本机 `core.autocrlf=true`、
+   仓库又没有 `.gitattributes`，所以工作区里的 Markdown 是 CRLF、
+   仓库里存的是 LF；固定用 LF 拼接会把整篇正文标记成改动。
+
+**加一个动态路由**
 
 比如「按年份归档」`/zh-cn/archive/2026/`：
 
@@ -953,10 +1087,40 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 
 ### 「加一个 npm 脚本」
 
+**先判断它属于哪一类**，这决定了脚本写在哪：
+
+| 类型                  | 做法                                            | 例子                                |
+| --------------------- | ----------------------------------------------- | ----------------------------------- |
+| 第三方 CLI 的直接转发 | 直接写在 `package.json`，不要包一层             | `dev`、`build`、`typecheck`、`lint` |
+| 有自己的逻辑          | 在 `scripts/` 下加一个命令文件，走统一入口      | `new`、`posts`、`check`             |
+| 只是给已有命令起别名  | 在 `package.json` 里指向同一个 `scripts/run.ts` | `list` → `posts`                    |
+
+第三方 CLI 不该包脚本：多一层转发不会带来任何共享逻辑，只多一个要维护的文件。
+
+有逻辑的命令按第三步：
+
+```text
+① scripts/xxx.ts 里 export default function main(argv: string[]): void
+② scripts/run.ts 的 COMMANDS 里加一行：xxx: 'xxx.ts'
+③ package.json 里加：  "xxx": "tsx scripts/run.ts xxx"
+④ 加进 scripts/run.ts 的 printHelp()，否则 pnpm help 里看不到它
+```
+
+命令之间**不要各自重写**下面这些，它们是共享内核：
+
+| 需求               | 从哪来                           |
+| ------------------ | -------------------------------- |
+| 语言校验           | `scripts/lib/site.ts`            |
+| 北京时间的日期换算 | `scripts/lib/dates.ts`           |
+| frontmatter 字段表 | `.vitepress/data/frontmatter.ts` |
+| frontmatter 读写   | `scripts/lib/frontmatter.ts`     |
+| 参数解析           | `scripts/lib/args.ts`            |
+| 颜色 / 对齐 / 表格 | `scripts/lib/ui.ts`              |
+
 ```json
 {
   "scripts": {
-    "check": "pnpm typecheck && pnpm format:check"
+    "verify": "pnpm typecheck && pnpm format:check"
   }
 }
 ```
@@ -1034,15 +1198,15 @@ pnpm typecheck     # TS + Vue 类型检查（0 错误才算过）
 pnpm lint          # oxlint：未使用变量、可疑写法、性能提示
 pnpm test          # vitest：纯函数单测
 pnpm test:watch    # 单测 watch 模式
-pnpm format        # 格式化：docs + .vitepress + 根目录几份 md
+pnpm format        # 格式化：docs + .vitepress + scripts + 根目录几份 md
 pnpm format:check  # 只检查不写入
 pnpm build         # 构建（也会暴露类型问题）
 ```
 
 改完代码的标准流程：`format` → `lint` → `typecheck` → `test` → `build`。
 
-> 注意 `format` 现在显式带上了 `.vitepress`——它已经不在 `docs/` 里了，
-> 只写 `docs` 会漏掉主题代码。
+> 注意 `format` 现在显式带上了 `.vitepress` 与 `scripts`——它们已经不在 `docs/` 里了，
+> 只写 `docs` 会漏掉主题代码与命令行脚本。
 
 ### 单测覆盖什么
 
@@ -1056,10 +1220,18 @@ pnpm build         # 构建（也会暴露类型问题）
 | `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                    |
 | `dev-redirect.test.ts`     | `Accept-Language` 解析                                     |
 | `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算          |
+| `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化     |
+
+`scripts.test.ts` 覆盖的是「建错会静默写坏内容」的那批函数：
+`nextSequence`（序号会不会撞号）、`stringifyFrontmatter`（会不会写坏 YAML）、
+`isoDateInZone`（会不会差一天）、`parseArgs`（`-l=zh-cn` 这类写法）。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
 `.vitepress/support/urls.ts` 与 `.vitepress/support/locale-paths.ts`，
 **不 import `vitepress`**；需要 `withBase` 的包装留在 `theme/support/paths.ts`。
+
+脚本侧的纯逻辑同理放在 `scripts/lib/`（`dates.ts` / `frontmatter.ts` / `create.ts` 等），
+不 import `vitepress`，因此可以直接被 vitest 加载。
 
 ### lint 规则
 

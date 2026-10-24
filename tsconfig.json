@@ -25,6 +25,7 @@
     ".vitepress/**/*.vue",
     ".vitepress/**/*.d.ts",
     "docs/**/*.paths.ts",
+    "scripts/**/*.ts",
     "tests/**/*.ts",
     "vitest.config.ts"
   ],

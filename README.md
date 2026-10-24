@@ -6,11 +6,18 @@
 ```powershell
 pnpm install     # 首次
 pnpm dev         # 本地预览 → http://127.0.0.1:5173/
+pnpm new         # 新建一篇文章（北京时间 + 当日序号 + 补全 frontmatter）
+pnpm posts       # 列出文章（可带 20261024 只看某天）
 pnpm build       # 构建到 .vitepress/dist
 pnpm typecheck   # 类型检查
 pnpm test        # 单测
-pnpm format      # 格式化（内容 + 主题代码）
+pnpm format      # 格式化（内容 + 主题代码 + 脚本）
 ```
+
+内容相关的全部命令：`new` / `posts` / `check` / `fix` / `stats` / `tags` / `clean`，
+用 `pnpm help` 看总览，`pnpm <命令> --help` 看单个命令。
+
+> 用 `pnpm posts` 而不是 `pnpm list`——`list` 是 pnpm 的内置命令，会先截获参数。
 
 ## 三份文档
 
@@ -25,15 +32,16 @@ pnpm format      # 格式化（内容 + 主题代码）
 
 ## 技术栈
 
-| 项     | 说明                                              |
-| ------ | ------------------------------------------------- |
-| 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL） |
-| 语言   | TypeScript 5（strict）                            |
-| 主题   | 自定义，见 `.vitepress/theme/`                    |
-| 样式   | 三层设计令牌 + 深青强调色，见 `DESIGN.md`         |
-| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖             |
-| 格式化 | oxfmt（含 `.vue` / `.css` / `.ts`）               |
-| 部署   | GitHub Actions → GitHub Pages                     |
+| 项     | 说明                                                  |
+| ------ | ----------------------------------------------------- |
+| 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL）     |
+| 语言   | TypeScript 5（strict）                                |
+| 主题   | 自定义，见 `.vitepress/theme/`                        |
+| 样式   | 三层设计令牌 + 深青强调色，见 `DESIGN.md`             |
+| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖                 |
+| 脚本   | `scripts/` + tsx，与构建期共用站点与 frontmatter 定义 |
+| 格式化 | oxfmt（含 `.vue` / `.css` / `.ts`）                   |
+| 部署   | GitHub Actions → GitHub Pages                         |
 
 ## 设计系统一览
 
@@ -64,6 +72,14 @@ docs/                       只有内容
 │  ├─ tags/                 标签总览 + 标签详情模板
 │  └─ about/                关于
 └─ en/                      英文站 → /en/（与 zh-cn 结构完全对应）
+
+scripts/                    内容侧命令行（不参与构建）
+├─ run.ts                   统一入口，按命令名分发
+├─ new.ts / posts.ts        建文章 / 列文章
+├─ check.ts / fix.ts        检查 / 自动修 frontmatter
+├─ stats.ts / tags.ts       统计 / 标签清单
+├─ clean.ts                 清理构建产物与缓存
+└─ lib/                     共享内核：日期、frontmatter、路径、参数、输出
 
 media/                      会替换的图片（自动指纹）
 public/                     原样拷贝：favicon、根路径语言跳转页

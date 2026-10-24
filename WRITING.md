@@ -21,9 +21,50 @@
 
 ## 一、写一篇文章
 
-### 操作步骤
+### 最快的方式：`pnpm new`
 
-在 `docs/zh-cn/posts/` 下**建一个目录**（目录名就是 URL），里面放 `index.md`：
+```powershell
+pnpm new                              # 中文文章，标题与目录名后补
+pnpm new -t="我的新文章" --tags=随笔,工具   # 带标题与标签
+pnpm new -l=en -t="My New Post"       # 英文文章
+```
+
+它会自动做这些事：
+
+1. 按**北京时间**取今天的日期，建 `docs/zh-cn/posts/2026/10/24/`；
+2. 在该日目录下取下一个序号 `01`、`02`…（已有则自动往后延）；
+3. 用标题推导出目录名（`我的新文章` → `我的新文章`，英文转小写连字符）；
+4. 生成 `index.md`，并把 frontmatter 的**全部字段**一次补齐。
+
+生成结果：
+
+```text
+docs/zh-cn/posts/2026/10/24/01/我的新文章/index.md
+```
+
+不想立即落盘、只想看看会生成什么：
+
+```powershell
+pnpm new -t="标题" --dry-run
+```
+
+### 查看已有哪些文章
+
+```powershell
+pnpm posts                # 全部文章，按日期分组
+pnpm posts 20261024       # 只看这一天
+pnpm posts 20261024 -l=zh-cn
+pnpm posts --tags=随笔    # 只看含某个标签的
+pnpm posts --draft        # 连草稿一起看
+```
+
+> 注意是 `pnpm posts` 而不是 `pnpm list`：`list` 是 pnpm 自己的内置命令，
+> 它会抢在脚本之前解析参数并报错（`unexpected argument '-l' found`）。
+
+### 手动创建
+
+不想用命令也可以手写。在 `docs/zh-cn/posts/` 下**建一个目录**（目录名就是 URL），
+里面放 `index.md`：
 
 ```text
 docs/zh-cn/posts/我的文章标题/
@@ -92,6 +133,7 @@ date: 2026-10-20T10:30:00+08:00
 ```
 
 只有 `title` 和 `date` 是必需的，其余都可以省。
+（`pnpm new` 会把所有字段都写上，那是更方便的起点。）
 
 ### 写完怎么预览
 
