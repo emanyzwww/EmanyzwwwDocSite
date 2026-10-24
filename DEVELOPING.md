@@ -1313,7 +1313,18 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 页面级滚动条是自绘的（`components/common/ScrollBar.vue`），
 原生条被隐藏（`base.css`）。**完整规范见 [DESIGN.md](./DESIGN.md) 第十一节**，
-这里只记改代码时的三件事。
+这里只记改代码时的几件事。
+
+**自动隐藏的三个坑（都踩过，别再踩）。**
+
+1. `lastActivity` 的初值必须是 `-Infinity`。写 `0` 会因为
+   `performance.now()` 是「页面加载至今」而被判成「刚活动过」，
+   结果页面一加载滚动条就闪一下。
+2. `pointermove` 里要跳过 `pointerType === 'touch'`。触屏没有 hover，
+   手指抬起**不会**再来 pointerleave，`pointerInside` 会永久停在 true，
+   滚动条就再也隐藏不掉了。
+3. 指针进出揭示带时**只重算、不刷新活动时间戳**。否则鼠标扫过右边缘
+   会把空闲计时重置 1.2 秒，离开后留下一条幽灵条。
 
 **为什么不能挂进 `<header>`。** 层级上它要在页头之下，看起来很自然想
 「挂进去」，但页头的 `backdrop-filter` 会为 `position: fixed` 后代创建
@@ -1331,6 +1342,10 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 唯一变化是文档变短了。所以组件里 `watch(route.path)` → `nextTick` → `refresh()`。
 `ResizeObserver` 也能覆盖大部分情况，但那是副作用，不是契约。
 
-几何计算是纯函数（`support/scrollbar.ts`），有 15 个单测兜边界
-（拇指长度永不越界、位置永不越界、`scrollTopForOffset` 与 `computeThumb` 互逆）。
-**改映射规则先改测试，再改实现。**
+**`v-show` 与 `is-shown` 是两层，别合并。** `v-show` 管「元素在不在树上」
+（有内容可滚才在），`is-shown` 管「透明还是可见」。合并成一层的话，
+淡入淡出就没过渡可做了。
+
+几何与显隐策略都是纯函数（`support/scrollbar.ts`），有 23 个单测兜边界
+（拇指长度永不越界、位置永不越界、`scrollTopForOffset` 与 `computeThumb` 互逆、
+`shouldReveal` 的强制条件优先于超时）。**改规则先改测试，再改实现。**

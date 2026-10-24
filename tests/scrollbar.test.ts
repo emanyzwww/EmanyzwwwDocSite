@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   computeThumb,
   scrollTopForOffset,
+  shouldReveal,
   type ScrollMetrics,
+  type RevealInput,
 } from '../.vitepress/theme/support/scrollbar'
 
 /**
@@ -133,5 +135,60 @@ describe('scrollTopForOffset 与 computeThumb 互逆', () => {
   it('不可滚动时返回 0', () => {
     const box = computeThumb({ ...base, content: 500 }, 0)
     expect(scrollTopForOffset(box, 123)).toBe(0)
+  })
+})
+
+/**
+ * 自动隐藏策略。
+ *
+ * 这段逻辑决定「滚动条什么时候在」，直接对应「短页面上一根巨大的长条
+ * 常驻右边、很抢视觉」这个问题。默认必须隐藏 —— 所以最关键的一条
+ * 是「刚滚过去很久之后，不显示」。
+ */
+describe('shouldReveal', () => {
+  const base: RevealInput = {
+    idleFor: 0,
+    pointerInside: false,
+    dragging: false,
+    idleDelay: 1200,
+  }
+
+  it('默认隐藏（空闲已超时、指针不在带内、未拖拽）', () => {
+    expect(shouldReveal({ ...base, idleFor: 5000 })).toBe(false)
+  })
+
+  it('正在滚动时显示', () => {
+    expect(shouldReveal({ ...base, idleFor: 0 })).toBe(true)
+    expect(shouldReveal({ ...base, idleFor: 1199 })).toBe(true)
+  })
+
+  it('刚好到阈值就隐藏（边界不含）', () => {
+    expect(shouldReveal({ ...base, idleFor: 1200 })).toBe(false)
+  })
+
+  it('指针在揭示带内时即使空闲也显示', () => {
+    expect(shouldReveal({ ...base, idleFor: 99999, pointerInside: true })).toBe(true)
+  })
+
+  it('拖拽时即使指针离开带子也显示', () => {
+    expect(
+      shouldReveal({ ...base, idleFor: 99999, pointerInside: false, dragging: true }),
+    ).toBe(true)
+  })
+
+  it('拖拽且指针也在带内，仍然显示（不重复判断）', () => {
+    expect(
+      shouldReveal({ ...base, idleFor: 99999, pointerInside: true, dragging: true }),
+    ).toBe(true)
+  })
+
+  it('空闲时长为 NaN 时按已空闲处理（宁可少显示）', () => {
+    expect(shouldReveal({ ...base, idleFor: Number.NaN })).toBe(false)
+    // 但强制条件优先于数值有效性
+    expect(shouldReveal({ ...base, idleFor: Number.NaN, dragging: true })).toBe(true)
+  })
+
+  it('idleDelay 为 0 时只有「正在活动」那一刻算显示', () => {
+    expect(shouldReveal({ ...base, idleFor: 0, idleDelay: 0 })).toBe(false)
   })
 })

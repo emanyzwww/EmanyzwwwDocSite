@@ -29,11 +29,24 @@ import { useScrollBar } from '../../composables/useScrollBar'
  * 同时把拇指长度下限设为页头高度：短页里拇指也不会退化成一条缝，
  * 任何页面上都有同一个视觉重量，且永远不会有任何一截被页头压住。
  *
+ * ---------- 自动隐藏 ----------
+ *
+ * 默认**隐藏**，三种情况下出现：正在滚动、指针靠近右侧边缘、正在拖拽。
+ * 停止滚动 1.2 秒后淡出。
+ *
+ * 为什么必须隐藏：页面只比视口高一点时，拇指按比例会占掉轨道的大半。
+ * 实测（1440×900）内容 1070px 时拇指长 702px = 轨道的 84% ——
+ * 一根几乎和视口等高的灰条常驻右边，视觉重量远超它表达的信息。
+ * macOS 的覆盖式滚动条是同样的取舍。
+ *
+ * 为什么还要「指针靠近就显示」：隐藏之后「拖拇指跳转」就没有可见入口了。
+ * 鼠标移向右边缘 24px 时它必须出现 —— 那正是这个操作的前兆动作。
+ *
  * ---------- 只有拇指是可交互的 ----------
  *
  * 轨道（含槽底）`pointer-events: none`，透明且不拦截点击；
- * 只有拇指 `pointer-events: auto`。所以它在页面上「只是被看见」，
- * 不会挡住正文里的链接。
+ * 只有拇指 `pointer-events: auto`（且仅在显示状态下）。
+ * 所以它在页面上「只是被看见」，不会挡住正文里的链接。
  */
 
 const props = withDefaults(
@@ -57,7 +70,8 @@ function headerElement(): HTMLElement | null {
   return header
 }
 
-const { thumb, top, visible, active, startDrag, setHover, refresh } = useScrollBar(headerElement)
+const { thumb, top, visible, shown, active, startDrag, setHover, refresh } =
+  useScrollBar(headerElement)
 
 const route = useRoute()
 
@@ -88,7 +102,14 @@ const style = computed(() => ({
 </script>
 
 <template>
-  <div class="scrollbar" :class="{ 'is-active': active }" aria-hidden="true">
+  <!--
+    `is-shown` 控制透明度与可交互性，`v-show` 控制是否存在。
+
+    两层是分开的：`visible`（有内容可滚）为假时元素根本不该在树上；
+    `shown`（自动隐藏状态）为假时元素在、但透明且 `pointer-events: none`。
+    这样淡入淡出有过渡可做，而不可滚的页面不会有残留的透明元素。
+  -->
+  <div class="scrollbar" :class="{ 'is-active': active, 'is-shown': shown }" aria-hidden="true">
     <div
       v-show="visible"
       class="scrollbar__thumb"

@@ -305,6 +305,17 @@ html::-webkit-scrollbar {
 
    也**没有上下箭头**（用户要求 5）：那套装饰属于 90 年代的系统控件，
    在浮层拇指上会立刻显得陈旧。
+
+   ---------- 自动隐藏 ----------
+
+   默认 `opacity: 0`，由 `is-shown` 打开。淡入快（`--duration-fast` 120ms）、
+   淡出慢（`--duration-normal` 200ms）：出现要跟手，消失不该突然打断视线。
+
+   **隐藏时 `pointer-events: none`**：一根看不见的 14px 竖条如果还能抓，
+   会变成「光标路过右边缘突然变成 grab」的惊喜。要显示才可交互。
+
+   隐藏≠不可达：指针靠近右边缘 24px 时 JS 会把它显示出来
+   （见 composables/useScrollBar.ts），所以拖拽入口一直都在。
 */
 
 .scrollbar {
@@ -326,11 +337,24 @@ html::-webkit-scrollbar {
   width: 6px;
   border-radius: var(--radius-full);
   background: var(--scrollbar-thumb);
-  pointer-events: auto;
+  /* 只在显示状态可交互，见下方 `.is-shown` */
+  pointer-events: none;
   cursor: grab;
   /* 触屏上不给浏览器"这是滚动"的默认判断，否则 pointermove 被滚动吃掉 */
   touch-action: none;
-  transition: background-color var(--duration-fast) var(--ease-out);
+  opacity: 0;
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+/* 显示态：出现得更快，并且此时才允许抓取 */
+.scrollbar.is-shown .scrollbar__thumb {
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 /*
@@ -358,7 +382,8 @@ html::-webkit-scrollbar {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scrollbar__thumb {
+  .scrollbar__thumb,
+  .scrollbar.is-shown .scrollbar__thumb {
     transition: none;
   }
 }

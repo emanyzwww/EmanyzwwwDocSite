@@ -103,3 +103,38 @@ export function scrollTopForOffset(box: ThumbBox, offset: number): number {
   if (travel <= 0 || box.maxScroll <= 0) return 0
   return (clamp(offset, 0, travel) / travel) * box.maxScroll
 }
+
+/* ---------- 自动隐藏 ---------- */
+
+/** 判断滚动条是否应当显示所需的输入。 */
+export interface RevealInput {
+  /** 距最后一次用户活动（滚动 / 指针进入）的毫秒数。 */
+  idleFor: number
+  /** 指针是否停在右侧的揭示带内。 */
+  pointerInside: boolean
+  /** 是否正在拖拽拇指。 */
+  dragging: boolean
+  /** 空闲多久之后隐藏。 */
+  idleDelay: number
+}
+
+/**
+ * 滚动条是否应当显示。
+ *
+ * 默认隐藏，只在三种情况下出现：
+ *
+ * 1. **正在滚动**（`idleFor < idleDelay`）——滚一下就能看到进度；
+ * 2. **指针在右侧揭示带内**——想去拖它的时候它一定在；
+ * 3. **正在拖拽**——拖到一半指针可能离开带子，此时必须保持可见。
+ *
+ * 为什么默认隐藏：页面只比视口高一点点时，拇指按比例会占掉轨道的 80% 以上
+ * （例：1070px 文档 / 900px 视口 → 拇指 702px）。这样一根长条常驻在右侧，
+ * 视觉重量远超它提供的信息量。原生 macOS 覆盖式滚动条也是同样的取舍。
+ *
+ * 非数值一律按"已空闲"处理 —— 宁可少显示，也不要因为 NaN 卡在常显。
+ */
+export function shouldReveal(input: RevealInput): boolean {
+  if (input.dragging || input.pointerInside) return true
+  if (!Number.isFinite(input.idleFor)) return false
+  return input.idleFor < input.idleDelay
+}
