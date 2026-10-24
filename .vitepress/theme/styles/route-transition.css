@@ -1,0 +1,155 @@
+/* =========================================================
+   页面切换过渡（View Transitions）
+   ---------------------------------------------------------
+   由 `support/route-transition.ts` 通过 `document.startViewTransition()`
+   启动，这里只负责"新旧两张快照之间怎么交错"。
+
+   为什么单独一个文件而不是塞进 base.css：
+   它是一层**全局动画层**，和其他所有样式都不同类（不针对任何组件），
+   而且它有一个很容易被误伤的坑（见文末的 `view-transition-name` 说明）。
+   独立成文件 + 独立成节，是为了让人在改它之前先读到那段。
+
+   ---------- 命名 ----------
+   浏览器会为新旧快照各生成一对伪元素：
+     ::view-transition-old(root)  旧页面截图
+     ::view-transition-new(root)  新页面截图
+   默认是两个 `mix-blend-mode: normal` 的图层按 250ms 交叉淡入 —— 
+   时长是 UA 内置的，改不了，必须自己写动画。
+   ========================================================= */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  /*
+   * 关掉 UA 默认的缩放/位移：默认动画带有轻微的 `scale`，
+   * 在文档站里会让整页文字在切换瞬间发虚（文字被缩放会重新栅格化）。
+   */
+  animation: none;
+  /* 快照是像素，不该再被插值模糊 */
+  mix-blend-mode: normal;
+}
+
+/*
+ * 交叉淡入。
+ *
+ * 两个方向**都从透明开始、到不透明结束**，而不是"旧的淡出 + 新的淡入"
+ * 各占一半时间：后者会出现一个"两张都快透明"的中间点，
+ * 整页在那个瞬间发灰发暗，观感像闪了一下。
+ *
+ * 这里让新页面**始终垫在最下层且保持不透明**（`opacity: 1`），
+ * 旧页面在它之上淡出。于是任何一帧的画面都是"两张都可见、且总有一张是实的"，
+ * 不会有灰掉的中间态。
+ *
+ * 顺序不能反：让新的淡入、旧的垫底，就会出现"旧页面透过新页面"的情况
+ * （新页面半透明的那些帧里，看到的是旧内容残影）。
+ */
+::view-transition-old(root) {
+  z-index: 2;
+  animation: vt-fade-out var(--duration-route) var(--ease-in) both;
+}
+
+::view-transition-new(root) {
+  z-index: 1;
+  animation: vt-fade-in var(--duration-route) var(--ease-out) both;
+}
+
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-fade-in {
+  from {
+    opacity: 0;
+    /* 从 0 到 1 看似是"淡入"，但它垫在旧页面之下，
+       实际承担的是"旧页面退场后露出来的底" */
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * ---------- 减少动效：整页交叉淡入必须**完全不启动** ----------
+ *
+ * 注意这不是"把时长压到 0"。`route-transition.ts` 在
+ * `prefers-reduced-motion: reduce` 时压根不调用 `startViewTransition()`，
+ * 所以正常情况下根本不会走到这里。
+ *
+ * 这一段是针对**运行中改变系统设置**的情况：过渡已经启动后读者才切到
+ * reduce，此时动画还在跑。把它压成 0 会让快照瞬间消失 —— 那是正确的。
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms;
+  }
+}
+
+/*
+ * ---------- ⚠️ 不要给任何元素加 view-transition-name ----------
+ *
+ * 有人会想"叫页面内容整体淡入，页头别动"或"让文章标题从旧页飞到新页"，
+ * 于是给 `.site-header` / `.page-title` 加 `view-transition-name`。
+ *
+ * 在这个站上**不要这么做**，有三个具体原因：
+ *
+ * 1. **名字必须唯一**。同一时刻页面上有两个同名元素会让浏览器
+ *    直接放弃整次过渡（`InvalidStateError`），且不报错 —— 
+ *    表现为"过渡时有时无"，极难排查。而本站的 `.page-title`
+ *    在列表页会渲染多次（每张卡片一个 h2）。
+ * 2. **它会脱离 root 快照**，于是变成一个独立的动画图层。
+ *    读者滚动过页面时，页头/固定胶囊/进度条的位置在两张快照里不同，
+ *    飞过去的过程会看到它们"自己滑一段"，比不做更糟。
+ * 3. **本站的开销不划算**：站点只有 5 个页面，交叉淡入已经把
+ *    "换了页"这件事表达清楚了。逐个元素编排属于营销页的需求。
+ *
+ * 结论：只用 `root`，不注册任何命名元素。
+ */
+
+/* =========================================================
+   主题切换过渡
+   ---------------------------------------------------------
+   由 `support/theme-transition.ts` 启动，与页面切换共用同一套
+   `::view-transition-*` 伪元素，但**时长与曲线不同**。
+
+   为什么不能复用上面那两条：
+   页面切换是"内容全变了"，读者预期一个明确的切换动作，150ms 合适；
+   主题切换是"同一份内容换了配色"，读者的视线**没有离开正在读的那段字**，
+   过渡必须更快、更柔，否则会觉得"读着读着画面晃了一下"。
+   ========================================================= */
+
+/*
+ * 主题切换时不需要"旧页面淡出"—— 因为它不是离开，而是变形。
+ * 两个方向都用很短的淡入，靠 `mix-blend-mode: normal` 保证颜色不叠脏。
+ *
+ * `--theme-flip` 由 TS 侧推断存在（与 `THEME_FLIP_MS` 一致）。
+ * 这里直接写字面值 220ms：TS 侧的常量只为"何时 resolve"服务，
+ * CSS 的时长由浏览器执行，两者不需要运行时同步（误差 40ms 内不可感知）。
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-flipping::view-transition-old(root) {
+    animation: vt-theme-old 220ms var(--ease-in-out) both;
+  }
+
+  html.theme-flipping::view-transition-new(root) {
+    animation: vt-theme-new 220ms var(--ease-in-out) both;
+  }
+}
+
+@keyframes vt-theme-old {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-theme-new {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

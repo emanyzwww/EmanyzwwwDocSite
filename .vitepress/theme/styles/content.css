@@ -615,3 +615,183 @@
 .prose .custom-block > * + * {
   margin-top: var(--space-2);
 }
+
+/* ---------- 代码分组（Tab） ----------
+ *
+ * `::: code-group` 是 VitePress 的 Markdown 语法，运行时由
+ * `useCodeGroups()` 接管点击（它只切 `.active` 类，不写任何样式）。
+ *
+ * 也就是说：**样式必须由主题提供，否则就是一排裸的 radio + 无样式标签**。
+ * 本站此前完全没有这段，等于这个语法"能用但一写就难看"。
+ * 补齐它，同时也是为将来「富文本里的 Tab 组件」建立同一套视觉。
+ *
+ * VitePress 输出的结构（**顺序固定，选择器依赖它**）：
+ *
+ *   <div class="vp-code-group">
+ *     <div class="tabs">
+ *       <input type="radio" id="tab-0" checked>   ← 真正的状态机
+ *       <label for="tab-0">pnpm</label>
+ *       <input type="radio" id="tab-1">
+ *       <label for="tab-1">npm</label>
+ *     </div>
+ *     <div class="blocks">
+ *       <div class="language-bash active">…</div>
+ *       <div class="language-bash">…</div>
+ *     </div>
+ *   </div>
+ *
+ * **不需要任何 JS**：`input:checked + label` 就是当前选中项，
+ * 这是纯 CSS 能做到 Tab 的关键（也是 VitePress 采用 radio 的原因）。
+ */
+
+.prose .vp-code-group {
+  margin-block: var(--space-6);
+}
+
+/*
+ * ⚠️ 这两条**必须在**，缺了它就是"所有面板同时显示"。
+ *
+ * 默认主题里这段由 `vp-code-group.css` 提供
+ * （`.vp-code-group div[class*='language-'] { display: none }` + `.active { display: block }`）。
+ * 本站是**完全自定义主题**，没有 `@import` 默认主题的样式 —— 所以这段得自己写。
+ *
+ * 实测漏写时的表现（headless Chrome 验证过）：切到代码分组后两块代码
+ * **上下堆叠同时可见**，点标签只切 `.active` 类却看不出任何变化 ——
+ * 因为两块本来就都显示着。这是最容易被漏掉的一条，因为
+ * "标签样式都对了，但点了没反应"极像 JS 的问题。
+ */
+.prose .vp-code-group > .blocks > div[class*='language-'] {
+  display: none;
+  margin-block: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.prose .vp-code-group > .blocks > div[class*='language-'].active {
+  display: block;
+}
+
+.prose .vp-code-group .tabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) 0;
+  /*
+   * 与代码块同底：标签条是代码块的"标签页头"，不是独立的一块。
+   * 用略亮一档的底色把两段分开（深色下靠亮度差，见 DESIGN.md 6.3）。
+   */
+  background: color-mix(in srgb, var(--bg-code) 88%, var(--white) 12%);
+  border: var(--border-width) solid color-mix(in srgb, currentColor 8%, transparent);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.prose .vp-code-group .tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * radio 本体必须**真正隐藏但不能 display: none**。
+ *
+ * `display: none` 会让输入框不可聚焦 —— 键盘用户就再也切不了标签
+ * （这是很多"美化 radio"的经典 bug）。用绝对定位移出可视区，
+ * 它仍然可聚焦、可被方向键操作。
+ */
+.prose .vp-code-group .tabs input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.prose .vp-code-group .tabs label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  /* 触控目标：标签是代码块的唯一入口，必须够大 */
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--gray-400);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.prose .vp-code-group .tabs label:hover {
+  color: var(--gray-200);
+  background: rgb(255 255 255 / 0.06);
+}
+
+/*
+ * 选中态：文字提亮 + 底部一条 2px 强调色短线。
+ *
+ * 为什么不用"填充整块底色"：代码块本身就是深色，
+ * 填充式选中会让标签条变成一排色块，与"代码块的标签"这个定位不符。
+ * 下划线既轻又明确，且不会与代码内容的行背景混淆。
+ */
+.prose .vp-code-group .tabs input:checked + label {
+  color: var(--gray-100);
+}
+
+.prose .vp-code-group .tabs input:checked + label::after {
+  content: '';
+  position: absolute;
+  right: var(--space-3);
+  bottom: 0;
+  left: var(--space-3);
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--teal-400);
+}
+
+/*
+ * 键盘焦点环。
+ *
+ * radio 被 clip 掉了，浏览器画的焦点环在屏幕外看不见 ——
+ * 必须把焦点指示**转移到 label 上**。用 `:focus-visible + label`
+ * 只在键盘操作时出现，鼠标点击不会留下一个环。
+ */
+.prose .vp-code-group .tabs input:focus-visible + label {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-code),
+    0 0 0 4px var(--accent);
+}
+
+/*
+ * 面板切换：淡入。
+ *
+ * `display` 从 `none` 变 `block` 无法过渡，所以淡入只能靠动画 ——
+ * 每次切到它时重新播放（浏览器会在元素参与布局后启动动画）。
+ * 只做透明度，不加位移：代码块移动会让读者丢失行位置。
+ */
+.prose .vp-code-group > .blocks > div[class*='language-'].active {
+  animation: code-tab-in var(--duration-fast) var(--ease-out);
+}
+
+@keyframes code-tab-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prose .vp-code-group > .blocks > div[class*='language-'].active {
+    animation: none;
+  }
+}

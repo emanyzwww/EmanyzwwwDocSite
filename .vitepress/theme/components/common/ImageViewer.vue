@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useImageViewer } from '../../composables/useImageViewer'
+import { usePresence } from '../../composables/usePresence'
 import { format, useI18n } from '../../i18n'
 import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
 import AppIcon from '../common/AppIcon.vue'
@@ -53,6 +54,9 @@ const {
   zoomByWheel,
   setScale,
   STEP_RATIO,
+  origin,
+  clearOrigin,
+  fitted,
 } = useImageViewer()
 
 /** 焦点陷阱的根：必须是舞台而不是整个对话框（见下方 `watch`）。 */
@@ -60,6 +64,32 @@ const frameEl = ref<HTMLElement | null>(null)
 const stageEl = ref<HTMLElement | null>(null)
 const closeEl = ref<HTMLButtonElement | null>(null)
 const imageEl = ref<HTMLImageElement | null>(null)
+
+/**
+ * 进出状态机。
+ *
+ * 旧实现 `v-if="isOpen"`：关闭瞬间节点就没了，退出动画来不及开始
+ * （实测关闭后同帧 `document.querySelector('.lightbox')` 即为 null）。
+ * 现在 DOM 多留 `LIGHTBOX_EXIT_MS`（280ms），这段时间用来播"缩回原图位置"。
+ */
+/**
+ * 进出状态机。
+ *
+ * 旧实现 `v-if="isOpen"`：关闭瞬间节点就没了，退出动画来不及开始
+ * （实测关闭后同帧 `document.querySelector('.lightbox')` 即为 null）。
+ * 现在 DOM 多留一段时间，用来播"缩回原图位置"。
+ *
+ * ⚠️ **时长必须 ≥ FLIP 的 260ms，不能沿用默认的 `EXIT_MS`（160ms）。**
+ * 查看器退出时图片要缩回正文里那张缩略图的位置，这段 FLIP 比遮罩淡出长。
+ * 若按默认 160ms 摘掉 DOM，FLIP 只播了六成、图片在半透明状态下突然消失 ——
+ * 观感是"闪一下没了"，比不做还差。
+ *
+ * 取 280ms（FLIP 260 + 一帧余量）：遮罩的 160ms 淡出会先结束，
+ * 于是收尾阶段只剩图片在飞回去，这正好是想要的主次关系。
+ */
+const FLIP_MS = 260
+const LIGHTBOX_EXIT_MS = 280
+const { present, exiting } = usePresence(isOpen, LIGHTBOX_EXIT_MS)
 
 /** 焦点陷阱清理函数。 */
 let releaseTrap: (() => void) | null = null
@@ -123,6 +153,49 @@ const imageTransform = computed(() => ({
   transform: `translate3d(${translate.value.x}px, ${translate.value.y}px, 0) scale(${scale.value})`,
 }))
 
+/**
+ * 图片的显示尺寸。
+ *
+ * ---------- 为什么必须显式给 width/height ----------
+ *
+ * CSS 里是 `max-width: 100%; max-height: 100%; width: auto; height: auto`
+ * —— 这套写法**只会缩小、不会放大**（`max-*` 的上限不构成尺寸）。
+ * 而查看器是渐进加载的：先到位的是 672 档缩略图，原图随后替换。
+ *
+ * 于是出现一个实测到的复合 bug：
+ *
+ * | 时刻       | 加载的是 | `offsetWidth` | 后果 |
+ * |------------|----------|---------------|------|
+ * | 缩略图到位 | 672px    | 672           | FLIP 算 `672/672 = 1`，**缩放失效** |
+ * | 原图到位   | 1672px   | 1440          | 布局尺寸跳变，图片"啪"地变大 |
+ *
+ * 两个症状同一个根因：**元素尺寸跟着"当前加载的那张图"走**。
+ *
+ * 修法是把尺寸钉在 `fitted`（由 `current.intrinsic` 算出的最终显示尺寸）上，
+ * 从打开的第一帧就是终值 —— 与正在加载哪张图完全无关。
+ *
+ * 只在舞台已经量过（`stage.width > 0`）时才写内联尺寸：
+ * 挂载的第一帧舞台还是 0，这时写了会把图片压成 0×0。
+ */
+const imageSize = computed<{ width?: string; height?: string }>(() => {
+  if (!stage.value.width || !stage.value.height) return {}
+  if (!fitted.value.width || !fitted.value.height) return {}
+  return {
+    width: `${fitted.value.width}px`,
+    height: `${fitted.value.height}px`,
+  }
+})
+
+/**
+ * 当前图片的 `transform` 字符串（给 Web Animations 用作终态）。
+ *
+ * 动画的终态必须和元素**此刻的内联 transform 完全一致**，
+ * 否则动画结束的瞬间会闪一下（Web Animations 结束后控制权交回内联样式）。
+ */
+function currentTransform(): string {
+  return `translate3d(${translate.value.x}px, ${translate.value.y}px, 0) scale(${scale.value})`
+}
+
 /** 计数文案：`2 / 8`。可见但不给读屏读（语义由 role=status 播报）。 */
 const counterText = computed(() => `${index.value + 1} / ${total.value}`)
 
@@ -178,20 +251,53 @@ watch(isOpen, async (open) => {
     closeEl.value?.focus()
     measureStage()
   } else {
-    releaseScrollLock()
     releaseTrap?.()
     releaseTrap = null
     document.removeEventListener('keydown', onGlobalKeydown, true)
     /*
-     * 焦点还给触发元素，且 `preventScroll`。
+     * 退出：图片缩回它在正文里的位置。
      *
-     * 不 preventScroll 的话，从长文中段打开查看器再关闭，页面会跳回顶部
-     * （浏览器的默认滚动到焦点行为）。`MobileNav` 当初也踩过这一处。
+     * 在 `isOpen` 变 false 的此刻播，而不是等 DOM 移除 ——
+     * 因为 `usePresence` 会再留 `LIGHTBOX_EXIT_MS`（280ms），这段时间是给 FLIP
+     * **和**遮罩淡出共用的时间轴。FLIP 是 260ms，遮罩是 160ms ——
+     * 遮罩先结束，收尾只剩图片在飞回去。
      */
-    previousFocus?.focus({ preventScroll: true })
-    previousFocus = null
+    playFlipOut()
+    flipPlayed = false
+    /*
+     * 滚动锁与焦点归还**都推迟到退出动画结束**（见下方 `watch(present)`）。
+     *
+     * 若在这里立刻还焦点：`previousFocus.focus({preventScroll:true})` 会把焦点
+     * 移到正文里那张图上，而遮罩还在屏幕上淡出 160ms —— 焦点已经跑到浮层外面，
+     * 焦点陷阱也已解除，此刻按 Tab 会直接跳到被遮住的页面上。
+     */
   }
 })
+
+/**
+ * 退出动画结束、DOM 真正摘掉时才放锁、还焦点、清 FLIP 起点。
+ *
+ * 这是"进有动画、出是瞬断"那次改造的收尾：`v-if` 挂在 `present` 上，
+ * 关闭后节点还会存在 `LIGHTBOX_EXIT_MS`（280ms）—— 那段时间里它仍在屏幕上，
+ * 所以锁与焦点都必须继续"属于"它。
+ */
+watch(
+  present,
+  (isPresent) => {
+    if (isPresent) return
+    releaseScrollLock()
+    previousFocus?.focus({ preventScroll: true })
+    previousFocus = null
+    /*
+     * 节点即将被摘掉：先停掉 FLIP，否则动画对象还会持有一个已脱离文档的
+     * 元素引用（Chromium 会在 `fill: forwards` 下继续合成这个元素）。
+     */
+    flipAnimation?.cancel()
+    flipAnimation = null
+    clearOrigin()
+  },
+  { flush: 'sync' },
+)
 
 /** 舞台尺寸变化（窗口缩放 / 横竖屏切换）后重算平移边界。 */
 function measureStage(): void {
@@ -199,6 +305,142 @@ function measureStage(): void {
   if (!element) return
   const rect = element.getBoundingClientRect()
   stage.value = { width: rect.width, height: rect.height }
+}
+
+/* ------------------------------------------------------------------ *
+ * FLIP：图片从被点击的位置长出来 / 缩回去
+ * ------------------------------------------------------------------ *
+ *
+ * ---------- 为什么用 Web Animations 而不是 CSS 类 + keyframes ----------
+ *
+ * FLIP 的起止值是**运行时测量**出来的（依赖点击位置、图片 fit 后尺寸、
+ * 当前缩放倍率），没法写成静态 keyframes。CSS 自定义属性可以传值，
+ * 但有两个问题：
+ *
+ * 1. 自定义属性在动画中不会逐帧插值（除非用 `@property` 声明类型，
+ *    而声明之后又要在每个用到的地方维护类型）；
+ * 2. 进入与退出的起点/终点不同，得写两套 keyframes + 一套变量，
+ *    可读性反而更差。
+ *
+ * `element.animate()` 直接用真实数值插值，一次测量、一次调用，
+ * 而且 `animation.finished` 是 promise —— 天然与 `usePresence` 的时序对齐。
+ *
+ * ---------- 为什么对 `transform` 做动画而不是改 width/height ----------
+ *
+ * 改尺寸会触发布局，整个舞台每帧重排；`transform` 只走合成层。
+ * 代价是**缩放中的图片会有点糊**（被放大的位图），但那正是
+ * "从缩略图放大"的视觉预期，不是缺陷。
+ *
+ * ---------- 退出为什么不用 `origin` ----------
+ *
+ * `origin` 是打开那一刻的 rect。读者可能已经在查看器里翻过页、缩放过 ——
+ * 此时"缩回原位置"会缩到**打开时那一张**的位置，而不是当前这张在正文里的
+ * 位置。所以退出时**重新测量**当前这张图在正文里的 rect（见 `triggerRect`）。
+ */
+/** 正在播放的 FLIP 动画（重复触发时先取消，避免两个动画抢同一个元素）。 */
+let flipAnimation: Animation | null = null
+
+/**
+ * 当前这张图在正文里的屏幕矩形（退出用）。
+ *
+ * 找不到时返回 null（例如读者已经滚走、或图片被 CSS 隐藏）——
+ * 那时退化成整体淡出，不做缩放。
+ */
+function triggerRect(): { x: number; y: number; width: number; height: number } | null {
+  const img = current.value?.trigger?.querySelector('img')
+  if (!img) return null
+  const rect = img.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+}
+
+/**
+ * 计算「fit 后图片」在屏幕上的矩形。
+ *
+ * 舞台是居中容器，图片按 `fitted` 的尺寸居中 —— 直接量 `<img>` 自己
+ * 最准（它已经应用了 `max-width/max-height` 与当前 `transform` 之外的布局尺寸）。
+ * 注意必须**排除当前 transform**：`getBoundingClientRect` 会包含它，
+ * 所以这里用 `offsetWidth/offsetHeight`（布局尺寸，不含 transform，
+ * 但取整到整数像素）配合舞台中心反推。
+ */
+function fittedRect(): { x: number; y: number; width: number; height: number } | null {
+  const image = imageEl.value
+  const element = stageEl.value
+  if (!image || !element) return null
+
+  const stageRect = element.getBoundingClientRect()
+  // offsetWidth/Height 是布局尺寸（不受 transform 影响），但会四舍五入
+  const width = image.offsetWidth
+  const height = image.offsetHeight
+  if (width <= 0 || height <= 0) return null
+
+  return {
+    x: stageRect.x + (stageRect.width - width) / 2,
+    y: stageRect.y + (stageRect.height - height) / 2,
+    width,
+    height,
+  }
+}
+
+/**
+ * 由两个矩形算出 `translate + scale` 的起止关键帧。
+ *
+ * `transform-origin` 是元素中心，所以：
+ *   scale     = from.width / to.width
+ *   translate = from中心 − to中心
+ *
+ * 终止帧必须是元素**当前**的 transform（含平移与缩放），
+ * 否则动画结束交回内联样式时会跳一下。
+ */
+function flipKeyframes(
+  from: { x: number; y: number; width: number; height: number },
+  to: { x: number; y: number; width: number; height: number },
+): [Keyframe, Keyframe] {
+  const ratio = from.width / to.width
+  const dx = from.x + from.width / 2 - (to.x + to.width / 2)
+  const dy = from.y + from.height / 2 - (to.y + to.height / 2)
+
+  const start = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) scale(${ratio.toFixed(4)})`
+  const end = currentTransform()
+
+  return [
+    { transform: start, opacity: 0.6 },
+    { transform: end, opacity: 1 },
+  ]
+}
+
+/** 播放「从正文位置长出来」。进入时调用。 */
+function playFlipIn(): void {
+  const image = imageEl.value
+  const from = origin.value
+  if (!image || !from) return
+  const to = fittedRect()
+  if (!to) return
+
+  flipAnimation?.cancel()
+  flipAnimation = image.animate(flipKeyframes(from, to), {
+    duration: FLIP_MS,
+    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    fill: 'none',
+  })
+}
+
+/** 播放「缩回正文位置」。退出时调用。 */
+function playFlipOut(): void {
+  const image = imageEl.value
+  if (!image) return
+  const to = triggerRect()
+  if (!to) return
+  const from = fittedRect()
+  if (!from) return
+
+  const [startFrame, endFrame] = flipKeyframes(to, from)
+  flipAnimation?.cancel()
+  flipAnimation = image.animate([startFrame, endFrame].toReversed(), {
+    duration: FLIP_MS,
+    easing: 'cubic-bezier(0.55, 0, 0.85, 0.36)',
+    fill: 'forwards',
+  })
 }
 
 /* ------------------------------------------------------------------ *
@@ -554,7 +796,21 @@ function onImageLoad(event: Event): void {
   measureStage()
   // 展示图到位后立刻可以操作；原图仍在后台加载
   originLoaded.value = true
+  /*
+   * FLIP 进入必须在**这里**播，不能挂在 `watch(present)` 上：
+   * 那一刻 `<img>` 还没有尺寸（`offsetWidth === 0`），算不出终点。
+   * 只有 load 之后平台才知道图片的真正显示尺寸。
+   *
+   * 只播一次：`origin` 在退出结束时才清空，但翻页 / 缩放不该重播动画。
+   */
+  if (present.value && origin.value && !flipPlayed) {
+    flipPlayed = true
+    playFlipIn()
+  }
 }
+
+/** FLIP 进入是否已经播过（每打开一次只播一次）。 */
+let flipPlayed = false
 
 function onImageError(): void {
   /*
@@ -661,8 +917,9 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div
-      v-if="isOpen"
+      v-if="present"
       class="lightbox"
+      :class="{ 'is-exiting': exiting }"
       role="dialog"
       aria-modal="true"
       :aria-label="m.imageViewer"
@@ -743,7 +1000,7 @@ onBeforeUnmount(() => {
               ref="imageEl"
               class="lightbox__image"
               :class="{ 'is-gesturing': gesturing }"
-              :style="imageTransform"
+              :style="{ ...imageTransform, ...imageSize }"
               :src="imageSrc"
               :alt="current?.alt ?? ''"
               draggable="false"

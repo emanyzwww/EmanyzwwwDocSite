@@ -38,7 +38,35 @@
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
     env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
-  animation: lb-fade-in var(--duration-normal) var(--ease-out);
+  animation: lb-fade-in var(--duration-enter) var(--ease-out);
+}
+
+/*
+ * ---------- 退出阶段 ----------
+ *
+ * `usePresence` 在关闭时挂 `is-exiting` 并**多留 160ms** 才摘 DOM。
+ * 改造前是 `v-if="isOpen"`，关闭同帧节点就没了 —— 实测
+ * `goneImmediately: true`，退出动画一帧都来不及跑。
+ *
+ * 退出时长比进入短（160 vs 220）：读者已经决定离开，慢就是拖沓。
+ * 曲线换成 `--ease-in`（慢起快收），与进入的 `--ease-out` 相反 ——
+ * 这样"退场"读起来是主动撤走，而不是"被掐断"。
+ */
+.lightbox.is-exiting {
+  pointer-events: none;
+}
+
+.lightbox.is-exiting .lightbox__scrim {
+  animation: lb-fade-out var(--duration-exit) var(--ease-in) both;
+}
+
+/* 顶栏 / 底栏 / 缩略图条一起淡出，只比遮罩略快一点，避免"控件先走、黑底还在" */
+.lightbox.is-exiting .lightbox__bar,
+.lightbox.is-exiting .lightbox__strip,
+.lightbox.is-exiting .lightbox__nav,
+.lightbox.is-exiting .lightbox__status,
+.lightbox.is-exiting .lightbox__hint {
+  animation: lb-fade-out calc(var(--duration-exit) - 40ms) var(--ease-in) both;
 }
 
 /*
@@ -445,6 +473,12 @@ a.lightbox__action {
   }
 }
 
+@keyframes lb-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes lb-turn-next {
   from {
     opacity: 0;
@@ -498,7 +532,13 @@ a.lightbox__action {
   .lightbox__fig,
   .lightbox__image,
   .lightbox__thumb,
-  .lightbox__hint {
+  .lightbox__hint,
+  .lightbox.is-exiting .lightbox__scrim,
+  .lightbox.is-exiting .lightbox__bar,
+  .lightbox.is-exiting .lightbox__strip,
+  .lightbox.is-exiting .lightbox__nav,
+  .lightbox.is-exiting .lightbox__status,
+  .lightbox.is-exiting .lightbox__hint {
     animation: none !important;
     transition: none !important;
   }

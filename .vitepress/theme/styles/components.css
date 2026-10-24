@@ -191,10 +191,18 @@
   box-shadow: var(--shadow-md);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-4px);
+  transform: translateY(-4px) scale(0.96);
+  /*
+   * 向下菜单：从上边缘"长出来"。
+   *
+   * `transform-origin` 必须指向触发按钮那一侧（右上），否则菜单看起来
+   * 是从面板中心胀开，与"我刚点了右上角那颗按钮"缺少因果联系。
+   * 与搜索面板同理（见 search.css 与 SearchPanel.vue 的 `origin`）。
+   */
+  transform-origin: top right;
   transition:
     opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-spring),
     visibility var(--duration-fast);
   z-index: var(--z-header);
 }
@@ -202,7 +210,7 @@
 .locale-switch[data-open='true'] .locale-switch__menu {
   opacity: 1;
   visibility: visible;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
 }
 
 .locale-switch__menu a,

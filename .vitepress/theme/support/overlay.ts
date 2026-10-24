@@ -30,6 +30,62 @@
  * 桌面不受任何影响。
  */
 
+/* ------------------------------------------------------------------ *
+ * 浮层强制关闭登记表
+ * ------------------------------------------------------------------ */
+
+/**
+ * 所有「模态浮层」的强制关闭函数。
+ *
+ * ---------- 为什么需要它 ----------
+ *
+ * 这是搜索面板一个**真实的 bug**（headless Chrome 实测）：
+ *
+ * 面板里的搜索结果是普通 `<a href>`。VitePress 在 `createRouter()` 里注册了
+ * `window` 上**捕获阶段**的点击委托，会 `preventDefault()` 并改成客户端路由。
+ * 结果就是：页面确实换了，但面板没关、滚动锁也没释放 ——
+ *
+ * ```
+ * panelPresent: true
+ * scrollLocked: true      （html.style.overflow === 'hidden'）
+ * canScroll:    false
+ * ```
+ *
+ * 读者从搜索结果点进文章，看到的是**一个被半透明遮罩盖住、滚不动的新页面**，
+ * 只能按 Esc 才能脱身。原来的实现依赖「点击后整页跳转」来顺带销毁面板，
+ * 而捕获阶段的委托让整页跳转根本没发生。
+ *
+ * 修法不能靠在 `SearchPanel` 里加 `watch(route.path)` 一条路：
+ * 抽屉、目录 sheet、图片查看器有同样的问题（读者在抽屉里点导航项、
+ * 在查看器里点"打开原图"再回来），逐个补 watch 会漏。
+ * 所以统一登记，在**导航前**一次性关干净 —— 这也是 `route-transition.ts`
+ * 里 `onBeforeRouteChange` 要调它的原因。
+ */
+const overlayClosers = new Set<() => void>()
+
+/**
+ * 登记一个浮层的强制关闭函数。
+ *
+ * @returns 注销函数（组件卸载时调用）。
+ *
+ * 登记的应该是「把开关置为 false」的动作，而不是「立刻销毁 DOM」——
+ * 销毁交给 `usePresence` 决定，这样强制关闭时**仍然有退出动画**。
+ */
+export function registerOverlayCloser(closer: () => void): () => void {
+  overlayClosers.add(closer)
+  return () => overlayClosers.delete(closer)
+}
+
+/**
+ * 关闭所有已登记的浮层。由路由切换前调用。
+ *
+ * 幂等且安全：没有浮层时是空操作；已经关掉的浮层再关一次只是把
+ * 同一个 ref 又设一遍 false（Vue 会跳过无变化的赋值）。
+ */
+export function closeAllOverlays(): void {
+  for (const closer of overlayClosers) closer()
+}
+
 let lockCount = 0
 /** 锁定时保存的原滚动位置。 */
 let savedScrollY = 0

@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import { useRoute, useRouter } from 'vitepress'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import { data as searchIndex } from '../../../data/search.data'
+import { usePresence } from '../../composables/usePresence'
 import { format, useI18n } from '../../i18n'
-import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
+import {
+  acquireScrollLock,
+  registerOverlayCloser,
+  releaseScrollLock,
+  trapFocus,
+} from '../../support/overlay'
 import { href } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
@@ -27,6 +34,9 @@ const { m, locale } = useI18n()
 
 const open = defineModel<boolean>('open', { default: false })
 
+const route = useRoute()
+const router = useRouter()
+
 const query = ref('')
 const activeIndex = ref(0)
 const inputEl = ref<HTMLInputElement | null>(null)
@@ -34,6 +44,15 @@ const inputEl = ref<HTMLInputElement | null>(null)
 const panelEl = ref<HTMLElement | null>(null)
 /** 焦点陷阱的清理函数。 */
 let releaseTrap: (() => void) | null = null
+
+/**
+ * 进出状态机。
+ *
+ * `open` 是业务开关（读者视角），`present` / `exiting` 决定 DOM。
+ * 关闭时先让退出动画播完再摘掉节点 —— 旧实现是 `v-if`，关闭即消失，
+ * 实测 `afterImmediate: false`（同帧就没了，退出动画根本来不及开始）。
+ */
+const { present, exiting } = usePresence(open)
 
 /** 当前语言的可搜索页面（中英互不干扰）。 */
 const candidates = computed(() => searchIndex.docs.filter((doc) => doc.locale === locale.value))
@@ -87,6 +106,65 @@ function snippetOf(text: string): string {
   return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`
 }
 
+/**
+ * 面板展开的原点（相对面板自身的百分比），由触发按钮的位置算出。
+ *
+ * ---------- 为什么需要这个 ----------
+ *
+ * 改造前桌面端面板固定 `top: 12vh; left: 50%`，而触发按钮在页头右侧。
+ * 实测两者错开得很远：
+ *
+ * ```
+ * 触发按钮 (1064, 14) 1024×36
+ * 面板     ( 416,108)  608×?     ← 水平差 -440px，垂直差 +94px
+ * ```
+ *
+ * 面板从视口中心凭空出现，读者**看不出它和刚才那个按钮有关系**。
+ * 让面板从按钮所在的那一角展开（`transform-origin` + 轻微 scale），
+ * 这一层因果关系就被补上了 —— 这是"点击搜索框，弹窗之间毫无动画逻辑"
+ * 那条反馈的实质。
+ *
+ * 只在桌面生效。手机端面板贴顶全宽，原点恒为顶部中央（见 search.css），
+ * 那里即使算出来也没有意义（按钮在胶囊里，与面板不在同一平面）。
+ */
+const origin = ref('50% 0%')
+
+/** 把百分比夹在 [0,100]：原点跑到面板外面会让缩放看起来像"从屏幕外飞入"。 */
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value))
+}
+
+/** 触发按钮：`SiteHeader` 的 `.search-trigger`，或移动胶囊里的搜索项。 */
+function computeOrigin(): void {
+  if (typeof document === 'undefined') return
+  // 移动端贴顶全宽：横向原点固定居中，纵向从顶部展开
+  if (window.matchMedia('(max-width: 720px), (pointer: coarse) and (max-height: 500px)').matches) {
+    origin.value = '50% 0%'
+    return
+  }
+
+  const trigger =
+    document.querySelector<HTMLElement>('.search-trigger') ??
+    document.querySelector<HTMLElement>('.m-dock__item[data-action="search"]')
+  const panel = panelEl.value
+  if (!trigger || !panel) {
+    origin.value = '50% 0%'
+    return
+  }
+
+  const t = trigger.getBoundingClientRect()
+  const p = panel.getBoundingClientRect()
+  if (!p.width || !p.height) {
+    origin.value = '50% 0%'
+    return
+  }
+
+  // 用按钮中心作为展开原点
+  const x = ((t.x + t.width / 2 - p.x) / p.width) * 100
+  const y = ((t.y + t.height / 2 - p.y) / p.height) * 100
+  origin.value = `${clampPercent(x).toFixed(1)}% ${clampPercent(y).toFixed(1)}%`
+}
+
 function close(): void {
   open.value = false
 }
@@ -121,8 +199,24 @@ function onInputKeydown(event: KeyboardEvent): void {
     const hit = results.value[activeIndex.value]
     if (!hit) return
     event.preventDefault()
-    // 用整页跳转：搜索结果的落点是任意页面，交给浏览器导航最稳
-    window.location.href = href(hit.url)
+    /*
+     * 用 `router.go()`，**不是** `window.location.href`。
+     *
+     * 旧实现写的是整页跳转，理由写着「搜索结果落点是任意页面，交给浏览器最稳」。
+     * 但那造成了一个读者能直接感知的不一致：
+     *
+     * | 操作              | 导航方式     | 有没有页面过渡 |
+     * |-------------------|--------------|----------------|
+     * | 鼠标点结果        | 客户端路由   | 有             |
+     * | 键盘 Enter        | 整页刷新     | **没有**（白屏）|
+     *
+     * 同一个搜索结果，换一种输入方式就换一套观感。而且整页导航会丢掉
+     * 主题、语言、已加载的搜索索引，退回白屏重来。
+     *
+     * 站内 URL 一定能被 VitePress 路由解析（索引本来就来自构建期的真实页面），
+     * 解析失败时 router 内部有 404 兜底，不存在"整页跳更稳"的问题。
+     */
+    void router.go(hit.url)
   }
 }
 
@@ -147,14 +241,59 @@ watch(open, async (isOpen) => {
     releaseTrap = trapFocus(() => panelEl.value)
     document.addEventListener('keydown', onGlobalKeydown)
     await nextTick()
+    // 必须先渲染再量：`origin` 依赖面板自身的 rect
+    computeOrigin()
     inputEl.value?.focus()
   } else {
-    releaseScrollLock()
+    // 锁在退出动画期间**继续持有**（见下方 `watch(present)`），避免背景跟着滚
     releaseTrap?.()
     releaseTrap = null
     document.removeEventListener('keydown', onGlobalKeydown)
   }
 })
+
+/**
+ * 滚动锁跟随 `present` 而不是 `open`。
+ *
+ * 退出动画 160ms 期间面板还在屏幕上：若在 `open` 变 false 时就解锁，
+ * 那 160ms 里背景可以滚动，读者会看到"面板正在淡出、底下的页面却在滑"。
+ * 锁的真正释放时机是 DOM 被摘掉。
+ */
+watch(
+  present,
+  (isPresent) => {
+    if (!isPresent) releaseScrollLock()
+  },
+  { flush: 'sync' },
+)
+
+/*
+ * 兜底：路由一变就关掉自己。
+ *
+ * 主路径是 `support/route-transition.ts` 在导航前调用 `closeAllOverlays()`
+ * （读者点搜索结果时的实际路径）。这里再加一道，覆盖"面板开着时用浏览器
+ * 前进/后退"——那个路径不走 `onBeforeRouteChange`，登记表不会被调用。
+ *
+ * 少了这道兜底，读者会在新页面看到一个盖住屏幕、滚不动的搜索面板，
+ * 只能靠 Esc 脱身（改造前就是这个症状）。
+ */
+watch(
+  () => route.path,
+  () => {
+    if (open.value) close()
+  },
+)
+
+/*
+ * 登记到"导航前强制关闭"的名单里。
+ *
+ * 这里登记的是**把开关置 false**，不是直接销毁 DOM ——
+ * 销毁交给 `usePresence`，所以强制关闭时依然有退出动画。
+ *
+ * 只在客户端登记：SSR 期间 setup 也会跑，但服务端没有"导航前"这件事，
+ * 登记进模块级集合只会在长期运行的构建进程里越积越多。
+ */
+let unregisterCloser: (() => void) | null = null
 
 /** 面板打开时才监听 Esc，避免抢走页面上其它 Esc 行为。 */
 function onGlobalKeydown(event: KeyboardEvent): void {
@@ -171,9 +310,14 @@ function onShortcut(event: KeyboardEvent): void {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', onShortcut)
+  unregisterCloser = registerOverlayCloser(() => {
+    if (open.value) close()
+  })
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', onShortcut)
     document.removeEventListener('keydown', onGlobalKeydown)
+    unregisterCloser?.()
+    unregisterCloser = null
     // 卸载时必须释放，否则路由跳转销毁面板时锁会残留
     releaseScrollLock()
     releaseTrap?.()
@@ -186,10 +330,16 @@ if (typeof window !== 'undefined') {
   <!-- Teleport 到 body：理由同 MobileNav —— 祖先的 backdrop-filter 会
        为 position: fixed 后代创建包含块，面板会被裁进外壳的尺寸。 -->
   <Teleport to="body">
-    <div v-if="open" class="search" role="dialog" aria-modal="true" :aria-label="m.search">
+    <div
+      v-if="present"
+      class="search"
+      :class="{ 'is-exiting': exiting }"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="m.search">
       <button class="search__scrim" type="button" :aria-label="m.closeMenu" @click="close" />
 
-      <div ref="panelEl" class="search__panel">
+      <div ref="panelEl" class="search__panel" :style="{ transformOrigin: origin }">
         <div class="search__field">
           <AppIcon name="search" />
           <input

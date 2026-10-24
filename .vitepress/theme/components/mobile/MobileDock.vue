@@ -4,8 +4,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { SITE } from '../../../data/site'
 import { useDockState } from '../../composables/useDockState'
+import { usePresence } from '../../composables/usePresence'
 import { useI18n } from '../../i18n'
-import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
+import {
+  acquireScrollLock,
+  registerOverlayCloser,
+  releaseScrollLock,
+  trapFocus,
+} from '../../support/overlay'
 import { href, withLocale } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
@@ -80,6 +86,9 @@ const tocOpen = ref(false)
 const tocSheet = ref<HTMLElement | null>(null)
 let releaseTrap: (() => void) | null = null
 
+/** 进出状态机：关闭时先播退出动画再摘 DOM（见 usePresence）。 */
+const { present: tocPresent, exiting: tocExiting } = usePresence(tocOpen)
+
 function openToc(): void {
   // 打开目录说明用户要找东西了：先把 chrome 恢复，再开 sheet
   reset()
@@ -96,6 +105,9 @@ function closeToc(): void {
  * 用户反馈「抽屉和搜索打开后仍能滑动内容」—— 目录浮层有同一个问题。
  * 这里复用同一把引用计数锁（`support/overlay.ts`），
  * 与抽屉、搜索共享计数，不会互相清锁。
+ *
+ * 释放时机跟着 `tocPresent`（退出动画播完）而不是 `tocOpen`，
+ * 理由同搜索面板：否则淡出的 160ms 里背景可以滚，画面会"半透明 + 底下在动"。
  */
 watch(tocOpen, (isOpen) => {
   if (typeof document === 'undefined') return
@@ -106,11 +118,18 @@ watch(tocOpen, (isOpen) => {
     // 等渲染完再移焦点
     requestAnimationFrame(() => tocSheet.value?.querySelector('a')?.focus())
   } else {
-    releaseScrollLock()
     releaseTrap?.()
     releaseTrap = null
   }
 })
+
+watch(
+  tocPresent,
+  (isPresent) => {
+    if (!isPresent) releaseScrollLock()
+  },
+  { flush: 'sync' },
+)
 
 function goTo(slug: string): void {
   tocOpen.value = false
@@ -176,9 +195,22 @@ function onKeydown(event: KeyboardEvent): void {
   closeToc()
 }
 
+/** 登记表注销函数（`onMounted` 里赋值）。 */
+let unregisterCloser: (() => void) | null = null
+
 onMounted(() => {
   window.addEventListener('scroll', onScrollGuard, { passive: true })
   document.addEventListener('keydown', onKeydown)
+  /*
+   * 登记到"导航前强制关闭"的名单（见 support/overlay.ts）。
+   *
+   * 目录 sheet 里的链接是 `#锚点`，点完不换页面，所以它不需要被导航关掉 ——
+   * 但读者可能从 sheet 里点"回到顶部"后再立刻点胶囊去别的页。
+   * 统一登记，保证任何一次真实导航前都是干净状态。
+   */
+  unregisterCloser = registerOverlayCloser(() => {
+    if (tocOpen.value) closeToc()
+  })
 })
 
 onBeforeUnmount(() => {
@@ -192,6 +224,8 @@ onBeforeUnmount(() => {
   releaseScrollLock()
   releaseTrap?.()
   releaseTrap = null
+  unregisterCloser?.()
+  unregisterCloser = null
 })
 </script>
 
@@ -203,7 +237,13 @@ onBeforeUnmount(() => {
       Teleport 的理由同抽屉：祖先的 backdrop-filter 会为 position: fixed
       后代创建包含块，浮层会被裁进胶囊的尺寸里。
     -->
-    <div v-if="tocOpen" class="m-toc" role="dialog" aria-modal="true" :aria-label="m.openToc">
+    <div
+      v-if="tocPresent"
+      class="m-toc"
+      :class="{ 'is-exiting': tocExiting }"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="m.openToc">
       <button class="m-toc__scrim" type="button" :aria-label="m.closeToc" @click="closeToc" />
 
       <div ref="tocSheet" class="m-toc__sheet">

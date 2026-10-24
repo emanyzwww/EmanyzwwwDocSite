@@ -614,22 +614,160 @@ h2 上方 48px、下方 16px（3:1 比例）——这在视觉上把标题"绑"�
 
 ## 七、动效
 
-| 令牌                | 值                               | 用途                         |
-| ------------------- | -------------------------------- | ---------------------------- |
-| `--duration-fast`   | 120ms                            | 颜色、透明度、悬停           |
-| `--duration-normal` | 200ms                            | 位移、展开、浮层进出         |
-| `--duration-slow`   | 320ms                            | 大面积重排（抽屉、胶囊形变） |
-| `--ease-out`        | `cubic-bezier(0.22, 1, 0.36, 1)` | **进入**：快起慢收，收尾柔软 |
-| `--ease-in-out`     | `cubic-bezier(0.65, 0, 0.35, 1)` | 状态间往返                   |
+### 7.0 时长与曲线的令牌
+
+| 令牌                | 值                                  | 用途                                  |
+| ------------------- | ----------------------------------- | ------------------------------------- |
+| `--duration-fast`   | 120ms                               | 颜色、透明度、悬停                    |
+| `--duration-normal` | 200ms                               | 位移、展开                            |
+| `--duration-slow`   | 320ms                               | 大面积重排（抽屉、胶囊形变）          |
+| `--duration-enter`  | 220ms                               | 浮层**进入**                          |
+| `--duration-exit`   | 160ms                               | 浮层**退出**                          |
+| `--duration-route`  | 150ms                               | 页面切换交叉淡入                      |
+| `--ease-out`        | `cubic-bezier(0.22, 1, 0.36, 1)`    | **进入**：快起慢收，收尾柔软          |
+| `--ease-in`         | `cubic-bezier(0.55, 0, 0.85, 0.36)` | **退出**：慢起快收                    |
+| `--ease-in-out`     | `cubic-bezier(0.65, 0, 0.35, 1)`    | 状态间往返                            |
+| `--ease-spring`     | `cubic-bezier(0.34, 1.32, 0.64, 1)` | 从某点"长出来"的面板（轻微过冲 1.32） |
 
 **规则：**
 
 1. 只动 `transform` / `opacity` / 颜色。**不动** `width` / `height` / `top` / `left`
    （除非没有替代方案，比如胶囊收缩成圆）。
-2. `prefers-reduced-motion: reduce` 下所有时长压到 `0.01ms`，位移动画直接取消。
+2. `prefers-reduced-motion: reduce` 下**显式 `animation: none`**，不要只依赖
+   全局把时长压到 `0.01ms` —— 0.01ms 的动画仍会闪一帧。
 3. **不要给正文加过渡**——文字做动画只会让阅读变慢。
 
-### 7.1 翻页与缩放是两种动效，不要混
+### 7.1 进出必须不对称（本节是"关闭很生硬"的根治）
+
+**进入慢、退出快。** 这不是口味问题，是两种不同的心理状态：
+
+| 方向 | 时长                     | 读者在做什么 | 慢一点意味着 |
+| ---- | ------------------------ | ------------ | ------------ |
+| 进入 | `--duration-enter` 220ms | 等它出现     | 从容、被服务 |
+| 退出 | `--duration-exit` 160ms  | 已经决定离开 | **拖沓**     |
+
+曲线也必须换：进入用 `--ease-out`（快起慢收，"登场"），
+退出用 `--ease-in`（慢起快收，"撤走"）。拿 `--ease-out` 做退出，
+观感是"唰地一下没影了、尾巴还在拖"。
+
+**光有时长不够，还要让 DOM 活到动画播完。** 全站浮层原先都是 `v-if="open"`，
+`open` 变 false 的同一帧节点就被删掉了 —— 退出动画**一帧都来不及开始**。
+实测（headless Chrome）关抽屉、关图片查看器都是 `goneImmediately: true`。
+
+所以统一改用 `composables/usePresence.ts`：业务开关 `open` 与 DOM 存在 `present`
+分成两个状态，关闭时 `present` 再多留 `--duration-exit`。
+
+> ⚠️ `usePresence.ts` 里的 `EXIT_MS` 与 `tokens.css` 的 `--duration-exit`
+> **必须相等**。CSS 决定动画播多久，TS 决定 DOM 留多久。`tests/presence.test.ts`
+> 里有一条断言把这两个数字钉在一起 —— 改一处忘了另一处会立刻变红。
+
+为什么 `usePresence` 必须有超时兜底（`animationend` 不够）：`animationend`
+在四种情况下**不会触发**——reduced-motion 压成 0.01ms、元素被 `display: none`
+（含打印样式）、被父元素的 `animationend` 冒泡混淆、以及退出途中又被打开。
+缺了兜底的后果是元素永久留在树上，表现为"浮层关不掉，只能刷新"。
+
+### 7.2 每个浮层的方向约定
+
+浮层的出场方向必须**指出它从哪来**，否则读者看不出因果关系。
+
+| 浮层             | 从哪来                   | 回哪去       | 实现要点                                  |
+| ---------------- | ------------------------ | ------------ | ----------------------------------------- |
+| 搜索面板（桌面） | **触发按钮所在的那一角** | 缩回同一角   | `transform-origin` 按按钮坐标算，见 7.2.1 |
+| 搜索面板（手机） | 屏幕上方（贴顶全宽）     | 滑回上方     | 贴顶是键盘策略，见 search.css             |
+| 导航抽屉         | 右侧                     | 滑回右侧     | `m-slide-in` / `m-slide-out`              |
+| 目录 sheet       | 下方                     | 滑回下方     | `m-slide-up` / `m-slide-down-out`         |
+| 图片查看器       | **被点那张图的位置**     | 缩回同一位置 | FLIP，见 7.2.2                            |
+| 语言下拉菜单     | 右上角（触发按钮）       | 缩回右上角   | `transform-origin: top right`             |
+
+#### 7.2.1 搜索面板的原点
+
+改造前桌面面板固定 `top: 12vh; left: 50%`，而触发按钮在页头右侧，实测：
+
+```
+触发按钮 (1064, 14) 192×36
+面板     ( 416,108) 608×194    ← 水平差 -440px，垂直差 +94px
+```
+
+面板从视口中心凭空出现，与刚才点的按钮毫无空间联系。现在按按钮坐标算出
+`transform-origin`（夹在面板边界内），面板**从按钮那一角 scale 出来**。
+
+用 `scale` 而不是 `translateY`：位移是"从别处飞来"，缩放是"从这一点长出来"，
+后者才是这里要表达的因果关系。
+
+#### 7.2.2 图片查看器的 FLIP
+
+点图 → 整屏变黑、图出现在正中，读者会丢失"我点的是哪张"的连续性。
+现在图片从被点击的屏幕位置插值到居中（260ms），退出时缩回正文里的位置。
+
+实现要点（`ImageViewer.vue` 的 `playFlipIn` / `playFlipOut`）：
+
+- 用 **Web Animations**（`element.animate()`）而不是 CSS keyframes：
+  起止值是运行时测量出来的，静态 keyframes 写不出来；
+- 进入在 `<img>` 的 `load` 里播 —— 那一刻之前 `offsetWidth` 是 0，算不出终点；
+- 退出**重新测量**正文里那张图的 rect，不复用打开时的坐标：
+  读者可能翻过页，缩回"打开时那一张"的位置是错的；
+- FLIP 只动 `transform`，不动 `width`/`height`（后者每帧触发布局）。
+
+### 7.3 页面切换（View Transitions）
+
+用 `document.startViewTransition()`，接线在 VitePress 的
+`router.onBeforeRouteChange` / `onAfterRouteChange` 上（见
+`support/route-transition.ts`）。这样**所有**导航方式统一：点链接、搜索结果、
+分页、上下篇、浏览器前进后退。
+
+为什么不用 `<Transition>` 包 `<Content>`：`<Content />` 是异步组件，
+`<Transition>` 拿不到稳定 key，且会延迟挂载/卸载，打乱 VitePress
+依赖的 `onContentUpdated` 时序。
+
+交叉淡入的做法是**旧页面在上层淡出、新页面垫底保持不透明**：
+
+```css
+::view-transition-old(root) {
+  z-index: 2;
+  animation: vt-fade-out ...;
+}
+::view-transition-new(root) {
+  z-index: 1;
+  animation: vt-fade-in ...;
+}
+```
+
+如果做成"旧的淡出 + 新的淡入"各占一半，中间会有一个两张都快透明的点，
+整页发灰 —— 那正是"闪了一下"的来源。
+
+> ⚠️ **不要给任何元素加 `view-transition-name`。** 名字必须全局唯一，
+> 而本站 `.page-title` 在列表页会渲染多次（每张卡片一个 h2）——
+> 重复名字会让浏览器**静默放弃整次过渡**，表现为"过渡时有时无"。
+> 详见 `route-transition.css` 文末。
+
+### 7.4 主题切换
+
+主题切换是一次**整屏颜色变化**，与页面切换同属"大面积"，但更快更柔
+（220ms，`--ease-in-out`），因为读者的视线没有离开正在读的那段字。
+
+为什么不用"给所有组件加 `transition: background-color`"：那是常驻代价 ——
+`transition` 一旦挂上，滚动、悬停、翻页的所有颜色变化都会走补间，
+读者会明显觉得"悬停变迟钝了"。View Transitions 只在**这一次**变化时生效，
+没有任何常驻开销。
+
+切换前要临时把 `body` 那条 200ms 颜色过渡置为 `none`，
+否则两个动画叠加会让画布在淡入结束后再变一次（闪两下）。
+
+### 7.5 目录锚点滚动
+
+`html { scroll-behavior: smooth }` **管不到锚点点击**：VitePress 的
+`scrollTo()` 只在「目标距当前位置不到一屏」时才平滑，其余硬跳。
+而目录的作用恰恰是跨章节跳转，所以实测点目录永远是硬跳。
+
+`support/anchor-scroll.ts` 在**捕获阶段**接管目录链接与标题锚点，
+自己算「文档位置 − `--anchor-offset`」再平滑滚动。必须抢在 VitePress 的
+委托之前 —— 它是捕获阶段注册的，冒泡阶段处理已经太晚。
+
+顶部留白读 `--anchor-offset`（与 `scroll-padding-top` 同源）。
+注意 `getComputedStyle` 对自定义属性返回的是**未解析的 `calc()` 原文**，
+所以解析函数有回退（见 `parseAnchorOffset`，已单测）。
+
+### 7.6 翻页与缩放是两种动效，不要混
 
 图片查看器里同时存在两种"图片在动"：
 
@@ -735,6 +873,7 @@ h2 上方 48px、下方 16px（3:1 比例）——这在视觉上把标题"绑"�
 | 标签 `.tag`           | `--bg-surface-alt` | 无                    | `full`    | ❌      | `2px 12px`      |
 | 行内代码              | `--bg-inset`       | 无                    | `xs` 6px  | ❌      | `2px 6px`       |
 | 代码块                | `--bg-code`        | 无                    | `md` 14px | ❌      | `16px`          |
+| 代码分组标签条        | 代码底 + 12% 白    | `1px` 8% 当前色       | 上 `md`   | ❌      | `4px 8px 0`     |
 | 正文图片              | —                  | `1px` 8% 当前色       | `md` 14px | ❌      | —               |
 | 页头                  | 画布 85% + blur    | `1px` 下边框          | 0         | ❌      | `--space-8`     |
 | 页脚                  | `--bg-surface`     | `1px` 上边框          | 0         | ❌      | `--space-8`     |
@@ -746,6 +885,29 @@ h2 上方 48px、下方 16px（3:1 比例）——这在视觉上把标题"绑"�
 > 图片查看器圆角为 0 是刻意的：满屏遮罩圆角会在四角露出底下的页面，
 > 读者一眼就看出"这是个盒子"，而不是"整屏进入了看图模式"。
 > 真正需要圆角的是查看器**内部**的图片（但那里也是 0 —— 圆角会切掉画面四角）。
+
+### 10.1 动效一览（各组件用什么进出）
+
+方向约定见 7.2。这张表是"改某个组件时该去哪个文件找动画"的索引。
+
+| 组件              | 进入                 | 退出                  | 文件                               |
+| ----------------- | -------------------- | --------------------- | ---------------------------------- |
+| 搜索面板（桌面）  | `search-grow` 缩放   | `search-shrink`       | `search.css`                       |
+| 搜索面板（手机）  | `search-slide-down`  | `search-slide-up-out` | `search.css`                       |
+| 遮罩（搜索）      | `search-fade`        | `search-fade-out`     | `search.css`                       |
+| 导航抽屉          | `m-slide-in`         | `m-slide-out`         | `mobile.css`                       |
+| 目录 sheet        | `m-slide-up`         | `m-slide-down-out`    | `mobile.css`                       |
+| 遮罩（抽屉/目录） | `m-fade-in`          | `m-fade-out`          | `mobile.css`                       |
+| 图片查看器        | `lb-fade-in` + FLIP  | `lb-fade-out` + FLIP  | `lightbox.css` / `ImageViewer.vue` |
+| 查看器翻页        | `lb-turn-next/prev`  | —                     | `lightbox.css`                     |
+| 语言下拉          | 位移 + `scale(0.96)` | 反向（`visibility`）  | `components.css`                   |
+| 代码分组切换      | `code-tab-in`        | —                     | `content.css`                      |
+| 页面切换          | `vt-fade-in`         | `vt-fade-out`         | `route-transition.css`             |
+| 主题切换          | `vt-theme-new`       | `vt-theme-old`        | `route-transition.css`             |
+| 滚动条显隐        | 透明度（120/200ms）  | 同左                  | `base.css`                         |
+
+> 除滚动条与下拉菜单（纯 CSS 状态切换），其余进出都由
+> `usePresence` 保证 DOM 活到动画播完。
 
 ---
 

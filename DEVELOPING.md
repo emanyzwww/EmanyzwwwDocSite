@@ -108,10 +108,10 @@ Vue 组件  ──►  HTML（图片已是 <figure>，点击由 useImageViewer �
 ├─ cache/                 Vite 依赖缓存 + 图片转码缓存（gitignore）
 │
 └─ theme/                 运行期代码（浏览器）
-   ├─ index.ts            主题入口：引样式 + 复制按钮本地化
+   ├─ index.ts            主题入口：引样式 + 路由过渡 + 锚点滚动 + 复制按钮本地化
    ├─ Layout.vue          ★ 按 frontmatter.layout 分发页面组件
    ├─ i18n/               界面文案（zh-cn / en / index）
-   ├─ composables/        组合式函数：文章、标签、分页、目录高亮、进度条、语言、移动端状态、图片查看器
+   ├─ composables/        组合式函数：文章、标签、分页、目录高亮、进度条、语言、移动端状态、图片查看器、★ 浮层进出状态机（usePresence）
    ├─ components/
    │  ├─ pages/           ★ 六个页面级组件（Home/Posts/Doc/Tags/Tag/NotFound）
    │  ├─ layout/          外壳：PageShell、TwoColumn、ThreeColumn
@@ -121,8 +121,8 @@ Vue 组件  ──►  HTML（图片已是 <figure>，点击由 useImageViewer �
    │  ├─ tag/             标签云、标签分组、其他标签
    │  ├─ aside/           侧栏：容器 + 7 个卡片组件（注册表里可选 4 种）
    │  └─ common/          图标、空状态、进度条、★ 图片查看器（ImageViewer）
-   ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动、浮层（滚动锁 / 焦点陷阱）
-   └─ styles/             12 个分层样式（含 lightbox.css）
+   ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动、浮层（滚动锁 / 焦点陷阱 / 关闭登记表）、★ 路由过渡、★ 锚点滚动、★ 主题过渡
+   └─ styles/             13 个分层样式（含 lightbox.css 与 route-transition.css）
 
 docs/                      ← 只有内容
 ├─ zh-cn/                 中文站（URL `/zh-cn/`）
@@ -623,24 +623,25 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 实测：`content.css` 里有 67 处 `.prose`，**没有任何一条规则能影响
 `.prose` 之外的元素**。
 
-### 十二个样式文件的职责
+### 十三个样式文件的职责
 
 顺序在 `styles/index.css` 里，后面的能覆盖前面的。
 
-| 文件             | 管什么                                                      | 什么时候进这里改             |
-| ---------------- | ----------------------------------------------------------- | ---------------------------- |
-| `tokens.css`     | 全部设计变量（含 z 轴阶梯、浮层色、安全区与停靠高度）       | 换色、换圆角、换字号、换间距 |
-| `base.css`       | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接       | 调基础排版、改滚动条         |
-| `layout.css`     | 容器、两栏/三栏网格、粘性侧栏、断点                         | 改整体骨架、侧栏宽度         |
-| `components.css` | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态  | 改页头页脚、按钮样式         |
-| `content.css`    | **正文专属**：标题、段落、列表、引用、表格、代码块、图片    | 改文章正文观感               |
-| `posts.css`      | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404 | 改列表和文章页               |
-| `widgets.css`    | 资料卡、自定义卡片、标签云、标签分组、其他标签              | 改侧栏卡片                   |
-| `mobile.css`     | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局        | 改移动端交互                 |
-| `search.css`     | 全站搜索面板                                                | 改搜索面板                   |
-| `lightbox.css`   | 图片查看器（满屏浮层，与搜索同一类）                        | 改查看器                     |
-| `print.css`      | 打印样式                                                    | 调打印                       |
-| `index.css`      | `@import` 汇总，别放规则                                    | 加新样式文件时登记           |
+| 文件                   | 管什么                                                             | 什么时候进这里改             |
+| ---------------------- | ------------------------------------------------------------------ | ---------------------------- |
+| `tokens.css`           | 全部设计变量（含 z 轴阶梯、浮层色、动效时长曲线、安全区）          | 换色、换圆角、换字号、换间距 |
+| `base.css`             | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接              | 调基础排版、改滚动条         |
+| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点                                | 改整体骨架、侧栏宽度         |
+| `components.css`       | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态         | 改页头页脚、按钮样式         |
+| `content.css`          | **正文专属**：标题、段落、列表、引用、表格、代码块、代码分组、图片 | 改文章正文观感               |
+| `posts.css`            | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404        | 改列表和文章页               |
+| `widgets.css`          | 资料卡、自定义卡片、标签云、标签分组、其他标签                     | 改侧栏卡片                   |
+| `mobile.css`           | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局               | 改移动端交互                 |
+| `search.css`           | 全站搜索面板                                                       | 改搜索面板                   |
+| `lightbox.css`         | 图片查看器（满屏浮层，与搜索同一类）                               | 改查看器                     |
+| `route-transition.css` | 页面切换与主题切换的 `::view-transition-*`                         | 改整页过渡                   |
+| `print.css`            | 打印样式                                                           | 调打印                       |
+| `index.css`            | `@import` 汇总，别放规则                                           | 加新样式文件时登记           |
 
 > **`content.css` 必须排在 `posts.css` 之前。**
 > `posts.css` 里有一条 `.prose h2` 的移动端缩小规则，需要压过
@@ -648,6 +649,10 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 >
 > **`lightbox.css` 要排在 `mobile.css` 之后**：查看器里有几条移动端规则
 > （藏左右按钮、藏文件名）需要压过 `mobile.css` 的通用规则。
+>
+> **`route-transition.css` 放在 `lightbox.css` 之后、`print.css` 之前**：
+> 它是全局动画层，只处理伪元素，与任何组件规则都不冲突，
+> 但必须早于 `print.css`（打印时整页过渡毫无意义）。
 
 ### 响应式断点
 
@@ -670,6 +675,35 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 1. 在 `styles/` 下建 `xxx.css`
 2. 在 `styles/index.css` 里按顺序 `@import './xxx.css';`
 3. 位置决定优先级——放 `print.css` 前面
+
+### 动效层（要动动画时先读这一节）
+
+动效是**一套横跨多文件的能力**，不是某个样式文件里的一堆 `@keyframes`。
+规范在 `DESIGN.md` 第七节，这里是实现索引。
+
+**三个必须知道的机制：**
+
+| 机制         | 文件                                         | 作用                                                              |
+| ------------ | -------------------------------------------- | ----------------------------------------------------------------- |
+| 进出状态机   | `composables/usePresence.ts`                 | `v-if` 不能挂在业务开关上（否则退出动画没地方播），改挂 `present` |
+| 导航前关浮层 | `support/overlay.ts` 的 `closeAllOverlays()` | 修过"点搜索结果后面板不关、滚不动"的 bug                          |
+| 页面过渡     | `support/route-transition.ts`                | 接在 VitePress router 钩子上，所有导航方式统一                    |
+
+**给新浮层加进出动画的步骤：**
+
+1. 用 `usePresence(open)` 拿到 `present` / `exiting`；
+2. 模板改成 `v-if="present"` + `:class="{ 'is-exiting': exiting }"`；
+3. 进入动画挂在基础选择器上，退出动画挂在 `.is-exiting` 后裔上；
+4. 滚动锁与焦点归还**移到 `watch(present)`**，不要留在 `watch(open)`；
+5. 在 `support/overlay.ts` 里 `registerOverlayCloser()` 登记（客户端 only）；
+6. `@media (prefers-reduced-motion: reduce)` 里把**进入与退出两条都**列上 `animation: none`。
+
+**⚠️ 两条最容易踩的坑：**
+
+- `EXIT_MS`（`usePresence.ts`）必须等于 `--duration-exit`（`tokens.css`）。
+  CSS 决定动画多长，TS 决定 DOM 留多久，`tests/presence.test.ts` 里有断言钉住。
+- **不要给元素加 `view-transition-name`**。名字必须全局唯一，本站列表页会有
+  多个 `.page-title`，重名会让浏览器**静默放弃整次过渡**（"过渡时有时无"）。
 
 ---
 
@@ -1367,6 +1401,9 @@ pnpm build         # 构建（也会暴露类型问题）
 | `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接       |
 | `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头） |
 | `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关       |
+| `anchor-scroll.test.ts`    | 锚点留白解析（rem/px/calc/非法值）、滚动位置扣减、减少动效  |
+| `presence.test.ts`         | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约           |
+| `overlay-registry.test.ts` | 浮层强制关闭登记表：注册、注销、幂等                        |
 | `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化      |
 
 `scripts.test.ts` 覆盖的是「建错会静默写坏内容」的那批函数：
@@ -1380,6 +1417,12 @@ pnpm build         # 构建（也会暴露类型问题）
 `media-render.test.ts` 用 `tests/fixtures/tiny.png`（400×225）当真实源文件，
 覆盖「哪些图会被提升成 `<figure>`」的边界：行内图、带链接的图、外链、
 多图段落都不提升。
+
+`presence.test.ts` 与 `overlay-registry.test.ts` 保护的是**动效层的两条契约**：
+`v-if` 挂 `present` 之后，DOM 的摘除时机由 `EXIT_MS` 决定（太早摘退出动画播不完，
+太晚摘元素会拦截点击）；浮层登记表则保证导航前一定关干净
+（不关的话会出现"遮罩盖住新页面、滚不动"的实测 bug）。
+`presence.test.ts` 里有一条断言把 `EXIT_MS` 与 `--duration-exit` 钉在一起。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
 `.vitepress/support/urls.ts` 与 `.vitepress/support/locale-paths.ts`，

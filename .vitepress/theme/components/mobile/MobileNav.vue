@@ -4,9 +4,15 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { data as profile } from '../../../data/profile.data'
 import { NAV, SITE } from '../../../data/site'
+import { usePresence } from '../../composables/usePresence'
 import { useI18n } from '../../i18n'
 import { resolveMedia } from '../../support/media'
-import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
+import {
+  acquireScrollLock,
+  registerOverlayCloser,
+  releaseScrollLock,
+  trapFocus,
+} from '../../support/overlay'
 import { feedPath, href, isExternal, stripRouteBase } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 import LocaleSwitch from '../site/LocaleSwitch.vue'
@@ -82,6 +88,9 @@ let previousFocus: HTMLElement | null = null
 /** 焦点陷阱的清理函数。 */
 let releaseTrap: (() => void) | null = null
 
+/** 进出状态机：`present` 决定 DOM，`exiting` 决定退出动画（见 usePresence）。 */
+const { present, exiting } = usePresence(open)
+
 function close(): void {
   open.value = false
 }
@@ -108,14 +117,31 @@ watch(open, (isOpen) => {
     // 等 DOM 渲染完再移焦点，否则元素还不存在
     requestAnimationFrame(() => closeButton.value?.focus())
   } else {
-    releaseScrollLock()
     document.removeEventListener('keydown', onKeydown)
     releaseTrap?.()
     releaseTrap = null
-    previousFocus?.focus()
-    previousFocus = null
+    /*
+     * 焦点与滚动锁都**等退出动画播完**再还（`present` 变 false 时）。
+     *
+     * 若在这里立刻 `previousFocus.focus()`，读屏焦点会先回到汉堡按钮，
+     * 而抽屉还在屏幕上淡出 160ms —— 焦点与视觉对不上。
+     * 更实际的问题是：焦点回到页头后，Tab 顺序会立刻跑回页面，
+     * 而那时抽屉仍在遮挡。锁同理（见 `watch(present)`）。
+     */
   }
 })
+
+/** 退出动画结束、DOM 真正摘掉时才还焦点、放锁。 */
+watch(
+  present,
+  (isPresent) => {
+    if (isPresent) return
+    releaseScrollLock()
+    previousFocus?.focus()
+    previousFocus = null
+  },
+  { flush: 'sync' },
+)
 
 // 客户端路由跳转后自动收起：否则点击导航项会留下一个盖住的抽屉
 watch(
@@ -125,10 +151,20 @@ watch(
   },
 )
 
+/*
+ * 登记到"导航前强制关闭"的名单（见 support/overlay.ts）。
+ *
+ * 抽屉里全是站内导航链接，点击后走**捕获阶段**的客户端路由 ——
+ * 若不在导航前关掉，抽屉会盖在新页面上，读者以为"点了没反应"。
+ * 组件自己那条 `watch(route.path)` 是兜底（覆盖前进/后退），
+ * 这条才是主路径：它在**导航发生前**就把抽屉收掉，退出动画与页面过渡同时开始。
+ */
+let unregisterCloser: (() => void) | null = null
+
 onBeforeUnmount(() => {
   if (typeof document === 'undefined') return
   /*
-   * 必须释放锁：抽屉可能因为路由跳转被直接销毁（`v-if` 跟随 `open`），
+   * 必须释放锁：抽屉可能因为路由跳转被直接销毁（`v-if` 跟随 `present`），
    * 那样 `watch` 的 else 分支不一定会跑到，锁会永久残留 → 页面再也滚不动。
    * `releaseScrollLock` 内部有「计数不小于 0」的保护，重复调用是安全的。
    */
@@ -136,7 +172,15 @@ onBeforeUnmount(() => {
   releaseTrap?.()
   releaseTrap = null
   document.removeEventListener('keydown', onKeydown)
+  unregisterCloser?.()
+  unregisterCloser = null
 })
+
+if (typeof window !== 'undefined') {
+  unregisterCloser = registerOverlayCloser(() => {
+    if (open.value) close()
+  })
+}
 </script>
 
 <template>
@@ -148,7 +192,13 @@ onBeforeUnmount(() => {
     这是 CSS Containment 的已知行为，不是 flex/height 的问题。
   -->
   <Teleport to="body">
-    <div v-if="open" class="m-nav" role="dialog" aria-modal="true" :aria-label="m.menuTitle">
+    <div
+      v-if="present"
+      class="m-nav"
+      :class="{ 'is-exiting': exiting }"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="m.menuTitle">
       <!-- 遮罩：点击关闭。用 button 而不是 div，键盘也能触发 -->
       <button class="m-nav__scrim" type="button" :aria-label="m.closeMenu" @click="close" />
 

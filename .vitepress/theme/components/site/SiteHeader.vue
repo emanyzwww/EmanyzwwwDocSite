@@ -57,6 +57,19 @@ const homeLink = computed(() => href(withLocale('/', locale.value)))
 /** 移动端抽屉开关。 */
 const menuOpen = ref(false)
 
+/**
+ * 搜索面板当前是否打开。
+ *
+ * 由 `PageShell` 通过 prop 传下来：面板是**唯一一份**（挂在壳上），
+ * 而触发按钮在这里 —— 按钮要把 `aria-expanded` 同步成面板的真实状态。
+ *
+ * 改造前按钮没有任何展开状态标记，读屏用户点完搜索框后
+ * 得不到"面板已打开"的反馈（焦点虽然被移进面板，但控件本身没说发生了什么）。
+ */
+defineProps<{
+  searchOpen?: boolean
+}>()
+
 /** 搜索面板开关。面板本身由 `PageShell` 渲染，这里只负责发信号。 */
 const emit = defineEmits<{
   (e: 'search'): void
@@ -111,7 +124,13 @@ watch(
             搜索入口。做成「输入框形状的按钮」：一眼能看出这里能搜，
             同时右侧的快捷键 chip 告诉键盘用户可以去按什么。
           -->
-          <button class="search-trigger" type="button" :aria-label="m.search" @click="openSearch">
+          <button
+            class="search-trigger"
+            type="button"
+            :aria-label="m.search"
+            aria-haspopup="dialog"
+            :aria-expanded="searchOpen ? 'true' : 'false'"
+            @click="openSearch">
             <AppIcon name="search" />
             <span class="search-trigger__text">{{ m.search }}</span>
             <kbd class="search-trigger__kbd">{{ shortcut }}</kbd>

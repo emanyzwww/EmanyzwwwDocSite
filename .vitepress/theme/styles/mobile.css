@@ -163,7 +163,26 @@
   border: 0;
   padding: 0;
   cursor: pointer;
-  animation: m-fade-in var(--duration-normal) var(--ease-out);
+  animation: m-fade-in var(--duration-enter) var(--ease-out);
+}
+
+/*
+ * 退出阶段（见 `composables/usePresence.ts`）。
+ *
+ * `is-exiting` 由状态机挂上，DOM 会再留 160ms 让动画播完。
+ * 退出用 `--ease-in`（慢起快收）：抽屉"退回去"的观感，
+ * 与进入时的 `--ease-out`（快起慢收，"滑出来")正好相反。
+ */
+.m-nav.is-exiting {
+  pointer-events: none;
+}
+
+.m-nav.is-exiting .m-nav__scrim {
+  animation: m-fade-out var(--duration-exit) var(--ease-in) both;
+}
+
+.m-nav.is-exiting .m-nav__panel {
+  animation: m-slide-out var(--duration-exit) var(--ease-in) both;
 }
 
 .m-nav__panel {
@@ -211,7 +230,7 @@
   box-shadow: var(--shadow-xl);
   /* 面板本身**不滚动**，滚动交给中部列表 */
   overflow: hidden;
-  animation: m-slide-in var(--duration-normal) var(--ease-out);
+  animation: m-slide-in var(--duration-enter) var(--ease-out);
 }
 
 /* ---------- ① 顶部：品牌 + 关闭 ---------- */
@@ -525,7 +544,20 @@
   border: 0;
   padding: 0;
   cursor: pointer;
-  animation: m-fade-in var(--duration-normal) var(--ease-out);
+  animation: m-fade-in var(--duration-enter) var(--ease-out);
+}
+
+/* 退出阶段（见 usePresence）：遮罩淡出 + sheet 沿原路滑回下方 */
+.m-toc.is-exiting {
+  pointer-events: none;
+}
+
+.m-toc.is-exiting .m-toc__scrim {
+  animation: m-fade-out var(--duration-exit) var(--ease-in) both;
+}
+
+.m-toc.is-exiting .m-toc__sheet {
+  animation: m-slide-down-out var(--duration-exit) var(--ease-in) both;
 }
 
 .m-toc__sheet {
@@ -542,7 +574,7 @@
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   box-shadow: var(--shadow-lg);
   overscroll-behavior: contain;
-  animation: m-slide-up var(--duration-normal) var(--ease-out);
+  animation: m-slide-up var(--duration-enter) var(--ease-out);
 }
 
 /* 头部固定：标题 + 回到顶部，列表才是可滚区 */
@@ -916,8 +948,22 @@
   }
 }
 
+@keyframes m-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes m-slide-in {
   from {
+    transform: translateX(100%);
+  }
+}
+
+/* 退出沿原路：从右边滑回去（进来时也是从右边） */
+@keyframes m-slide-out {
+  to {
+    opacity: 0;
     transform: translateX(100%);
   }
 }
@@ -928,13 +974,25 @@
   }
 }
 
+/* 目录 sheet 的退出：沿原路从下方滑回（见 MobileDock 的 `.m-toc`） */
+@keyframes m-slide-down-out {
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
 /* 用户要求减少动效时，抽屉直接出现（base.css 里已把 duration 压到 0.01ms，
    这里额外移除位移动画，避免「瞬间闪现」的观感） */
 @media (prefers-reduced-motion: reduce) {
   .m-nav__panel,
   .m-toc__sheet,
   .m-nav__scrim,
-  .m-toc__scrim {
+  .m-toc__scrim,
+  .m-nav.is-exiting .m-nav__panel,
+  .m-nav.is-exiting .m-nav__scrim,
+  .m-toc.is-exiting .m-toc__sheet,
+  .m-toc.is-exiting .m-toc__scrim {
     animation: none;
   }
 }

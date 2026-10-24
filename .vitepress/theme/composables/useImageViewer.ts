@@ -33,6 +33,25 @@ export interface LightboxItem {
   key: string
   /** 触发元素，关闭后焦点要还给它。 */
   trigger: HTMLElement | null
+  /**
+   * **原图**的固有尺寸（来自正文 `<img>` 的 `width`/`height` 属性）。
+   *
+   * 这两个值由构建期的图片管线写入（`media/render.ts` 用 `probe` 读到的
+   * 真实像素），因此**打开查看器之前就知道**，不必等原图加载。
+   *
+   * 为什么必须提前知道，而不是等 `load` 事件：
+   * 查看器是渐进加载的（先放 672 缩略图、再换原图）。若 `fitted` 依赖
+   * `natural`（来自当前加载的那张），那么缩略图到位时 `natural = 672×379`、
+   * 原图到位后变成 `1672×941` —— 元素的布局尺寸会**跳一次**
+   * （实测 672px → 1440px）。
+   *
+   * 这个跳变有两个后果，都是实测到的：
+   * 1. 图片在读者眼前突然变大，像闪了一下；
+   * 2. FLIP 的缩放比算成 `672 / 672 = 1`，**动画等于没做**（缩放失效）。
+   *
+   * 所以尺寸以「原图的固有尺寸」为准，从打开那一刻就是最终值。
+   */
+  intrinsic: { width: number; height: number }
 }
 
 /** 缩放上限的兜底（原图很大时按实际像素算，见 `maxScale`）。 */
@@ -71,6 +90,23 @@ const gesturing = ref(false)
 /** 首次打开才显示键盘提示，用过一次就藏（避免长期占位）。 */
 const hintVisible = ref(true)
 
+/**
+ * 打开时被点击图片在屏幕上的位置（FLIP 起点）。
+ *
+ * ---------- 为什么需要它 ----------
+ *
+ * 改造前点图 → 整屏瞬间变黑、图出现在正中，读者**失去了"我点的是哪张"的
+ * 空间连续性**。这是查看器最缺的一环：画面跳变，而不是"这张图被放大了"。
+ *
+ * 记录点击时那张 `<img>` 的 rect，查看器就能让图片从那个位置/尺寸
+ * 插值到居中的 fit 位置 —— 与 iOS 相册、macOS 预览的行为一致。
+ *
+ * 在 `openLightbox()` 里抓，**必须在开屏之前**：开屏后遮罩会盖住，
+ * 而且 `getBoundingClientRect` 拿到的是被遮罩后（不变，但早了更准，
+ * 也避免依赖"图片还在原位"）。
+ */
+const origin = ref<{ x: number; y: number; width: number; height: number } | null>(null)
+
 const current = computed(() => items.value[index.value] ?? null)
 
 /**
@@ -79,9 +115,21 @@ const current = computed(() => items.value[index.value] ?? null)
  * `natural` 在图片 `load` 之后才有值；在那之前按 1×1 兜底，
  * 避免除零（计算结果只影响缩放边界，不影响布局）。
  */
+/**
+ * 「适应窗口」时的显示尺寸。
+ *
+ * 用 `current.intrinsic`（构建期写入的原图尺寸）而不是 `natural`
+ * （当前实际加载的那张图的尺寸）—— 后者在渐进加载过程中会从
+ * 672 变成 1672，导致布局尺寸跳一次、FLIP 缩放退化成 1。详见
+ * `LightboxItem.intrinsic` 的注释。
+ *
+ * `natural` 只作为兜底：万一某张图没有 `width`/`height` 属性
+ * （例如手工写的 HTML），仍然能在 `load` 之后拿到正确比例。
+ */
 const fitted = computed(() => {
-  const nw = natural.value.width || 1
-  const nh = natural.value.height || 1
+  const item = current.value
+  const nw = item?.intrinsic.width || natural.value.width || 1
+  const nh = item?.intrinsic.height || natural.value.height || 1
   const sw = stage.value.width || 1
   const sh = stage.value.height || 1
   const ratio = Math.min(sw / nw, sh / nh, 1)
@@ -156,6 +204,19 @@ function collectGallery(): LightboxItem[] {
       name: anchor.dataset.originName ?? '',
       key,
       trigger: anchor,
+      /*
+       * 原图固有尺寸：正文 `<img>` 上的 `width`/`height` 属性。
+       *
+       * 构建期的图片管线写的是**原图**尺寸（`media/render.ts` 用 probe
+       * 读到的真实像素），不是 webp 档位尺寸 —— 所以这里拿到的就是
+       * 查看器最终要展示的尺寸，与之后加载哪一张无关。
+       *
+       * 缺失时退回 0，由 `fitted` 再退到 `natural`。
+       */
+      intrinsic: {
+        width: Number(img?.getAttribute('width')) || 0,
+        height: Number(img?.getAttribute('height')) || 0,
+      },
     })
   }
 
@@ -174,9 +235,30 @@ export function openLightbox(trigger?: HTMLElement | null): void {
 
   const element = trigger ?? (document.activeElement as HTMLElement | null)
   const position = element ? gallery.findIndex((item) => item.trigger === element) : 0
+  const resolved = Math.max(0, position)
+
+  /*
+   * 抓 FLIP 起点：被点击那张 `<img>` 的屏幕位置。
+   *
+   * 用 `<img>` 而不是 `<a>`：链接是块级包裹（含 `::after` 缩放徽章），
+   * 尺寸与图片一致，但图片在 `object-fit` 下可能比链接窄，
+   * 取图片的 rect 才是"读者看到的那块像素"。
+   */
+  const picked = gallery[resolved]
+  const img = picked?.trigger?.querySelector('img')
+  if (img) {
+    const rect = img.getBoundingClientRect()
+    // 尺寸为 0 说明元素被隐藏（或还没布局完）：不做 FLIP，退回淡入
+    origin.value =
+      rect.width > 0 && rect.height > 0
+        ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        : null
+  } else {
+    origin.value = null
+  }
 
   items.value = gallery
-  index.value = Math.max(0, position)
+  index.value = resolved
   scale.value = 1
   translate.value = { x: 0, y: 0 }
   natural.value = { width: 0, height: 0 }
@@ -190,6 +272,10 @@ export function openLightbox(trigger?: HTMLElement | null): void {
 export function closeLightbox(): void {
   open.value = false
   // 焦点交还由组件负责（它拿得到 trigger，且知道 DOM 何时还在）
+  /*
+   * FLIP 起点**不能在这里清**：退出动画要用它把图片缩回原位。
+   * 组件在退出动画结束后才清理（见 ImageViewer.vue 的 `watch(present)`）。
+   */
 }
 
 /** 翻页。端点不循环：`disable` 语义比"绕回第一张"更符合导航直觉。 */
@@ -302,6 +388,9 @@ export function useImageViewer() {
     maxScale,
     canActualSize,
     total: computed(() => items.value.length),
+    /** 打开时被点击图片的屏幕位置（FLIP 起点）；退出动画结束后由组件清空。 */
+    origin,
+    clearOrigin,
     // 动作
     open: openLightbox,
     close: closeLightbox,
@@ -334,4 +423,10 @@ export function resetLightboxState(): void {
   failed.value = false
   gesturing.value = false
   hintVisible.value = true
+  origin.value = null
+}
+
+/** 供组件在退出动画结束后清理 FLIP 起点。 */
+export function clearOrigin(): void {
+  origin.value = null
 }

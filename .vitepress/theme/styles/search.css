@@ -11,6 +11,22 @@
   z-index: var(--z-search);
 }
 
+/*
+ * 退出阶段。
+ *
+ * `usePresence` 在关闭时给根节点挂 `is-exiting`，并**多留 160ms** 才摘掉 DOM，
+ * 这段时间就是给退出动画用的。没这一段的话，`v-if` 会在 `open` 变 false 的
+ * 同一帧删掉节点 —— 实测关闭时 `afterImmediate: false`，退出动画根本没机会开始。
+ *
+ * 各个 `animation` 都写成 `xxx var(--duration-exit) var(--ease-in) both`：
+ * - `--ease-in`（慢起快收）是离场曲线，和进入的 `--ease-out` 相反；
+ * - `both` 让动画结束后保持末帧，不会在移除前闪回初始态。
+ */
+.search.is-exiting {
+  /* 根节点本身不参与动画，它只是一个占位容器 */
+  pointer-events: none;
+}
+
 .search__scrim {
   position: absolute;
   inset: 0;
@@ -19,7 +35,11 @@
   border: 0;
   padding: 0;
   cursor: pointer;
-  animation: search-fade var(--duration-normal) var(--ease-out);
+  animation: search-fade var(--duration-enter) var(--ease-out);
+}
+
+.search.is-exiting .search__scrim {
+  animation: search-fade-out var(--duration-exit) var(--ease-in) both;
 }
 
 .search__panel {
@@ -37,7 +57,20 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  animation: search-pop var(--duration-normal) var(--ease-out);
+  /*
+   * `transform-origin` 由 `SearchPanel.vue` 内联写入（按触发按钮的坐标算）。
+   * 这里给一个默认值兜底，避免 SSR 首帧没有内联样式时原点落到 50% 50%
+   * 而导致"从正中间胀开"。
+   *
+   * 进入用 `scale`，不用 `translateY`：位移是"从某处飞来"，会让人以为
+   * 面板原本在别的地方；缩放是"从这一点长出来"，正是这里要表达的因果关系。
+   */
+  transform-origin: 50% 0%;
+  animation: search-grow var(--duration-enter) var(--ease-spring);
+}
+
+.search.is-exiting .search__panel {
+  animation: search-shrink var(--duration-exit) var(--ease-in) both;
 }
 
 /* ---------- 输入区 ---------- */
@@ -228,7 +261,18 @@
     /* 顶部让出状态栏/刘海 */
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: var(--space-2);
-    animation: search-slide-down var(--duration-normal) var(--ease-out);
+    /*
+     * 手机端贴顶全宽，`scale` 在这里没有意义（面板占满宽度，
+     * 从哪儿长出来都看不出来），所以仍然用"从上方滑下"。
+     * 原点也归位到顶部中央 —— 内联样式在窄屏下算出的百分比会让
+     * 全宽面板的缩放看起来像"从屏幕一角斜着胀开"。
+     */
+    transform-origin: 50% 0%;
+    animation: search-slide-down var(--duration-enter) var(--ease-out);
+  }
+
+  .search.is-exiting .search__panel {
+    animation: search-slide-up-out var(--duration-exit) var(--ease-in) both;
   }
 
   .search__item {
@@ -253,10 +297,35 @@
   }
 }
 
-@keyframes search-pop {
+@keyframes search-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * 桌面端进入：**从原点长出来**。
+ *
+ * `translateX(-50%)` 必须保留 —— 它是面板的居中定位，不是动画的一部分。
+ * 只动 `scale` 与 `opacity`，因为 `transform-origin` 已经表达了"从哪来"。
+ *
+ * 起手 `scale(0.96)` 而不是更小：文档站里 0.9 会像"从远处飞近"，
+ * 4% 的收缩只传达"它刚刚被触发"，不会喧宾夺主。
+ *
+ * 曲线用 `--ease-spring`（1.32 的轻微过冲）：面板到达终态时略微顶一下再回落，
+ * 让"弹出"这个动作有个收尾。过冲幅度刻意小 —— 文档站不能有玩具感。
+ */
+@keyframes search-grow {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(-8px);
+    transform: translateX(-50%) scale(0.96);
+  }
+}
+
+@keyframes search-shrink {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.98);
   }
 }
 
@@ -267,9 +336,26 @@
   }
 }
 
+/* 退出时沿原路滑回上方 —— 从哪进来就从哪出去，方向感才连贯 */
+@keyframes search-slide-up-out {
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
+/*
+ * 减少动效：**显式关掉**，而不是靠 base.css 把时长压到 0.01ms。
+ *
+ * 0.01ms 的动画仍会跑一帧，观感是"闪一下"。DESIGN.md 7.1 早就写了这条，
+ * 但之前只有 lightbox 照做，这里补上。三组选择器必须都列全 ——
+ * 包括 `is-exiting` 那两条，否则关掉动画后退出阶段反而会保留末帧不消失。
+ */
 @media (prefers-reduced-motion: reduce) {
   .search__panel,
-  .search__scrim {
+  .search__scrim,
+  .search.is-exiting .search__panel,
+  .search.is-exiting .search__scrim {
     animation: none;
   }
 }

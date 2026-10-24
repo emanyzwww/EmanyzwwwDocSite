@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
   <div class="page-shell">
     <a class="skip-link" href="#main">{{ m.skipToContent }}</a>
 
-    <SiteHeader @search="searchOpen = true" />
+    <SiteHeader :search-open="searchOpen" @search="searchOpen = true" />
 
     <ScrollBar />
 
