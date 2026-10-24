@@ -3,6 +3,8 @@ title: 你好，世界
 date: 2026-10-19T04:09:28+08:00
 tags: ['随笔']
 description: 在搞机这个行业里，每个新手入门必须要经历的一个过程就是——亲手完成一个「hello, world」项目。
+draft: false
+outline: true
 ---
 
 在搞机这个行业里，每个新手入门必须要经历的一个过程就是——亲手完成一个“hello, world”项目。

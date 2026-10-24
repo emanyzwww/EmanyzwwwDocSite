@@ -3,6 +3,8 @@ title: Hello, World
 date: 2026-10-19T04:09:28+08:00
 tags: ['Essay']
 description: Every programmer starts somewhere, and for many, that beginning is a simple program that prints "Hello, World!"
+draft: false
+outline: true
 ---
 
 In the world of computing, writing a "Hello, World!" program is a time-honored first step for beginners. There's something satisfying about writing a few lines of code and watching them work for the very first time.
