@@ -1401,7 +1401,7 @@ pnpm build         # 构建（也会暴露类型问题）
 | `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接       |
 | `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头） |
 | `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关       |
-| `anchor-scroll.test.ts`    | 锚点留白解析（rem/px/calc/非法值）、滚动位置扣减、减少动效  |
+| `anchor-scroll.test.ts`    | 锚点留白解析、滚动扣减、**滚动锁排队**（iOS 真机 bug）      |
 | `presence.test.ts`         | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约           |
 | `overlay-registry.test.ts` | 浮层强制关闭登记表：注册、注销、幂等                        |
 | `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化      |
@@ -1423,6 +1423,12 @@ pnpm build         # 构建（也会暴露类型问题）
 太晚摘元素会拦截点击）；浮层登记表则保证导航前一定关干净
 （不关的话会出现"遮罩盖住新页面、滚不动"的实测 bug）。
 `presence.test.ts` 里有一条断言把 `EXIT_MS` 与 `--duration-exit` 钉在一起。
+
+`anchor-scroll.test.ts` 的后半组守的是**手机上目录跳转失效**那个真机 bug：
+滚动锁持有期间（iOS 下 `body` 被 `position: fixed`）发起的跳转必须**排队**，
+等锁归零后再滚。契约是"锁着时一次都不许滚，解锁后必须滚到正确位置"。
+⚠️ 这个 bug 用普通移动 UA 复现不出来，必须伪装 iPhone UA；
+手动验证见 DESIGN.md 7.5 末尾。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
 `.vitepress/support/urls.ts` 与 `.vitepress/support/locale-paths.ts`，

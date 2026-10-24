@@ -8,6 +8,8 @@ import { usePresence } from '../../composables/usePresence'
 import { useI18n } from '../../i18n'
 import {
   acquireScrollLock,
+  isScrollLocked,
+  onScrollLockRelease,
   registerOverlayCloser,
   releaseScrollLock,
   trapFocus,
@@ -131,7 +133,52 @@ watch(
   { flush: 'sync' },
 )
 
-function goTo(slug: string): void {
+/**
+ * 在滚动锁释放后再执行一次滚动。
+ *
+ * ---------- 为什么不能直接滚 ----------
+ *
+ * 浮层关闭时 `tocOpen` 立刻变 false，但 DOM 还要留 160ms 播退出动画
+ * （`usePresence`），滚动锁也是在 DOM 真正摘掉时才释放。
+ * 那 160ms 里 `html { overflow: hidden }` 仍然生效 —— 而 iOS 上还有
+ * 更硬的一层：`body { position: fixed }`。
+ *
+ * 在这个窗口里调 `window.scrollTo()` 或给 `location.hash` 赋值都是**静默失败**：
+ * 不报错、不滚动。这正是「手机上目录跳转经常失效」的原因
+ * （PC 端目录在侧栏、不持锁，所以永远正常）。
+ *
+ * 所以统一走这里：锁着就排队等释放，没锁就直接滚。
+ */
+function scrollAfterUnlock(run: () => void): void {
+  if (!isScrollLocked()) {
+    run()
+    return
+  }
+  onScrollLockRelease(() => {
+    // 下一帧：那时 body 的 fixed 已还原、布局已重算，量的坐标才对
+    requestAnimationFrame(run)
+  })
+}
+
+/**
+ * 点击目录项时**只关浮层**，不做滚动。
+ *
+ * ---------- 为什么不在这里滚 ----------
+ *
+ * 滚动由 `support/anchor-scroll.ts` 统一负责：它在 `document` 捕获阶段
+ * 接管这次点击，发现滚动锁还没释放（浮层正开着）就把滚动**排队**，
+ * 等浮层真正关闭、锁归零后再执行。
+ *
+ * 第一版这里是 `window.location.hash = slug`，那正是 bug 的来源：
+ * 赋值发生在锁定期间 —— iOS 上 `body { position: fixed }` 会把原生滚动
+ * 整个吞掉，而且**不报错**。于是"点了没反应"，且 PC 端永远复现不出来
+ * （PC 的目录在侧栏、不持锁）。详见 `anchor-scroll.ts` 的 `requestAnchorScroll`。
+ *
+ * 现在的分工：
+ * - 本函数：关浮层 + 抑制阅读态误判；
+ * - `anchor-scroll`：算位置、等锁、滚动、更新 hash（用 replaceState）。
+ */
+function goTo(): void {
   tocOpen.value = false
   /*
    * 跳转后**必须保持展开态**，无论目标在下方还是上方。
@@ -143,16 +190,25 @@ function goTo(slug: string): void {
    *
    * `reset()` 现在带 holdUntil（默认 700ms），足够盖住平滑滚动动画：
    * 期间强制 rest 且不累计位移，动画结束后状态就稳定在展开。
+   *
+   * 注：`holdUntil` 的 700ms 是从**现在**算起，而真正的滚动要等锁释放
+   * （约 160ms 后）才开始 —— 两者相加仍在 700ms 窗口内，够用。
    */
   reset()
-  window.location.hash = slug
 }
 
 function backToTop(): void {
   tocOpen.value = false
   // 同样是程序化滚动：抑制判定，否则平滑上滚会被误判成状态切换
   reset()
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  /*
+   * 回到顶部没有对应的锚点链接，所以不会经过 `anchor-scroll` 的队列，
+   * 必须自己等锁释放 —— 否则浮层还在淡出的 160ms 里这次滚动会被吃掉，
+   * 表现为「点了回到顶部没反应」（和标题跳转同一个 bug）。
+   */
+  scrollAfterUnlock(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  })
 }
 
 /** 目录项：只取 H2/H3，摊平成一级（手机窄，多级缩进会把文字挤没）。 */
@@ -260,7 +316,7 @@ onBeforeUnmount(() => {
 
         <ul class="m-toc__list">
           <li v-for="item in flatOutline" :key="item.slug" :data-level="item.level">
-            <a :href="`#${item.slug}`" @click.prevent="goTo(item.slug)">{{ item.title }}</a>
+            <a :href="`#${item.slug}`" @click.prevent="goTo()">{{ item.title }}</a>
           </li>
         </ul>
       </div>

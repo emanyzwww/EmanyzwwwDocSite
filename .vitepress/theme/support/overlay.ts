@@ -87,6 +87,71 @@ export function closeAllOverlays(): void {
 }
 
 let lockCount = 0
+
+/**
+ * 「锁已全部释放」的订阅者。
+ *
+ * ---------- 为什么需要这个钩子 ----------
+ *
+ * 手机上「点目录项跳转经常失效」是一个真实 bug（iPhone UA 下必现，PC 测不出）：
+ *
+ * 移动端目录是浮层（`.m-toc`）。点目录项时，**锚点跳转发生在浮层还开着的时候**
+ * —— 而浮层持着滚动锁。`acquireScrollLock()` 在 iOS 上有一条专属分支：
+ *
+ * ```js
+ * body.style.position = 'fixed'      // 只有 iOS 走
+ * body.style.top = `-${savedScrollY}px`
+ * ```
+ *
+ * 一旦 body 被固定，`window.scrollTo()` **完全无效**，`location.hash = x`
+ * 触发的原生滚动同样被吞掉。等浮层关掉、锁释放时，那些滚动请求早已作废
+ * —— 读者看到的就是「点了没反应」。
+ *
+ * PC 端目录在侧栏里，不持锁，所以永远正常 —— 这正是"PC 测不出来"的原因。
+ *
+ * 修法：跳转请求在锁定期间**排队**，等锁归零的那一刻再真正滚。
+ * 于是顺序变成「浮层开始关闭 → 关闭动画播完、锁释放 → 滚动」，
+ * 既修了 bug，观感也更对（滚动不会在遮罩还在时从底下窜上去）。
+ */
+const lockReleaseListeners = new Set<() => void>()
+
+/**
+ * 重置全部模块级状态 —— **仅供单测**。
+ *
+ * `lockCount` / `savedStyle` / 订阅者都是模块级单例，这在浏览器里是刻意的
+ * （全站共用一把锁）。但 vitest 在同一进程里跑所有用例，
+ * 一个用例留下的计数会污染下一个（表现为"第一个断言就失败"）。
+ *
+ * 生产代码不要调用它：那会让正在打开的浮层失去锁，页面能滚。
+ * 名字不带下划线前后缀（`resetOverlayStateForTests` 而非 `__reset…`）：
+ * oxlint 的 `no-underscore-dangle` 会对那种命名报警，而为一个测试专用
+ * 函数加 lint 豁免不值得。
+ */
+export function resetOverlayStateForTests(): void {
+  lockCount = 0
+  savedStyle = null
+  savedScrollY = 0
+  lockReleaseListeners.clear()
+}
+
+/** 是否持有滚动锁（有浮层打开时为 true）。 */
+export function isScrollLocked(): boolean {
+  return lockCount > 0
+}
+
+/**
+ * 订阅「锁全部释放」这一次事件。
+ *
+ * @returns 取消订阅函数。
+ *
+ * 注意语义：只触发**一次**（锁归零那一刻），之后自动退订。
+ * 调用方若在等待期间就不再需要了，记得调返回值取消。
+ */
+export function onScrollLockRelease(listener: () => void): () => void {
+  lockReleaseListeners.add(listener)
+  return () => lockReleaseListeners.delete(listener)
+}
+
 /** 锁定时保存的原滚动位置。 */
 let savedScrollY = 0
 let savedStyle: {
@@ -180,6 +245,22 @@ export function releaseScrollLock(): void {
 
   // 固定 body 时页面视觉上回顶了，这里滚回原位
   if (restorePosition) window.scrollTo(0, restorePosition)
+
+  /*
+   * 通知「锁已全部释放」。
+   *
+   * **必须在上面那行 `scrollTo(0, restorePosition)` 之后**：
+   * iOS 路径下我们要先把页面还原到锁定前的位置，再让排队的锚点跳转
+   * 覆盖它。反过来会导致「先跳到目标 → 又被还原回原位」。
+   *
+   * 用 `lockCount === 0` 做守卫（此时必然成立，因为前面已 `return` 掉
+   * 未归零的分支），配合一次性退订，避免重复触发。
+   */
+  if (lockCount === 0 && lockReleaseListeners.size > 0) {
+    const listeners = [...lockReleaseListeners]
+    lockReleaseListeners.clear()
+    for (const listener of listeners) listener()
+  }
 }
 
 /**

@@ -759,13 +759,60 @@ h2 上方 48px、下方 16px（3:1 比例）——这在视觉上把标题"绑"�
 `scrollTo()` 只在「目标距当前位置不到一屏」时才平滑，其余硬跳。
 而目录的作用恰恰是跨章节跳转，所以实测点目录永远是硬跳。
 
-`support/anchor-scroll.ts` 在**捕获阶段**接管目录链接与标题锚点，
-自己算「文档位置 − `--anchor-offset`」再平滑滚动。必须抢在 VitePress 的
-委托之前 —— 它是捕获阶段注册的，冒泡阶段处理已经太晚。
+`support/anchor-scroll.ts` 接管目录链接与标题锚点，自己算
+「文档位置 − `--anchor-offset`」再平滑滚动。
 
 顶部留白读 `--anchor-offset`（与 `scroll-padding-top` 同源）。
 注意 `getComputedStyle` 对自定义属性返回的是**未解析的 `calc()` 原文**，
 所以解析函数有回退（见 `parseAnchorOffset`，已单测）。
+
+#### 为什么必须"晚于" VitePress 执行
+
+一个很自然但**错误**的设想：挂在捕获阶段就能抢在 VitePress 前面。
+不能 —— 两者不在同一个节点上：
+
+```
+VitePress  → window 上的捕获监听（createRouter 里注册）
+本文件     → document 上的捕获监听
+
+传播顺序：window(捕获) → document(捕获) → 目标 → document(冒泡) → window(冒泡)
+                             ↑ 我们在这，永远晚一步
+```
+
+VitePress 会先 `preventDefault()` 并自己 `window.scrollTo(0, y)`。
+所以本文件**故意不检查 `event.defaultPrevented`** —— 后发制人，
+在它之后自己再滚一次，最后一次生效。
+
+> 这一条曾经写反过（加了 `if (event.defaultPrevented) return`），
+> 后果是整个文件从未执行，而 PC 上"看起来正常"是因为 VitePress 的
+> 双参数 `scrollTo` 恰好会吃 `scroll-behavior: smooth`。
+
+#### 滚动锁：手机上必须排队（真机 bug）
+
+**现象**：手机上点目录里的标题「经常性失效」，PC 完全复现不出。
+
+**根因**：移动端目录是浮层，点目录项时浮层还开着 → 持着滚动锁。
+`acquireScrollLock()` 在 iOS 上会额外把 `body` 固定：
+
+```js
+body.style.position = 'fixed'
+body.style.top = `-${savedScrollY}px`
+```
+
+`body` 一固定，`window.scrollTo()` **完全无效**，连 `location.hash = x`
+触发的原生滚动也被吞掉，且**不报错**。等浮层关掉、锁释放时，
+那次滚动请求早已作废。PC 端目录在侧栏、不持锁 → 永远正常。
+这就是"PC 测不出来"的完整解释。
+
+**修法**：`requestAnchorScroll()` 检测到锁就把滚动**排队**，
+订阅 `onScrollLockRelease()`，等 `lockCount` 归零后再执行（再等一帧，
+那时 body 的 `fixed` 已还原、布局已重算）。
+
+顺带修好了「回到顶部」—— 它走同一条路径，之前也会被吞。
+
+> 验证方式：headless Chrome + iPhone UA（`Emulation.setUserAgentOverride`）。
+> 普通移动 UA 复现不出来，**必须伪装成 iOS** 才会走 `body: fixed` 分支。
+> 回归用例见 `tests/anchor-scroll.test.ts` 的「滚动锁与锚点排队」。
 
 ### 7.6 翻页与缩放是两种动效，不要混
 
@@ -1103,3 +1150,9 @@ html {
    接受这个代价，是因为短页上那根拇指会占掉轨道 97% ——
    「一直看得见」的代价比「要点一下才知道」更大（见 11.3）。
    滚动、以及指针靠近右边缘，都会立刻显示它。
+8. **滚动锁在 iOS 上要固定 `body`**：老版本 Safari 不认
+   `html { overflow: hidden }`，只能把 `body` 设成 `position: fixed`。
+   代价是**锁定期间所有程序化滚动都会静默失效**（`window.scrollTo`、
+   甚至 `location.hash` 赋值都被吞，且不报错）。
+   任何"打开浮层 → 顺便滚到某处"的逻辑都必须排队等锁释放
+   （见 7.5）。这个坑只在 iPhone 上显形，PC 与普通移动 UA 都复现不出来。
