@@ -55,4 +55,23 @@ export const zhCN: Messages = {
   // 中文没有单复数变化，与复数形式保持一致即可（但键必须存在，类型会检查）
   termCountOne: '共 {count} 篇文章',
   taxonomyOverviewOne: '全站共有 {count} 个标签，点击任意一个查看相关文章',
+
+  // ---------- 图片查看器 ----------
+  imageViewer: '图片查看器',
+  imageViewerClose: '关闭图片查看器',
+  imageViewerPrevious: '上一张',
+  imageViewerNext: '下一张',
+  imageViewerZoomIn: '放大',
+  imageViewerZoomOut: '缩小',
+  imageViewerFit: '适应窗口',
+  imageViewerActualSize: '实际大小',
+  imageViewerDownload: '下载原图',
+  imageViewerPosition: '第 {current} 张，共 {total} 张',
+  imageViewerPositionWithAlt: '第 {current} 张，共 {total} 张：{alt}',
+  imageViewerThumbs: '缩略图',
+  imageViewerLoading: '图片加载中…',
+  imageViewerFailed: '图片加载失败。',
+  imageViewerRetry: '重试',
+  imageViewerOpenOriginal: '在新标签页打开原图',
+  imageViewerHint: '← → 翻页，+ − 缩放，0 适应窗口，1 实际大小，Esc 关闭',
 }

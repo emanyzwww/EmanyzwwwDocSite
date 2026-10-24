@@ -82,13 +82,18 @@ export default defineLoader({
       const tags = rawTags.filter((tag): tag is string => typeof tag === 'string').join(' ')
 
       /*
-       * 先剥掉 VitePress 的 attrs 语法 `{width=100}` 再压纯文本。
+       * 先剥掉 VitePress 的 attrs 语法 `{width=100}` / `{data-plain}` 再压纯文本。
        *
        * `plainText` 只处理 Markdown 标记，不认识这种属性写法，会把它当正文
        * 原样留下（搜索摘要里就会看到「图 {width=100}」）。
        * 这不是安全题：只是把不该被读到的语法噪音清掉。
+       *
+       * 正则用 `\{[^{}]*\}` 而不是原来的 `\{[^{}]*=[^{}]*\}`：
+       * **无值属性**（`{data-plain}`、`{data-lightbox}`）没有 `=`，
+       * 旧写法漏掉它们，会直接漏进搜索索引（实测过）。
+       * 花括号在正文里极罕见，放宽到「整对花括号」是安全的。
        */
-      const body = doc.body.replace(/\{(?:[^{}]*=[^{}]*)\}/g, ' ')
+      const body = doc.body.replace(/\{[^{}]*\}/g, ' ')
 
       docs.push({
         title,

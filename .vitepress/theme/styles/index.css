@@ -23,6 +23,7 @@
    │  widgets.css   侧栏卡片、标签云
    │  mobile.css    移动端整套（抽屉、胶囊、目录、阅读态）
    │  search.css    全站搜索面板
+   │  lightbox.css  图片查看器（满屏浮层，与搜索同一类）
    │
    └─ ⑤ 输出 ─────────────────────────────────────────────
       print.css     打印样式（覆盖一切）
@@ -31,6 +32,8 @@
    `posts.css` 必须排在 `content.css` **之后** —— 它里面有一条
    `.prose h2` 的移动端缩小规则，提前就会被正文默认值盖掉。
    `mobile.css` 放在最后（print 之前）：它要能覆盖桌面那些「同屏并置」的规则。
+   `lightbox.css` 紧跟 `search.css`：两者都是满屏浮层，且查看器里有几处
+   需要压过 `mobile.css` 的移动端规则，排在它之后最省事。
 
    改动纪律：**只有 content.css 允许写大段 .prose 选择器**；
    需要影响全站的东西请放 base.css 或 tokens.css。
@@ -45,4 +48,5 @@
 @import './widgets.css';
 @import './mobile.css';
 @import './search.css';
+@import './lightbox.css';
 @import './print.css';

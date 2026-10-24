@@ -101,6 +101,11 @@ export type IconName =
   | 'home'
   | 'toc'
   | 'arrow-up'
+  // ---------- 图片查看器 ----------
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'download'
+  | 'fit'
 
 /** 个人资料中的一条社交链接。 */
 export interface ProfileLink {
@@ -268,6 +273,45 @@ export interface Messages {
    */
   termCountOne: string
   taxonomyOverviewOne: string
+
+  // ---------- 图片查看器 ----------
+  /** 查看器的无障碍名（dialog 的 aria-label）。 */
+  imageViewer: string
+  /** 关闭查看器。 */
+  imageViewerClose: string
+  /** 上一张。 */
+  imageViewerPrevious: string
+  /** 下一张。 */
+  imageViewerNext: string
+  /** 放大。 */
+  imageViewerZoomIn: string
+  /** 缩小。 */
+  imageViewerZoomOut: string
+  /** 适应窗口（`0` 键）。 */
+  imageViewerFit: string
+  /** 实际大小 1:1（`1` 键）。 */
+  imageViewerActualSize: string
+  /** 下载原图。 */
+  imageViewerDownload: string
+  /**
+   * 位置播报：`第 {current} 张，共 {total} 张`。
+   * 拆成两个键是因为中英标点不同（同 `termCountOne` 的单复数先例）。
+   */
+  imageViewerPosition: string
+  /** 位置播报 + alt 文案。 */
+  imageViewerPositionWithAlt: string
+  /** 缩略图条的无障碍名。 */
+  imageViewerThumbs: string
+  /** 加载中提示。 */
+  imageViewerLoading: string
+  /** 加载失败提示。 */
+  imageViewerFailed: string
+  /** 重试。 */
+  imageViewerRetry: string
+  /** 在新标签页打开原图（失败态兜底）。 */
+  imageViewerOpenOriginal: string
+  /** 键盘提示。 */
+  imageViewerHint: string
 }
 
 /** 语言元信息。 */

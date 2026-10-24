@@ -41,12 +41,17 @@ data/posts.data.ts  ──►  PostSummary[]  ──►  序列化成 JSON 内�
 config.ts
     │  ③ 给每页补 title/description（transformPageData）
     │     补 canonical / OG / RSS（transformHead）
+    │
+    │  ③.5 图片管线（support/media/，Vite 插件）
+    │     buildStart 预扫全部 .md 的图片引用 → sha256 → sharp 转多档 webp
+    │     markdown.config 里的 mediaMarkdown 把图渲染成 <figure> + srcset
+    │     generateBundle 用 emitFile 把变体与原图写进产物
     ▼
 theme/Layout.vue
     │  ④ 按 frontmatter.layout 选页面组件
     │     composables 读 posts.data 的 JSON，算标签/分页/上下篇
     ▼
-Vue 组件  ──►  HTML
+Vue 组件  ──►  HTML（图片已是 <figure>，点击由 useImageViewer 接管）
     │
     │  ⑤ buildEnd 用同一份数据再生成 RSS 与 robots.txt
     ▼
@@ -87,18 +92,26 @@ Vue 组件  ──►  HTML
 │  ├─ format.ts           日期/字数/截断（纯函数，两端通用）
 │  ├─ markdown.ts         Markdown → HTML（bio / widgets / RSS 正文）
 │  ├─ markdown-plugins.ts 自写扩展语法：`==高亮==`、GFM 任务列表
+│  ├─ media/              ★ 图片管线（见下方专节）
+│  │  ├─ planner.ts       纯函数：格式裁决、档位、命名、base 拼接（可单测）
+│  │  ├─ probe.ts         同步读图片头部尺寸（零依赖，可单测）
+│  │  ├─ registry.ts      源路径 → 产物清单；sha256 去重；按需转码
+│  │  ├─ transcode.ts     唯一 import sharp 的文件；磁盘缓存
+│  │  ├─ render.ts        markdown 侧：figure 提升 + 图片渲染
+│  │  ├─ runtime.ts       运行期上下文单例（base / 模式 / 目录）
+│  │  └─ vite.ts          Vite 插件：预扫 / emitFile / dev 中间件
 │  ├─ rss.ts              RSS 生成（buildEnd 调用）
 │  ├─ robots.ts           robots.txt 生成（buildEnd 调用）
 │  └─ dev-redirect.ts     dev 下 `/` 按 Accept-Language 跳语言
 │
 ├─ dist/                  构建产物（gitignore）
-├─ cache/                 Vite 依赖缓存（gitignore）
+├─ cache/                 Vite 依赖缓存 + 图片转码缓存（gitignore）
 │
 └─ theme/                 运行期代码（浏览器）
    ├─ index.ts            主题入口：引样式 + 复制按钮本地化
    ├─ Layout.vue          ★ 按 frontmatter.layout 分发页面组件
    ├─ i18n/               界面文案（zh-cn / en / index）
-   ├─ composables/        组合式函数：文章、标签、分页、目录高亮、进度条、语言、移动端状态
+   ├─ composables/        组合式函数：文章、标签、分页、目录高亮、进度条、语言、移动端状态、图片查看器
    ├─ components/
    │  ├─ pages/           ★ 六个页面级组件（Home/Posts/Doc/Tags/Tag/NotFound）
    │  ├─ layout/          外壳：PageShell、TwoColumn、ThreeColumn
@@ -107,9 +120,9 @@ Vue 组件  ──►  HTML
    │  ├─ post/            文章卡片、时间线、元信息、上下篇、分页
    │  ├─ tag/             标签云、标签分组、其他标签
    │  ├─ aside/           侧栏：容器 + 7 个卡片组件（注册表里可选 4 种）
-   │  └─ common/          图标、空状态、进度条
-   ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动
-   └─ styles/             11 个分层样式
+   │  └─ common/          图标、空状态、进度条、★ 图片查看器（ImageViewer）
+   ├─ support/            浏览器侧工具：图标表、路径、媒体、分页、滚动、浮层（滚动锁 / 焦点陷阱）
+   └─ styles/             12 个分层样式（含 lightbox.css）
 
 docs/                      ← 只有内容
 ├─ zh-cn/                 中文站（URL `/zh-cn/`）
@@ -298,6 +311,124 @@ CI 会自动算好这两个值传给构建（见 `.github/workflows/deploy.yml`�
 `new URL(page.url, hostname)` 拼绝对地址，而 `page.url` 是 `about/` 这类相对路径；
 若 `hostname` 只有 origin，`/repo/` 会被 URL 解析吃掉，项目站点的 sitemap 会全部
 指向域名根。`SITEMAP_HOSTNAME` 就是为此存在的，`robots.txt` 也复用它。
+
+`BASE` 现在还有第二个用处：**图片 URL 要自己拼 base**（见下面的图片管线）。
+原因是 `config.ts` 关掉了 `vue.template.transformAssetUrls` 对绝对路径的改写。
+
+---
+
+## 三·五、图片管线（`support/media/`）
+
+> 写作侧怎么用见 [WRITING.md](./WRITING.md) 第三节。这里讲**实现**。
+
+### 一句话
+
+**源图放哪、什么格式都不重要；构建期统一转成多档 webp，按内容 sha256 命名，
+原图原样进产物，正文渲染成 `<figure>` 供点击放大。**
+
+### 两段式设计（这是整套实现的核心约束）
+
+markdown-it 的渲染是**同步**的，而 sharp 转码是异步的。所以拆成两段：
+
+```text
+① resolveMedia()  同步   读字节 → sha256 → 探尺寸 → 决定格式与档位 → 算好所有文件名
+② encode()        异步   真正压 webp（构建期批量并行；dev 按需）
+```
+
+渲染规则只调 ①，因此它永远能在同步上下文里拿到 `<img src>` / `srcset` 需要的
+全部信息；② 的产物只是字节，晚一点没关系。
+
+### 文件名规则
+
+| 产物                              | 说明                                   |
+| --------------------------------- | -------------------------------------- |
+| `assets/media/<sha12>-336.webp`   | 展示档（还有 `-672` / `-1008` / 原宽） |
+| `assets/media/orig/<sha12>.<ext>` | 原图，**原始字节**，不重新编码         |
+
+`sha12` 是**源文件字节 sha256 的前 12 位**。同一个键带来三个能力：
+
+1. **跨文章 / 跨语言去重**：中英各放一份相同的图 → 产物只有一套；
+2. **缓存失效**：换图 → sha 变 → URL 变 → 浏览器当新文件下载；
+3. **不依赖 Vite 的哈希**：文件名由我们算，Vite 不再参与。
+
+### 档位怎么定
+
+`planner.ts` 的 `ladderWidths`：
+
+- 固定出 **336 / 672 / 1008**（对应窄屏 @1x、桌面 @1x、窄屏 @3x）
+- **永不放大**：大于等于源宽的档直接丢弃
+- **补一档原宽**（超过 2016 则补 2016）：否则 1200px 的图在 2× DPR 下只能用 1008
+- `sizes` 是 `(min-width: 704px) 672px, calc(100vw - 32px)`
+  —— **704 = 672 + 两侧各 16px**，不是页头那个 720 断点
+
+矢量（svg）不出档位，动图（gif）只出一档并转 animated webp。
+
+### 为什么必须关掉 `transformAssetUrls` 的绝对路径改写
+
+`config.ts` 里有：
+
+```ts
+vue: {
+  template: {
+    transformAssetUrls: {
+      includeAbsolute: false
+    }
+  }
+}
+```
+
+不关的话，`<img src="/assets/media/<sha>-672.webp">` 会被 `@vitejs/plugin-vue`
+改写成 ESM import，Vite 去找这个文件，结果是二选一：
+
+- 找不到 → `Rollup failed to resolve import`，构建**直接失败**；
+- 恰好存在 → 被 Vite **按内容重新哈希**，我们算的指纹作废、产物里多一份副本。
+
+关掉之后相对路径**仍然**会被 import —— 这是好事：作者写错相对路径时依旧在
+构建期 hard fail，而不是静默产出一个 404 的 URL。
+
+### 构建期与 dev 的差异（唯一的差异是"何时转码"）
+
+| 阶段                     | 做什么                                                      |
+| ------------------------ | ----------------------------------------------------------- |
+| build / `buildStart`     | 预扫全部 `.md` 的图片引用 → 批量转码 → `assertReady()` 校验 |
+| build / `generateBundle` | `emitFile` 把变体与原图写进产物（**只 client build**）      |
+| dev / `configureServer`  | 中间件按需转码，URL 与构建期完全同构                        |
+
+三个必须记住的坑：
+
+1. **VitePress 会跑两次 Vite build**（client + SSR）。SSR 的 outDir 是 `.temp`
+   且结束即删，所以 `emitFile` 只在 `config.build.ssr === false` 时做。
+2. **dev 中间件必须注册在 `configureServer` 函数体里**，不能放在返回的后置钩子里
+   —— 后者排在 SPA fallback 之后，`req.url` 已被改写成 `/index.html`。
+   注册在函数体里时 `req.url` **仍带 base**，要自己剥。
+3. **dev 必须 `Cache-Control: no-store`**。VitePress 的 md 渲染缓存键只有
+   `{src, file}`，改了图但 md 没变时 URL 不会变；靠禁缓存保证你看到的是新图。
+
+### 缓存
+
+转码结果缓存在 `.vitepress/cache/media/`（已被 `.gitignore` 与 `.oxfmtignore`
+同时忽略）。缓存键包含：
+
+```text
+源 sha256 | 宽度 | 参数(quality/effort) | PIPELINE_VERSION | platform | libvips 版本 | webp 版本
+```
+
+**后三项不能省**：Windows 与 Linux 的 libvips 构建不同，少了平台/版本项，
+本地产物会被 CI 的缓存悄悄冒充，出现「本地对、线上不对」这种最难查的故障。
+
+改了编码参数、档位算法或命名规则，**必须把 `transcode.ts` 的 `PIPELINE_VERSION` +1**，
+否则缓存会继续返回旧参数产出的字节，且没有任何提示。
+
+### 改图片管线时的检查清单
+
+```text
+□ pnpm test                     纯函数单测（档位/命名/头部探测/figure 边界）
+□ pnpm build                    看 dist/assets/media/ 是否按预期出档
+□ 同一张图放中英两个目录        产物里应只有一套变体
+□ 故意放一张 .bmp               构建应失败且提示"另存为 PNG"
+□ pnpm dev 打开文章             图片应能显示（走 dev 中间件）
+□ 点开图片                      查看器应能翻页/缩放/下载原图
+```
 
 ---
 
@@ -492,13 +623,13 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 实测：`content.css` 里有 67 处 `.prose`，**没有任何一条规则能影响
 `.prose` 之外的元素**。
 
-### 十一个样式文件的职责
+### 十二个样式文件的职责
 
 顺序在 `styles/index.css` 里，后面的能覆盖前面的。
 
 | 文件             | 管什么                                                      | 什么时候进这里改             |
 | ---------------- | ----------------------------------------------------------- | ---------------------------- |
-| `tokens.css`     | 全部设计变量（含 z 轴阶梯、安全区与停靠高度）               | 换色、换圆角、换字号、换间距 |
+| `tokens.css`     | 全部设计变量（含 z 轴阶梯、浮层色、安全区与停靠高度）       | 换色、换圆角、换字号、换间距 |
 | `base.css`       | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接       | 调基础排版、改滚动条         |
 | `layout.css`     | 容器、两栏/三栏网格、粘性侧栏、断点                         | 改整体骨架、侧栏宽度         |
 | `components.css` | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态  | 改页头页脚、按钮样式         |
@@ -507,12 +638,16 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 | `widgets.css`    | 资料卡、自定义卡片、标签云、标签分组、其他标签              | 改侧栏卡片                   |
 | `mobile.css`     | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局        | 改移动端交互                 |
 | `search.css`     | 全站搜索面板                                                | 改搜索面板                   |
+| `lightbox.css`   | 图片查看器（满屏浮层，与搜索同一类）                        | 改查看器                     |
 | `print.css`      | 打印样式                                                    | 调打印                       |
 | `index.css`      | `@import` 汇总，别放规则                                    | 加新样式文件时登记           |
 
 > **`content.css` 必须排在 `posts.css` 之前。**
 > `posts.css` 里有一条 `.prose h2` 的移动端缩小规则，需要压过
 > `content.css` 的正文默认值。调整 `@import` 顺序时注意这条依赖。
+>
+> **`lightbox.css` 要排在 `mobile.css` 之后**：查看器里有几条移动端规则
+> （藏左右按钮、藏文件名）需要压过 `mobile.css` 的通用规则。
 
 ### 响应式断点
 
@@ -794,6 +929,7 @@ export function usePopularPosts(limit = 5) {
 | `useReadingProgress` | 阅读进度 0–1                                 |
 | `useDockState`       | 移动端「阅读态」：页头隐藏 / 胶囊收成圆      |
 | `useScrollBar`       | 自绘滚动条：拇指长度、位置与拖拽             |
+| `useImageViewer`     | 图片查看器：画廊、翻页、缩放、平移、状态     |
 
 **`useDockState` 是模块级单例，可以多处调用**
 （`SiteHeader` 与 `MobileDock` 就各调了一次），不会重复绑定事件。
@@ -803,6 +939,14 @@ export function usePopularPosts(limit = 5) {
 `useScrollBar` 不是单例（只有 `ScrollBar` 一个消费者），但它**复用
 `useScrollEffect`** 这个全站唯一的滚动订阅。要加新的「滚动联动」效果，
 照它的样子接进去，不要自己 `addEventListener('scroll')`。
+
+**`useImageViewer` 也是模块级单例**，理由同 `useDockState`：打开入口是正文里
+构建期生成的 `<a data-lightbox>`（不是 Vue 组件），只能靠 `PageShell` 里的
+**一次事件委托**接；而查看器组件本身在 `PageShell` 里挂一份。两边必须看到
+同一份状态，否则会出现「点了图但查看器不弹」。
+
+它刻意**零 props / 零 emits**：正文与查看器之间没有任何 prop 链，
+将来正文换成富文本组件也不用改查看器。
 
 ### 加数据字段（进阶）
 
@@ -1212,23 +1356,38 @@ pnpm build         # 构建（也会暴露类型问题）
 
 `tests/` 下只测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
 
-| 文件                       | 覆盖                                                       |
-| -------------------------- | ---------------------------------------------------------- |
-| `urls.test.ts`             | 相对路径 → URL、中文编码、与 `decodePath` 互逆             |
-| `paths.test.ts`            | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性 |
-| `pagination.test.ts`       | 分页边界（空列表、越界、非法 perPage）                     |
-| `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                    |
-| `dev-redirect.test.ts`     | `Accept-Language` 解析                                     |
-| `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算          |
-| `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化     |
+| 文件                       | 覆盖                                                        |
+| -------------------------- | ----------------------------------------------------------- |
+| `urls.test.ts`             | 相对路径 → URL、中文编码、与 `decodePath` 互逆              |
+| `paths.test.ts`            | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性  |
+| `pagination.test.ts`       | 分页边界（空列表、越界、非法 perPage）                      |
+| `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                     |
+| `dev-redirect.test.ts`     | `Accept-Language` 解析                                      |
+| `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算           |
+| `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接       |
+| `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头） |
+| `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关       |
+| `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化      |
 
 `scripts.test.ts` 覆盖的是「建错会静默写坏内容」的那批函数：
 `nextSequence`（序号会不会撞号）、`stringifyFrontmatter`（会不会写坏 YAML）、
 `isoDateInZone`（会不会差一天）、`parseArgs`（`-l=zh-cn` 这类写法）。
 
+`media-probe.test.ts` 覆盖的是整条管线里**唯一手工解析二进制**的地方：
+它一旦读错，产物会出现「渲染尺寸与实际像素不符」——图片被拉伸变形，
+而构建期完全不会报错。所以每个格式都用**真实最小文件头**验证。
+
+`media-render.test.ts` 用 `tests/fixtures/tiny.png`（400×225）当真实源文件，
+覆盖「哪些图会被提升成 `<figure>`」的边界：行内图、带链接的图、外链、
+多图段落都不提升。
+
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
 `.vitepress/support/urls.ts` 与 `.vitepress/support/locale-paths.ts`，
 **不 import `vitepress`**；需要 `withBase` 的包装留在 `theme/support/paths.ts`。
+
+图片管线同理：`media/planner.ts` 与 `media/probe.ts` 是纯函数、可直接加载；
+`media/registry.ts` 会读磁盘，`media/transcode.ts` 才 import sharp ——
+所以单测不需要原生模块也能跑。
 
 脚本侧的纯逻辑同理放在 `scripts/lib/`（`dates.ts` / `frontmatter.ts` / `create.ts` 等），
 不 import `vitepress`，因此可以直接被 vitest 加载。

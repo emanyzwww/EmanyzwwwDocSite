@@ -253,6 +253,125 @@
   margin-top: var(--space-3);
 }
 
+/*
+ * ---------- 正文图片（`support/media/` 产物） ----------
+ *
+ * 渲染结构（由 `media/render.ts` 在构建期生成，DOM 契约不要随手改）：
+ *
+ *   <figure class="prose-media">
+ *     <a class="prose-media__link" href="原图" data-lightbox="true">
+ *       <img src=… srcset=… sizes=… width height alt loading decoding>
+ *     </a>
+ *     <figcaption>…</figcaption>   ← 仅当作者写了 title
+ *   </figure>
+ *
+ * 三处刻意的取舍：
+ *
+ * 1. **`figure` 要吃掉默认外边距并接管垂直节奏**。浏览器给的 `margin: 1em 40px`
+ *    会让图片比正文窄、又上下各顶一段；这里统一成与代码块相同的 `--space-6`。
+ * 2. **链接不能有下划线**。`.prose a` 给所有链接加了常驻下划线（色盲用户的
+ *    非颜色提示），但图片链接外面没有任何文字，下划线只会成为一道脏边。
+ * 3. **图注距离小于块间距**。caption 属于它上面那张图，不是下一段的开头，
+ *    所以 `--space-2`(8px) 必须小于块间距 20/24px ——
+ *    这是「标题上方间距大于下方」的反向应用（见 DESIGN.md 5.2）。
+ */
+
+.prose figure.prose-media {
+  margin: var(--space-6) 0;
+}
+
+.prose .prose-media__link {
+  display: block;
+  /* 覆盖 .prose a 的常驻下划线：图片链接没有文字，下划线只是脏边 */
+  text-decoration: none;
+  /* 同心圆：外层无内边距、无描边，所以内外同档（见 DESIGN.md 四） */
+  border-radius: var(--radius-md);
+  /*
+   * 悬停只改描边，不做位移、不加阴影。
+   * 阴影只属于需要遮挡内容的浮层（DESIGN.md 6.2）；图片是内容本身。
+   */
+  cursor: zoom-in;
+  /*
+   * 焦点环默认是 `--radius-xs`（6px），会让 14px 圆角的图露直角。
+   * 这里显式拉回 `--radius-md`，环与图同心。
+   */
+  outline-offset: 2px;
+}
+
+.prose .prose-media__link:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-md);
+}
+
+.prose .prose-media__link img {
+  width: 100%;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.prose .prose-media__link:hover img {
+  border-color: var(--accent-border);
+}
+
+/*
+ * ---------- 「可点开放大」的角标 ----------
+ *
+ * 一个右下角的放大镜方块，叠在图上。两条纪律：
+ *
+ * 1. **它必须不透明且足够深**：角标会叠在任意亮度的照片上，
+ *    浅色角标在白图上会消失。68% 的 `gray-950` 配 `gray-25` 字形，
+ *    在纯白与纯黑照片上都能读出来。
+ * 2. **触屏常驻、桌面悬停才出现**。手指没有 hover，`cursor: zoom-in`
+ *    在触摸设备上是零信息 —— 不给常驻提示，手机读者根本不知道图能点开。
+ */
+
+.prose .prose-media__link {
+  position: relative;
+}
+
+.prose .prose-media__link::after {
+  content: '';
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  background-color: color-mix(in srgb, var(--gray-950) 68%, transparent);
+  /*
+   * 用两条 1px 渐变画出「加号」，不引任何图片资源
+   * （与代码块复制按钮用 CSS 画图标是同一个做法）。
+   */
+  background-image:
+    linear-gradient(var(--gray-25), var(--gray-25)), linear-gradient(var(--gray-25), var(--gray-25));
+  background-size:
+    9px 1.5px,
+    1.5px 9px;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+/* 触屏（含触控笔记本）：角标**常驻** */
+@media (hover: none), (pointer: coarse) {
+  .prose .prose-media__link::after {
+    opacity: 1;
+  }
+}
+
+/* 精确指针（鼠标）：默认隐藏，悬停或键盘聚焦时出现 —— 常驻会和照片抢注意力 */
+@media (hover: hover) and (pointer: fine) {
+  .prose .prose-media__link::after {
+    opacity: 0;
+  }
+
+  .prose .prose-media__link:hover::after,
+  .prose .prose-media__link:focus-visible::after {
+    opacity: 1;
+  }
+}
+
 .prose img {
   border-radius: var(--radius-md);
   /*
@@ -271,6 +390,7 @@
 }
 
 .prose figcaption {
+  /* 8px < 块间距 20/24px：图注属于上面那张图，不是下一段的开头 */
   margin-top: var(--space-2);
   color: var(--fg-subtle);
   font-size: var(--text-sm);

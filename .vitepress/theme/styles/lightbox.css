@@ -1,0 +1,513 @@
+/* =========================================================
+   图片查看器（lightbox）
+   ---------------------------------------------------------
+   这是一层**满屏浮层**，与抽屉 / 搜索是同一类东西，但有两个不同点：
+
+   1. 它在 `--z-drawer`(120) 之上、`--z-search`(140) 之下（`--z-lightbox: 130`）。
+      读者是主动进入的，所以必须压过抽屉；但搜索是唯一能从任意状态用
+      快捷键唤起的入口，是这套阶梯的最高交互层。
+   2. 它**没有阴影**。满屏浮层的投影落在视口外，是无效装饰 ——
+      这条必须写下来，否则后人会按「浮层 → --shadow-xl」的规则给它加一层。
+
+   颜色全部取自 `tokens.css` 第 7 节（`--overlay-*`），那一组**不随主题变化**：
+   查看器整屏盖住页面，底色与页面明暗无关。
+   对比度按最差情况（遮罩叠浅色画布）实算，见 DESIGN.md 2.7。
+
+   DOM 契约（由 `ImageViewer.vue` 渲染，改结构要同步改样式）：
+     .lightbox
+       .lightbox__scrim          遮罩（button，点击关闭）
+       .lightbox__frame          焦点陷阱的根；pointer-events: none
+         .lightbox__bar          顶栏：计数 / 文件名 / 动作
+         .lightbox__stage        舞台：图片 + 左右按钮
+           .lightbox__fig        翻页层（translateX + opacity）
+             .lightbox__image    缩放层（scale + translate）
+         .lightbox__status       加载 / 失败态
+         .lightbox__strip        缩略图条
+   ========================================================= */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-lightbox);
+  /* 遮罩是 fixed 满屏，本来就不需要 stacking 之外的任何东西 */
+  display: block;
+  /*
+   * 安全区：查看器贴满视口，顶栏与底栏都要避开刘海与手势条。
+   * 依赖 `viewport-fit=cover`（config.ts 的 head 里显式声明过）。
+   */
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+  animation: lb-fade-in var(--duration-normal) var(--ease-out);
+}
+
+/*
+ * 遮罩：一个铺满的 button。
+ *
+ * 用 button 而不是 div，是为了让「点空白处关闭」在键盘与读屏里也成立
+ * （与 SearchPanel 的 `.search__scrim` 同一个做法）。
+ */
+.lightbox__scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background-color: var(--overlay-scrim);
+  /*
+   * **不用 backdrop-filter**：
+   * - 遮罩本身已经不透明，模糊无从谈起；
+   * - 它会为所有 `position: fixed` 后代创建包含块，本仓库已被这个行为
+   *   坑过两次（见 DEVELOPING.md 移动端第 4 条）。
+   */
+  cursor: zoom-out;
+}
+
+/* ---------- 框架 ---------- */
+
+.lightbox__frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  /*
+   * 关键：frame 整体不吃指针事件，让点击穿透到遮罩上（点空白 = 关闭）。
+   * 只有真正需要交互的子元素才把 pointer-events 打开。
+   */
+  pointer-events: none;
+}
+
+/* ---------- 顶栏 ---------- */
+
+.lightbox__bar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--lightbox-bar);
+  padding-inline: var(--space-4);
+  pointer-events: auto;
+  /* 顶栏自身不画背景：遮罩已经足够深，再叠一层会显得脏 */
+}
+
+.lightbox__counter {
+  flex: none;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--overlay-fg-muted);
+  /* 可见计数对读屏是无意义的「2 斜杠 8」，语义由 role=status 单独播报 */
+  user-select: none;
+}
+
+.lightbox__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--overlay-fg);
+  /* 长文件名截断，不要让它把按钮挤走 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lightbox__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  /*
+   * 靠右的**唯一保证**。
+   *
+   * 桌面端本来靠 `.lightbox__name` 的 `flex: 1` 把按钮挤到右边，
+   * 但移动端把文件名藏了（`display: none`），那个"弹簧"就没了 ——
+   * 按钮会紧贴着计数排在左边。`margin-left: auto` 在两种情况下都对。
+   */
+  margin-left: auto;
+}
+
+/* 动作按钮：44px 触控目标，无边框，靠 17:1 的图标自证可点 */
+.lightbox__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lightbox-hit);
+  height: var(--lightbox-hit);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--overlay-fg);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.lightbox__action:hover:not(:disabled) {
+  background-color: var(--overlay-surface-hover);
+}
+
+.lightbox__action:active:not(:disabled) {
+  background-color: var(--overlay-surface-active);
+}
+
+.lightbox__action:disabled {
+  color: var(--overlay-fg-muted);
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lightbox__action:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-overlay);
+}
+
+/* 下载是 <a>，视觉上要和按钮完全一致 */
+a.lightbox__action {
+  text-decoration: none;
+}
+
+/* ---------- 舞台 ---------- */
+
+.lightbox__stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  /*
+   * 舞台**内缩**在顶栏与缩略图条之间。
+   *
+   * 这不是为了好看：它保证图片永远不会压到顶栏文字下面，
+   * 于是顶栏的对比度只取决于遮罩色（固定值），与图片内容无关。
+   * 若让图片延伸到栏下，「深色文字叠在浅色照片上」这类失败就随时可能发生。
+   */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * 翻页层与缩放层**必须分开**。
+ *
+ * 翻页用 `translateX + opacity`，缩放用 `scale + translate`；
+ * 放在同一元素上会互相覆盖，表现为「翻页后缩放值被重置成 1」
+ * 或「缩放时整张图横滑」。
+ */
+.lightbox__fig {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 100%;
+  pointer-events: auto;
+}
+
+.lightbox__image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  /*
+   * 图片本身不加圆角：满屏查看时圆角只会切掉画面四角。
+   * 加一圈极淡描边，让白底图片在浅色遮罩边缘仍有边界。
+   */
+  border-radius: 0;
+  outline: 1px solid var(--overlay-border);
+  outline-offset: -1px;
+  /*
+   * 拖动时不能选中文字/图片，否则会触发原生拖拽幽灵图
+   */
+  user-select: none;
+  -webkit-user-drag: none;
+  transform-origin: center center;
+  will-change: transform;
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+
+/* 手势进行中：关掉过渡，否则每一帧都被 200ms 补间拖成「糊的」 */
+.lightbox__image.is-gesturing {
+  transition: none;
+}
+
+/* 加载中：先给一个骨架底，避免图片出现前的空洞 */
+.lightbox__fig.is-loading .lightbox__image {
+  opacity: 0;
+}
+
+/* 翻页动效：只用 opacity + 8px 横移，绝不用 scale（倍率是手势的连续状态） */
+.lightbox__fig.is-turning-next {
+  animation: lb-turn-next var(--duration-fast) var(--ease-out);
+}
+
+.lightbox__fig.is-turning-prev {
+  animation: lb-turn-prev var(--duration-fast) var(--ease-out);
+}
+
+/* ---------- 左右翻页按钮 ---------- */
+
+.lightbox__nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--lightbox-hit) + 0.75rem);
+  height: calc(var(--lightbox-hit) + 0.75rem);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--overlay-surface);
+  color: var(--overlay-fg);
+  cursor: pointer;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.lightbox__nav:hover {
+  background-color: var(--overlay-surface-hover);
+}
+
+.lightbox__nav:disabled {
+  opacity: 0;
+  cursor: default;
+  /* 端点处直接藏掉：显示一个永远点不动的按钮比没有更糟 */
+  pointer-events: none;
+}
+
+.lightbox__nav:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-overlay);
+}
+
+.lightbox__nav--prev {
+  left: var(--space-4);
+}
+
+.lightbox__nav--next {
+  right: var(--space-4);
+}
+
+/* ---------- 状态（加载中 / 失败） ---------- */
+
+.lightbox__status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--overlay-fg-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+  padding: var(--space-6);
+  pointer-events: auto;
+}
+
+/*
+ * **不做 spinner。**
+ *
+ * `base.css` 在 `prefers-reduced-motion: reduce` 下把所有 animation-duration
+ * 压到 0.01ms —— 任何 CSS spinner 都会冻住变成一坨静止色块，
+ * 比没有加载态更让人困惑。这里用静态文字 + role=status 播报。
+ */
+.lightbox__status-text {
+  color: var(--overlay-fg-muted);
+}
+
+.lightbox__status--failed .lightbox__status-text {
+  color: var(--overlay-fg);
+}
+
+.lightbox__retry {
+  min-height: var(--lightbox-hit);
+  padding-inline: var(--space-4);
+  border: var(--border-width) solid var(--overlay-border);
+  border-radius: var(--radius-full);
+  background-color: var(--overlay-surface);
+  color: var(--overlay-fg);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.lightbox__retry:hover {
+  background-color: var(--overlay-surface-hover);
+}
+
+.lightbox__retry:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-overlay);
+}
+
+/* 「在新标签页打开原图」兜底链接 */
+.lightbox__fallback {
+  color: var(--overlay-accent);
+  font-size: var(--text-sm);
+}
+
+.lightbox__fallback:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-overlay);
+  border-radius: var(--radius-xs);
+}
+
+/* ---------- 缩略图条 ---------- */
+
+.lightbox__strip {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: safe center;
+  gap: var(--space-2);
+  height: calc(var(--lightbox-thumb-h) + var(--space-5));
+  padding-inline: var(--space-4);
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: auto;
+  /* 缩略图条不需要自绘滚动条：它是局部小容器，原生细条恰好合适 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--overlay-fg-muted) transparent;
+}
+
+.lightbox__thumb {
+  flex: none;
+  width: var(--lightbox-thumb-w);
+  height: var(--lightbox-thumb-h);
+  padding: 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: var(--overlay-surface);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.lightbox__thumb:hover {
+  opacity: 0.85;
+}
+
+/* 当前项：亮起来 + 白描边，不用颜色强调（遮罩上 --teal-300 虽合格但太跳） */
+.lightbox__thumb[aria-current='true'] {
+  opacity: 1;
+  border-color: var(--overlay-fg);
+}
+
+.lightbox__thumb:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-overlay);
+}
+
+/* ---------- 键盘提示 ---------- */
+
+.lightbox__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--lightbox-thumb-h) + var(--space-6));
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background-color: var(--overlay-surface);
+  color: var(--overlay-fg-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity var(--duration-slow) var(--ease-out);
+}
+
+/* 顶栏与缩略图都有的信息不重复：提示在用过一次后淡出由 JS 控制 */
+.lightbox__hint.is-hidden {
+  opacity: 0;
+}
+
+/* ---------- 动效 ---------- */
+
+@keyframes lb-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes lb-turn-next {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+@keyframes lb-turn-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+/* ---------- 移动端 ---------- */
+
+@media (max-width: 720px) {
+  .lightbox__bar {
+    height: 3rem;
+    padding-inline: var(--space-3);
+  }
+
+  /* 文件名在窄屏上要么占满要么挤掉按钮，直接不显示 */
+  .lightbox__name {
+    display: none;
+  }
+
+  /* 左右按钮交给滑动手势：窄屏上它们会盖住近一半画面 */
+  .lightbox__nav {
+    display: none;
+  }
+
+  /* 缩略图条在窄屏上收益低（本来就只有几张），藏掉换取垂直空间 */
+  .lightbox__strip {
+    display: none;
+  }
+
+  .lightbox__hint {
+    display: none;
+  }
+}
+
+/* ---------- 降低动效偏好 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * 显式 none，而不是依赖 base.css 把时长压到 0.01ms ——
+   * 0.01ms 的动画仍然会「闪一下」，只是闪得极短。
+   */
+  .lightbox,
+  .lightbox__fig,
+  .lightbox__image,
+  .lightbox__thumb,
+  .lightbox__hint {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------- 打印 ---------- */
+
+@media print {
+  .lightbox {
+    display: none !important;
+  }
+}

@@ -63,14 +63,13 @@ function homeUrl(locale: LocaleCode): string {
  * 取的是**VitePress 已渲染好的正文**（`transformHtml` 阶段收集，见
  * `support/rendered.ts`），而不是自己再渲染一遍 Markdown。这样做解决了三个问题：
  *
- * 1. **图片地址正确**：网页上的图是 `/assets/banner.<hash>.webp`（Vite 指纹化），
- *    裸 markdown-it 渲染出的却是 `./banner.webp` —— 后者部署后不存在，阅读器必裂图。
+ * 1. **图片地址正确**：网页上的图是 `/assets/media/<sha>-672.webp`（媒体管线产出），
+ *    裸 markdown-it 渲染出的却是 `./banner.png` —— 后者部署后不存在，阅读器必裂图。
  * 2. **`{width=100}` 不泄漏**：那是 VitePress 的 attrs 语法，已由它的渲染器消费；
  *    裸 markdown-it 不认识，会把字面量原样留在正文里。
  * 3. **代码高亮 / 标题锚点 / 任务列表**与网页完全一致，不再有两套渲染口径。
  *
- * 剩下的唯一工作是**把站内链接补成绝对地址**：`<img src="/repo/x.webp">`
- * 在网页里没问题（同源），但阅读器不知道站点的 base，必须补全。
+ * 剩下的工作是**清洗**：把网页专用、在 feed 里无意义甚至有害的东西去掉。
  */
 function articleHtml(post: PostSummary, base: string): string {
   const sourcePath = toSourcePath(post.url)
@@ -78,9 +77,35 @@ function articleHtml(post: PostSummary, base: string): string {
   if (!rendered) return ''
 
   /*
+   * 第一种清洗：**删掉网页专用的交互属性**。
+   *
+   * - `srcset` / `sizes`：见下方 `absoluteUrls` 的说明，feed 里根本用不上，
+   *   而且 srcset 里是相对路径，阅读器不会像网页那样解析它。
+   * - `data-lightbox` / `data-origin-name` / `data-media-key` / `data-zoomable`：
+   *   都是给客户端查看器的钩子，在阅读器里只是噪音。
+   * - `loading` / `decoding`：feed 阅读器不支持懒加载，留着无意义。
+   */
+  const cleaned = rendered
+    .replace(/\s(?:srcset|sizes|loading|decoding)="[^"]*"/gi, '')
+    .replace(/\sdata-(?:lightbox|origin-name|media-key|zoomable)(?:="[^"]*")?/gi, '')
+    /*
+     * 第二种清洗：**把 `<figure>` 外壳压平**。
+     *
+     * 阅读器对 `<figure>` / `<a>` 的样式支持参差不齐，而 `prose-media__link`
+     * 的点击放大在 feed 里是死链接。保留 `<img>` 与 `<figcaption>` 的内容即可，
+     * 但 `<figcaption>` 在部分阅读器里会变成整段文字，所以图注用 `<p><small>` 表达。
+     */
+    .replace(/<a\b[^>]*class="prose-media__link"[^>]*>/gi, '')
+    .replace(/<\/a>(?=\s*(?:<figcaption|<\/figure>))/gi, '')
+    .replace(/<figcaption>([\s\S]*?)<\/figcaption>/gi, '<p><small>$1</small></p>')
+    .replace(/<\/?figure\b[^>]*>/gi, '')
+
+  /*
+   * 第三种：把站内链接补成绝对地址。
+   *
    * 两种情况要分清：
-   * 1. 渲染产物里的站内地址**已带 base**（VitePress 的 `withBase` 在渲染期
-   *    就拼好了，例如 `/EmanyzwwwDocSite/assets/banner.<hash>.webp`）；
+   * 1. 渲染产物里的站内地址**已带 base**（我们的媒体管线在渲染期就拼好了，
+   *    例如 `/EmanyzwwwDocSite/assets/media/xxx.webp`）；
    * 2. 而 `SITE_URL` 从 CI 传入时**也可能已含子路径**。
    *
    * 两者直接相加就会得到 `/<repo>/<repo>/assets/...`（实测踩过）。
@@ -89,7 +114,7 @@ function articleHtml(post: PostSummary, base: string): string {
    */
   const bareBase = base.replace(/\/$/, '')
 
-  return rendered.replace(/(src|href)="([^"]+)"/g, (whole, attr: string, url: string) => {
+  return cleaned.replace(/(src|href)="([^"]+)"/g, (whole, attr: string, url: string) => {
     // 已经是完整 URL / 协议相对 / 纯锚点 / data URI 的，原样保留
     if (/^(?:[a-z][a-z\d+.-]*:|#|\/\/)/i.test(url)) return whole
 

@@ -55,4 +55,23 @@ export const en: Messages = {
   // 英文必须区分单复数，否则会出现「1 posts」「1 tags」
   termCountOne: '{count} post',
   taxonomyOverviewOne: '{count} tag in total. Click it to see related posts.',
+
+  // ---------- 图片查看器 ----------
+  imageViewer: 'Image viewer',
+  imageViewerClose: 'Close image viewer',
+  imageViewerPrevious: 'Previous image',
+  imageViewerNext: 'Next image',
+  imageViewerZoomIn: 'Zoom in',
+  imageViewerZoomOut: 'Zoom out',
+  imageViewerFit: 'Fit to window',
+  imageViewerActualSize: 'Actual size',
+  imageViewerDownload: 'Download original',
+  imageViewerPosition: 'Image {current} of {total}',
+  imageViewerPositionWithAlt: 'Image {current} of {total}: {alt}',
+  imageViewerThumbs: 'Thumbnails',
+  imageViewerLoading: 'Loading image…',
+  imageViewerFailed: 'Image failed to load.',
+  imageViewerRetry: 'Retry',
+  imageViewerOpenOriginal: 'Open original in a new tab',
+  imageViewerHint: '← → to navigate, + − to zoom, 0 to fit, 1 for actual size, Esc to close',
 }

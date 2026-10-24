@@ -146,6 +146,31 @@ export const ICONS: Record<IconName, IconDef> = {
     mode: 'stroke',
     body: `<path d="M12 19V5M5 12l7-7 7 7" />`,
   },
+  // ---------- 图片查看器 ----------
+  'zoom-in': {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    strokeWidth: 2,
+    body: `<circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /><path d="M11 8v6M8 11h6" />`,
+  },
+  'zoom-out': {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    strokeWidth: 2,
+    body: `<circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /><path d="M8 11h6" />`,
+  },
+  // 下载：托盘 + 向下箭头。托盘用两段折线，避免与箭头的竖线连成一体
+  download: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<path d="M12 3v12" /><path d="m7.5 10.5 4.5 4.5 4.5-4.5" /><path d="M4 20h16" />`,
+  },
+  // 适应窗口：四个角向内的括号，语义是「缩到容器里」
+  fit: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<path d="M9 4H4v5" /><path d="M15 4h5v5" /><path d="M15 20h5v-5" /><path d="M9 20H4v-5" />`,
+  },
 }
 
 /** 取图标定义；名字非法时回退到 `link`，避免整页渲染失败。 */

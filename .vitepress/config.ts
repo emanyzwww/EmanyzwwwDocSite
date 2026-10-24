@@ -14,6 +14,8 @@ import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
 import { buildTagIndex, readPageUrls, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
 import { extendMarkdown } from './support/markdown-plugins'
+import { mediaMarkdown } from './support/media/render'
+import { mediaPlugin } from './support/media/vite'
 import { writeNotFoundFallback } from './support/not-found'
 import { collectRenderedContent } from './support/rendered'
 import { writeRobots } from './support/robots'
@@ -171,6 +173,34 @@ export default defineConfig({
   appearance: true,
 
   // ---------- Vite ----------
+  /**
+   * `vue.template.transformAssetUrls` 只处理**相对路径**，不再改写绝对路径。
+   *
+   * `query: ''` 不影响任何东西，这里的关键是 `includeAbsolute: false`。
+   *
+   * ---------- 为什么必须关掉绝对路径的改写 ----------
+   *
+   * 站内图片的 URL 现在由 `support/media/` 算出（文件名是**源图内容 sha256**），
+   * Vite 不认识这个键。若不关，它会把 `<img src="/assets/media/ab12-672.webp">`
+   * 再次当成模块去解析，结果是二选一：
+   *
+   * - 目标文件不存在 → `Rollup failed to resolve import`，构建**直接失败**；
+   * - 目标文件恰好存在 → 被 Vite **按内容重新哈希**，我们算的指纹作废、
+   *   产物里还多出一份副本。
+   *
+   * 关掉之后：
+   * - 绝对路径原样保留（我们自己拼 base，见 `media/planner.ts` 的 `withBase`）；
+   * - **相对路径仍然会被 import** —— 这是好事：作者写错相对路径时依旧会
+   *   在构建期 hard fail，而不是静默产出一个 404 的 URL。
+   */
+  vue: {
+    template: {
+      transformAssetUrls: {
+        includeAbsolute: false,
+      },
+    },
+  },
+
   vite: {
     /**
      * `public/` 在仓库根（与 `media/` 一起，属于站点资源而非内容）。
@@ -180,7 +210,28 @@ export default defineConfig({
      * 根路径跳转页都不会被拷贝，dev 下也会被 SPA fallback 吞掉。
      */
     publicDir: fileURLToPath(new URL('../public', import.meta.url)),
-    plugins: [devRootRedirect(BASE)],
+    plugins: [
+      devRootRedirect(BASE),
+      /*
+       * 媒体管线。构建期在 `buildStart` 预扫并转码，`generateBundle` 发射；
+       * dev 下走中间件按需转码。两者的命名规则完全一致，所以「本地看着对」
+       * 与「线上正确」是同一件事。
+       */
+      mediaPlugin({ base: BASE }),
+    ],
+    /**
+     * **必须关掉资源内联。**
+     *
+     * Vite 默认把 <4096 B 的资源转成 `data:` URI。对我们的管线有两个后果：
+     * 1. 小图的**内容指纹文件名直接消失**，去重与缓存全部失效；
+     * 2. 内联进 `srcset` 后，逗号会把 `data:` URI 本身切开，变成无效候选。
+     *
+     * 我们自己的产物不走 Vite 资产管线（URL 由 `support/media/` 算出），
+     * 但 `media/` 下的头像等仍走 `?url` 导入，所以这条要显式设。
+     */
+    build: {
+      assetsInlineLimit: 0,
+    },
     server: {
       /**
        * 把构建产物与缓存排除在文件监听之外。
@@ -231,8 +282,23 @@ export default defineConfig({
     codeCopyButtonTitle: 'Copy code',
     // 本站额外的两条语法：`==高亮==` 与 `- [x] 任务列表`。
     // 这里是 VitePress 留给用户挂 markdown-it 插件的唯一入口，
-    // 在它自带的插件（attrs / emoji / 容器 / 锚点）之后执行，互不覆盖。
-    config: extendMarkdown,
+    // 在它自带的插件（attrs / emoji / 容器 / 锚点 / 图片）之后执行，互不覆盖。
+    config: (md) => {
+      extendMarkdown(md)
+      /*
+       * 媒体升级（图片 → `<figure>` + 多档 srcset + 可点开放大）。
+       *
+       * **必须排在 extendMarkdown 之后**：顺序本身不影响功能，但两个插件都
+       * 会往 `core.ruler` / `renderer.rules` 上挂东西，先挂"语法"再挂"渲染"
+       * 能保证 `mediaMarkdown` 拿到的上游规则里已经包含所有语法级改动。
+       *
+       * 为什么只挂这里、不挂 `support/markdown.ts`（RSS / bio / 卡片）：
+       * 那边没有 Vite 的资产管线，也没有产物清单可查，图片走的仍是原路径；
+       * 但 `<figure>` 化本身对两边都是好事——只是 RSS 里我们要把链接剥掉
+       * （见 `support/rss.ts` 的说明），所以分开控制。
+       */
+      mediaMarkdown(md)
+    },
   },
 
   // ---------- 站点地图 ----------
