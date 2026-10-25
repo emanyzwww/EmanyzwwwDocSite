@@ -243,15 +243,27 @@ export function releaseScrollLock(): void {
   const restorePosition = body.style.position === '' ? savedScrollY : 0
   savedStyle = null
 
-  // 固定 body 时页面视觉上回顶了，这里滚回原位
-  if (restorePosition) window.scrollTo(0, restorePosition)
+  /*
+   * 等等 —— 这里**不再**立刻滚回原位。
+   *
+   * 旧实现是 `window.scrollTo(0, restorePosition)`，但 `base.css` 里有
+   * `html { scroll-behavior: smooth }`，于是这次"归位"本身变成一段
+   * **平滑动画**：body 解除固定时页面视觉上先回到 0，然后又被这段动画
+   * 拉回锁定前的位置 —— 读者看到的就是「先滑动一小段，然后再划过去」。
+   * （真机实测：解锁那一帧 y 从 900 变 0，随后开始补间。）
+   *
+   * 正确做法：用 `behavior: 'instant'` 归位，**在任何排队回调之前**完成，
+   * 让页面先无声地回到原处，之后才允许真正的目标滚动开始。
+   */
+  if (restorePosition) {
+    window.scrollTo({ top: restorePosition, behavior: 'instant' })
+  }
 
   /*
    * 通知「锁已全部释放」。
    *
-   * **必须在上面那行 `scrollTo(0, restorePosition)` 之后**：
-   * iOS 路径下我们要先把页面还原到锁定前的位置，再让排队的锚点跳转
-   * 覆盖它。反过来会导致「先跳到目标 → 又被还原回原位」。
+   * **必须在归位之后**：先还原到锁定前的位置，排队的锚点跳转再覆盖它。
+   * 反过来会"先跳到目标 → 又被还原回原位"。
    *
    * 用 `lockCount === 0` 做守卫（此时必然成立，因为前面已 `return` 掉
    * 未归零的分支），配合一次性退订，避免重复触发。
