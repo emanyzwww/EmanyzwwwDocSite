@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { mediaMarkdown } from '../.vitepress/support/media/render'
+import { clearMediaRegistry, resolveMedia, resolveSource } from '../.vitepress/support/media/registry'
 import { setMediaRuntime } from '../.vitepress/support/media/runtime'
 
 /**
@@ -29,6 +30,8 @@ function render(source: string, path = `${process.cwd()}/tests/media-render.test
 }
 
 beforeEach(() => {
+  // 注册表是模块级单例：用例间清空，避免 LQIP 假字节泄漏进下一个用例
+  clearMediaRegistry()
   // 只有 publicDir / base 会影响结果，这里给一组固定值
   setMediaRuntime({
     mode: 'dev',
@@ -136,6 +139,35 @@ describe('渲染属性', () => {
     const html = render(`![alt](${EXISTING})`)
     expect(html).toContain('data-zoomable="true"')
     expect(html).toContain('srcset=')
+  })
+
+  it('带 data-lqip 占位（构建期模糊缩略图，data: URI）', () => {
+    /*
+     * 渲染侧只负责「entry.files 里有 LQIP 字节 → 内联成 data URI」这一步；
+     * 真正的字节由 sharp 转码产出（构建期的事，单测不跑）。
+     * 这里手工塞一段假字节，验证链接通、转义对、格式前缀正确。
+     */
+    const sourcePath = resolveSource(`${process.cwd()}/tests/media-render.test.ts`, EXISTING)
+    const entry = resolveMedia(sourcePath!)
+    const name = entry.lqipFileName?.split('/').pop()
+    expect(name).toBeTruthy()
+    entry.files.set(name!, Buffer.from('not-real-webp'))
+
+    const html = render(`![alt](${EXISTING})`)
+    const match = html.match(/data-lqip="([^"]+)"/)
+    expect(match).not.toBeNull()
+    expect(match?.[1]).toMatch(/^data:image\/webp;base64,/)
+  })
+
+  it('LQIP 字节未就绪时不输出 data-lqip（dev 按需转码前的合法状态）', () => {
+    // 不塞字节：resolveMedia 后直接渲染，files 里没有 LQIP
+    const html = render(`![alt](${EXISTING})`)
+    expect(html).not.toContain('data-lqip')
+  })
+
+  it('外链图不带 data-lqip（不归管线管）', () => {
+    const html = render('![remote](https://example.com/a.png)')
+    expect(html).not.toContain('data-lqip')
   })
 })
 

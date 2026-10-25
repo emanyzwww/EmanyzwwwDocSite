@@ -419,6 +419,58 @@ vue: {
 改了编码参数、档位算法或命名规则，**必须把 `transcode.ts` 的 `PIPELINE_VERSION` +1**，
 否则缓存会继续返回旧参数产出的字节，且没有任何提示。
 
+### LQIP（图片加载前的色彩占位）
+
+位图在转码时**额外**产出一张 20px 宽的模糊 webp（`<sha12>-lqip.webp`，
+几百字节），构建期直接 base64 内联进 `<img data-lqip="data:image/webp;base64,…">`。
+它**不作为独立 URL 被引用**、不进 `generateBundle` 发射——内联是为了
+「占位与 `<img>` 同请求到达」，走网络就失去意义。
+
+运行期三层占位（`content.css` 的 prose-media 一节）：
+
+```text
+① shimmer 骨架（link 的流动渐变背景，只在有 LQIP 的图上启用）
+② LQIP（img 的 background，data URI，解析到标签即有）
+③ 真图淡入（theme/index.ts 的捕获式 load 委托打 data-loaded）
+```
+
+关键实现约束：
+
+1. **`load` 事件不冒泡**——`data-loaded` 的委托必须挂在 `document` 上且
+   用捕获阶段（`addEventListener('load', fn, true)`），这是 `theme/index.ts`
+   里 `markLoadedImages` 的做法，与 lightbox 的点击委托同一个模式；
+2. LQIP 的转码失败**静默降级**（返回 `null`，渲染侧跳过属性）——它是体验
+   增强，绝不能弄挂构建；
+3. 矢量（svg）与窄于 20px 的图不出 LQIP；
+4. 查看器（lightbox）复用同一套三层占位：`useImageViewer.collectGallery()`
+   从正文 `<img data-lqip>` 把占位带进画廊项，加载态样式在 `lightbox.css`。
+
+### 链接悬浮预览（provider 注册机制）
+
+正文链接悬浮 300ms 后弹出预览卡（`LinkPreviewCard.vue` + `useLinkPreview.ts`），
+键盘 focus 同样触发（150ms）。数据按 **provider 注册表** 分发
+（`theme/support/link-preview/`）：
+
+```text
+core.ts        纯函数：URL 解析（GitHub repo / bilibili BV号）、缓存键、TTL
+providers.ts   provider 注册表：站内 → GitHub → bilibili → 通用外链（顺序即优先级）
+```
+
+**新增一种链接类型**（以知乎为例）：
+
+1. `core.ts` 加一个 `parseZhihuAnswer(url)` 之类的纯解析函数（可单测）；
+2. `providers.ts` 写一个 `LinkProvider`（`id` / `match` / `fetch`），
+   插进 `createProviders()` 的合适位置；fetch 必须带超时、拿不到返回 `null`；
+3. `config.ts` 的 CSP `connect-src` 加上 API 域名——**漏了这步 fetch 会被
+   静默拦截**，表现为永远降级成通用域名卡；
+4. 需要站点图标就在 `icons.ts` + `types.ts` 的 `IconName` 里加一个，
+   并把名字加进 `LinkPreviewCard.vue` 的 `PREVIEW_ICONS` 白名单。
+
+缓存：内存 Map + `localStorage`（键 `emanyzwww-link-preview:<provider>:<url>`），
+TTL 24 小时（`PREVIEW_TTL_MS`）。同一链接重复悬浮零请求；拿不到的结果
+（`data: null`）同样进缓存，TTL 内不反复重试。用户悬浮触发请求只会
+把「读者在看哪个链接」发给对应平台——TTL 去重就是隐私上的克制手段。
+
 ### 改图片管线时的检查清单
 
 ```text
@@ -623,7 +675,7 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 实测：`content.css` 里有 67 处 `.prose`，**没有任何一条规则能影响
 `.prose` 之外的元素**。
 
-### 十三个样式文件的职责
+### 十四个样式文件的职责
 
 顺序在 `styles/index.css` 里，后面的能覆盖前面的。
 
@@ -639,6 +691,7 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。所以：
 | `mobile.css`           | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局               | 改移动端交互                 |
 | `search.css`           | 全站搜索面板                                                       | 改搜索面板                   |
 | `lightbox.css`         | 图片查看器（满屏浮层，与搜索同一类）                               | 改查看器                     |
+| `link-preview.css`     | 链接悬浮预览卡（小浮层，Teleport 到 body）                         | 改悬浮卡                     |
 | `route-transition.css` | 页面切换与主题切换的 `::view-transition-*`                         | 改整页过渡                   |
 | `print.css`            | 打印样式                                                           | 调打印                       |
 | `index.css`            | `@import` 汇总，别放规则                                           | 加新样式文件时登记           |
@@ -964,6 +1017,7 @@ export function usePopularPosts(limit = 5) {
 | `useDockState`       | 移动端「阅读态」：页头隐藏 / 胶囊收成圆        |
 | `useScrollBar`       | 自绘滚动条：拇指长度、位置与拖拽               |
 | `useImageViewer`     | 图片查看器：画廊、翻页、缩放、平移、状态       |
+| `useLinkPreview`     | 链接悬浮预览：匹配 provider、取数、缓存、显隐  |
 
 **`useLocaleSwitch` 的目标地址按四级推导**（详见 `support/translation.ts` 注释）：
 
@@ -1413,9 +1467,10 @@ pnpm build         # 构建（也会暴露类型问题）
 | `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                                       |
 | `dev-redirect.test.ts`     | `Accept-Language` 解析                                                        |
 | `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算                             |
-| `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接                         |
+| `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名            |
 | `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                   |
-| `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关                         |
+| `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关、`data-lqip` 内联       |
+| `link-preview.test.ts`     | 链接预览纯函数：GitHub/bilibili URL 解析、缓存键归一化、TTL、数字缩写         |
 | `anchor-scroll.test.ts`    | 锚点留白（读 `scroll-padding-top`）、滚动扣减、**滚动锁排队**（iOS 真机 bug） |
 | `presence.test.ts`         | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约                             |
 | `overlay-registry.test.ts` | 浮层强制关闭登记表：注册、注销、幂等                                          |

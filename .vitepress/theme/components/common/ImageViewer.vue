@@ -124,6 +124,14 @@ const SWIPE_MAX_MS = 600
 const thumbSrc = computed(() => current.value?.thumb ?? '')
 const originSrc = computed(() => current.value?.src ?? '')
 
+/**
+ * LQIP 占位图（来自正文 `<img data-lqip>`，data URI）。
+ *
+ * 与正文同源：给舞台 `<img>` 当背景。渐进加载的两段之间（缩略图请求中、
+ * 原图替换中）它都在下面垫着，观感从「黑屏等」变成「先看到色彩再变清晰」。
+ */
+const lqipSrc = computed(() => current.value?.lqip ?? '')
+
 /** 当前实际渲染的地址。渐进加载完成后换成原图。 */
 const displaySrc = ref('')
 
@@ -1003,6 +1011,7 @@ onBeforeUnmount(() => {
               :style="{ ...imageTransform, ...imageSize }"
               :src="imageSrc"
               :alt="current?.alt ?? ''"
+              :data-lqip="lqipSrc || undefined"
               draggable="false"
               @load="onImageLoad"
               @error="onImageError" />

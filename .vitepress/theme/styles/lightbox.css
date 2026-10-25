@@ -263,9 +263,56 @@ a.lightbox__action {
   transition: none;
 }
 
-/* 加载中：先给一个骨架底，避免图片出现前的空洞 */
+/*
+ * 加载态：与正文图片同一套三层占位（见 content.css 的 prose-media 骨架）。
+ *
+ * `.is-loading` 期间：
+ * ① 翻页层给 shimmer 骨架底；② `<img>` 铺 LQIP 背景（data URI，秒出）；
+ * 图片本体透明。`loading` 变 false 后（缩略图或原图就位）三层让位给真图。
+ */
+.lightbox__fig.is-loading {
+  background-color: var(--overlay-surface);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--overlay-border) 80%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: lb-shimmer 1.4s linear infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes lb-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.lightbox__image[data-lqip] {
+  background-size: cover;
+  background-position: center;
+}
+
 .lightbox__fig.is-loading .lightbox__image {
   opacity: 0;
+}
+
+/* 就位后的淡入：只在有 LQIP 时需要（无 LQIP 的图本就瞬间出现，淡入反而拖沓） */
+.lightbox__fig:not(.is-loading) .lightbox__image[data-lqip] {
+  animation: lb-reveal var(--duration-normal) var(--ease-out);
+}
+
+@keyframes lb-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* 翻页动效：只用 opacity + 8px 横移，绝不用 scale（倍率是手势的连续状态） */

@@ -74,4 +74,8 @@ export const zhCN: Messages = {
   imageViewerRetry: '重试',
   imageViewerOpenOriginal: '在新标签页打开原图',
   imageViewerHint: '← → 翻页，+ − 缩放，0 适应窗口，1 实际大小，Esc 关闭',
+
+  // ---------- 链接悬浮预览卡 ----------
+  linkPreviewViews: '{count} 播放',
+  linkPreviewLikes: '{count} 点赞',
 }

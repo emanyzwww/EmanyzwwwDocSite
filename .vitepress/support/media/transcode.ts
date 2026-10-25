@@ -27,8 +27,79 @@ import type { MediaKind } from './types'
  *
  * 改了编码参数、档位算法、命名规则，都要 +1 —— 否则磁盘缓存会继续返回
  * 旧参数产出的字节，且**没有任何提示**。
+ *
+ * v2：新增 LQIP（模糊缩略图）产物。缓存键已包含本常量，旧缓存自然失效。
  */
-export const PIPELINE_VERSION = 1
+export const PIPELINE_VERSION = 2
+
+/** LQIP（模糊缩略图）的目标宽度（px）。
+ *
+ * 只当「图片加载前的色彩占位」用，最终会以 base64 内联进 `<img>` 的
+ * `data-lqip` 属性。20px 宽的 webp（quality 30）实测 200–400 B，
+ * base64 后约 300–550 B —— 内联进 HTML 的体积代价可以忽略。
+ * **永不放大**：源图比它还窄时不出 LQIP（那种图本来就秒加载）。
+ */
+export const LQIP_WIDTH = 20
+
+/** LQIP 的 webp 质量。模糊图不需要保真，低质量换体积。 */
+export const LQIP_QUALITY = 30
+
+/** LQIP 的缓存键（独立于展示档位：宽度与参数都不同）。 */
+function lqipCacheKey(hash: string, kind: MediaKind): string {
+  return createHash('sha256')
+    .update(
+      [
+        hash,
+        LQIP_WIDTH,
+        kind,
+        LQIP_QUALITY,
+        'lqip',
+        PIPELINE_VERSION,
+        process.platform,
+        sharp.versions.vips,
+        sharp.versions.webp,
+      ].join('|'),
+    )
+    .digest('hex')
+}
+
+/**
+ * 生成一张图的 LQIP（极小模糊缩略图）字节。
+ *
+ * - **模糊在编码端完成**（先 resize 后 blur），不靠浏览器 CSS blur：
+ *   20px 的图浏览器拉伸放大本身就是模糊的，再叠 blur 只是把色带抹平；
+ * - 矢量（svg）不出 LQIP：矢量本身零延迟，占位反而多余；
+ * - 失败返回 `null`（LQIP 是体验增强，绝不能让它弄挂构建）。
+ */
+export async function encodeLqip(input: {
+  source: Buffer
+  hash: string
+  kind: MediaKind
+  intrinsicWidth: number
+}): Promise<Buffer | null> {
+  // 矢量不出；源图比目标还窄也不出（永不放大原则）
+  if (input.kind === 'vector') return null
+  if (input.intrinsicWidth <= LQIP_WIDTH) return null
+
+  const key = lqipCacheKey(input.hash, input.kind)
+  const cached = readCache(key)
+  if (cached) return cached
+
+  try {
+    const bytes = await sharp(input.source, { animated: false })
+      .rotate()
+      .resize({ width: LQIP_WIDTH, withoutEnlargement: true })
+      .blur(2)
+      .toColourspace('srgb')
+      .webp({ quality: LQIP_QUALITY })
+      .toBuffer()
+    writeCache(key, bytes)
+    return bytes
+  } catch {
+    // LQIP 是增强：任何失败都静默降级为「无 LQIP」，不阻断转码主管线
+    return null
+  }
+}
 
 /** 磁盘缓存的目录。放在 `.vitepress/cache/` 下，已被 `.gitignore` 与 `.oxfmtignore` 忽略。 */
 let cacheDir: string | null = null

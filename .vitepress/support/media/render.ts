@@ -175,6 +175,12 @@ function renderImage(token: TokenLike, env: unknown, self: RendererLike, md: Mar
     title ? `title="${escapeAttr(title)}"` : '',
     'loading="lazy"',
     'decoding="async"',
+    /*
+     * LQIP 占位：构建期产出的极小模糊图（base64 data URI）。
+     * CSS 侧把它铺在图片的预留区里当加载前的色彩占位，
+     * `data-loaded` 打上后淡出（见 content.css 的 prose-media 骨架一节）。
+     */
+    markup.lqip ? `data-lqip="${escapeAttr(markup.lqip)}"` : '',
     zoomable ? 'data-zoomable="true"' : '',
   ]
     .filter(Boolean)

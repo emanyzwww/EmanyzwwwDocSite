@@ -24,6 +24,7 @@ import { extname, resolve } from 'node:path'
 import {
   buildSrcset,
   decideKind,
+  lqipFileName,
   MAX_ORIGIN_BYTES,
   MAX_ORIGIN_PIXELS,
   MEDIA_DIR,
@@ -36,7 +37,7 @@ import {
 } from './planner'
 import { readImageSize } from './probe'
 import { getMediaRuntime } from './runtime'
-import { encodeVariant, hashSource } from './transcode'
+import { encodeLqip, encodeVariant, hashSource } from './transcode'
 import type { MediaEntry, MediaVariant } from './types'
 
 /* ------------------------------------------------------------------ *
@@ -211,6 +212,13 @@ export function resolveMedia(sourcePath: string): MediaEntry {
     bytes: 0,
   }))
 
+  /*
+   * LQIP 文件名在 resolve（同步）阶段就定下来：与变体同一条命名纪律
+   * （sha256 → 名字），encode（异步）阶段只负责填字节。
+   * public/ 资源不转码，因此也没有 LQIP。
+   */
+  const lqip = decision.transcode && !inPublic ? lqipFileName(key) : null
+
   const entry: MediaEntry = {
     key,
     sourcePath,
@@ -220,6 +228,7 @@ export function resolveMedia(sourcePath: string): MediaEntry {
     intrinsicHeight: size.height,
     originFileName: inPublic ? null : originFileName(key, ext),
     originBytes: bytes.length,
+    lqipFileName: lqip,
     variants,
     files: new Map(),
   }
@@ -252,6 +261,14 @@ export interface MediaMarkup {
   originName: string
   /** 内容指纹，供查看器做画廊去重。 */
   key: string
+  /**
+   * LQIP 占位图（`data:` URI，base64 webp）。
+   *
+   * 空串 = 没有 LQIP（矢量 / 窄图 / 转码失败），渲染侧跳过该属性。
+   * 用 `data:` 而不是独立 URL：占位必须与 `<img>` 同请求到达，
+   * 走网络就失去「先有颜色再等图」的意义。
+   */
+  lqip: string
 }
 
 /**
@@ -261,6 +278,9 @@ export interface MediaMarkup {
  * - 多档位图 → `src` 取最接近 672 的档 + `srcset`
  * - `public/` 资源 → `src` 直指原路径（不参与发射）
  * - 矢量 / 动图 → `src` 直指原图地址
+ *
+ * LQIP：字节已就绪时转成 `data:` URI（base64 webp）内联；
+ * 字节未就绪（dev 按需转码还没跑到）或根本没有 LQIP 时为空串。
  */
 export function markupOf(entry: MediaEntry): MediaMarkup {
   const { base } = getMediaRuntime()
@@ -275,6 +295,7 @@ export function markupOf(entry: MediaEntry): MediaMarkup {
     origin,
     originName: baseName(entry.sourcePath),
     key: shortKey(entry.key),
+    lqip: lqipDataUriOf(entry),
   }
 
   if (entry.variants.length === 0) {
@@ -296,6 +317,13 @@ export function markupOf(entry: MediaEntry): MediaMarkup {
     ),
     sizes: SIZES,
   }
+}
+
+/** LQIP 字节 → `data:` URI；没有就绪的字节时返回空串。 */
+function lqipDataUriOf(entry: MediaEntry): string {
+  if (!entry.lqipFileName) return ''
+  const bytes = entry.files.get(fileNameOf(entry.lqipFileName))
+  return bytes ? `data:image/webp;base64,${bytes.toString('base64')}` : ''
 }
 
 /** `public/` 下的绝对路径 → 站内路径。 */
@@ -343,6 +371,21 @@ export async function encode(entry: MediaEntry): Promise<void> {
     entry.files.set(fileNameOf(variant.fileName), bytes)
     variant.bytes = bytes.length
   }
+
+  /*
+   * LQIP：展示档压完后顺手压一张极小模糊图。
+   * 幂等（files 里有了就跳过）；失败为 `null` 字节 = 无 LQIP，
+   * 渲染侧按「没有这个属性」处理。
+   */
+  if (entry.lqipFileName && !entry.files.has(fileNameOf(entry.lqipFileName))) {
+    const bytes = await encodeLqip({
+      source,
+      hash: entry.key,
+      kind: entry.kind,
+      intrinsicWidth: entry.intrinsicWidth,
+    })
+    if (bytes) entry.files.set(fileNameOf(entry.lqipFileName), bytes)
+  }
 }
 
 /**
@@ -379,8 +422,9 @@ export async function encodeAll(concurrency = 4): Promise<void> {
 /**
  * dev 中间件用：按请求路径反查 entry 并按需转码。
  *
- * 两种形态：
+ * 三种形态：
  * - `assets/media/<sha12>-672.webp` → 该档 webp
+ * - `assets/media/<sha12>-lqip.webp` → LQIP 模糊缩略图（encode 会一并产出）
  * - `assets/media/orig/<sha12>.<ext>` → 原图**原始字节**（不重新编码，保证"完整原图"）
  */
 export async function ensureFileByRequest(relative: string): Promise<Buffer | null> {
@@ -390,13 +434,14 @@ export async function ensureFileByRequest(relative: string): Promise<Buffer | nu
   const isOrigin = name.startsWith('orig/')
   const short = isOrigin
     ? name.slice(name.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '')
-    : name.replace(/-\d+\.webp$/, '')
+    : name.replace(/-\d+\.webp$/, '').replace(/-lqip\.webp$/, '')
 
   const entry = [...byKey.values()].find((candidate) => shortKey(candidate.key) === short)
   if (!entry) return null
 
   if (isOrigin) return readFileSync(entry.sourcePath)
 
+  // LQIP 与展示档共用同一条 encode 通道（encode 会把两种字节都备齐）
   await encode(entry)
   return entry.files.get(name) ?? null
 }

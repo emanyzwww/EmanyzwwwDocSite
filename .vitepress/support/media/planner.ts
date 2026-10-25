@@ -204,6 +204,17 @@ export function variantFileName(key: string, width: number): string {
   return `${MEDIA_DIR}/${shortKey(key)}-${width}.webp`
 }
 
+/**
+ * LQIP（模糊缩略图）的文件名（相对产物根）。
+ *
+ * 只在构建期转码后**立刻 base64 内联进 `<img data-lqip>`**，
+ * 不需要作为独立 URL 被引用；单独成文件是为了让构建期与 dev 的
+ * `entry.files` 走同一条「文件名 → 字节」通道（见 registry.encode）。
+ */
+export function lqipFileName(key: string): string {
+  return `${MEDIA_DIR}/${shortKey(key)}-lqip.webp`
+}
+
 /** 原图文件名（相对产物根）。扩展名决定浏览器能否直接显示。 */
 export function originFileName(key: string, ext: string): string {
   return `${ORIGIN_DIR}/${shortKey(key)}.${ext.toLowerCase()}`

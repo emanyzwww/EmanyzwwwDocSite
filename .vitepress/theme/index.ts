@@ -45,10 +45,41 @@ function localizeCopyButtons(): void {
     })
 }
 
+/**
+ * 给「已经加载完成」的图片打标记。
+ *
+ * 正文图片是构建期生成的静态 HTML（没有 Vue 组件），加载态只能靠
+ * CSS + 一个布尔属性表达：`data-loaded` 在 → 骨架淡出、图片淡入
+ * （样式见 content.css 的 prose-media 一节）。
+ *
+ * ## 为什么用捕获式委托而不是逐个绑 load
+ *
+ * `load` 事件**不冒泡**（普通委托收不到），但捕获阶段会经过 document ——
+ * 所以在 document 上以捕获方式监听一次，就能覆盖全页所有 `<img>`，
+ * 且天然覆盖客户端路由换页后的新 DOM，与 lightbox 的点击委托同一个模式。
+ * 对已处于 complete 状态的图（缓存秒回、SSR 首屏）补扫一遍兜底。
+ */
+function markLoadedImages(): void {
+  document.querySelectorAll<HTMLImageElement>('.prose img').forEach((img) => {
+    if (img.complete && img.naturalWidth > 0) img.dataset.loaded = 'true'
+  })
+}
+
+function onImageLoad(event: Event): void {
+  const target = event.target
+  if (target instanceof HTMLImageElement) target.dataset.loaded = 'true'
+}
+
 export default {
   Layout,
   enhanceApp({ router }) {
     if (typeof window === 'undefined') return
+
+    /*
+     * 图片加载完成标记（捕获式委托，见 markLoadedImages 的说明）。
+     * 必须在 enhanceApp 装好 —— 它与路由无关，一份监听管全站。
+     */
+    document.addEventListener('load', onImageLoad, true)
 
     /*
      * 页面切换过渡挂在这里，而不是挂在某个组件里。
@@ -77,12 +108,14 @@ export default {
 
     onContentUpdated(() => {
       localizeCopyButtons()
+      markLoadedImages()
       // 每次内容更新后，给新生成的标题锚补打豁免类
       markHeaderAnchorsRaw()
     })
     // 首屏内容在挂载后才渲染完成，等一帧再标记
     window.requestAnimationFrame(() => {
       localizeCopyButtons()
+      markLoadedImages()
       markHeaderAnchorsRaw()
     })
   },

@@ -48,6 +48,14 @@ export interface MediaEntry {
   originFileName: string | null
   /** 原图字节数。 */
   originBytes: number
+  /**
+   * LQIP（模糊缩略图）的文件名，相对产物根，如 `assets/media/ab12-lqip.webp`。
+   *
+   * 构建期 / dev 转码后字节会放进 `files`，`markupOf` 读出来 base64
+   * 内联进 `<img data-lqip>`。矢量、窄图、转码失败时为 `null`
+   * （渲染侧据此跳过占位，行为退回无 LQIP 的版本）。
+   */
+  lqipFileName: string | null
   /** 展示变体，按宽度升序。矢量与动图为空数组（直接用原图）。 */
   variants: MediaVariant[]
   /** 文件名 → 字节。构建期在扫描阶段填满；dev 下按需填充。 */

@@ -24,6 +24,7 @@
    │  mobile.css    移动端整套（抽屉、胶囊、目录、阅读态）
    │  search.css    全站搜索面板
    │  lightbox.css  图片查看器（满屏浮层，与搜索同一类）
+   │  link-preview.css  链接悬浮预览卡（小浮层，Teleport 到 body）
    │  route-transition.css  页面切换 / 主题切换（只碰 ::view-transition-*）
    │
    └─ ⑤ 输出 ─────────────────────────────────────────────
@@ -52,5 +53,6 @@
 @import './mobile.css';
 @import './search.css';
 @import './lightbox.css';
+@import './link-preview.css';
 @import './route-transition.css';
 @import './print.css';

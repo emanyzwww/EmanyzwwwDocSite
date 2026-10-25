@@ -314,6 +314,79 @@
 }
 
 /*
+ * ---------- 图片加载态：骨架 shimmer + LQIP + 淡入 ----------
+ *
+ * 三层占位，从下到上：
+ *
+ * 1. **shimmer 骨架**（`.prose-media__link` 自身的背景）：
+ *    流动渐变，负责「图片还没开始下载」的阶段；
+ * 2. **LQIP**（`<img data-lqip>` 的背景）：构建期内联的极小模糊图，
+ *    负责给出图片本身的色彩——浏览器解析到 `<img>` 标签的瞬间就有，
+ *    零网络请求（data URI）；
+ * 3. **真图淡入**（`data-loaded` 打上后）：图片加载完成，盖住前两层。
+ *
+ * 尺寸空间由构建期写入的 `width`/`height` 属性保证（宽高比预留），
+ * 这里只管填色，不参与布局。
+ *
+ * `data-loaded` 由 `theme/index.ts` 的捕获式 load 委托打上
+ * （load 不冒泡，普通委托收不到）。
+ */
+
+/* ① shimmer：只在有 LQIP 的图上才启用流动动画（无 LQIP 的图太快，动画反而闪烁） */
+.prose .prose-media__link:has(img[data-lqip]) {
+  background-color: var(--bg-surface-alt);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--border-subtle) 60%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: prose-shimmer 1.4s linear infinite;
+}
+
+@keyframes prose-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ② LQIP：铺在 img 自身（宽高比已由属性预留，背景自动填满预留区） */
+.prose .prose-media__link img[data-lqip] {
+  background-size: cover;
+  background-position: center;
+}
+
+/* ③ 加载完成：骨架与 LQIP 淡出，真图淡入 */
+.prose .prose-media__link img[data-lqip] {
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.prose .prose-media__link img[data-lqip][data-loaded] {
+  opacity: 1;
+}
+
+.prose .prose-media__link:has(img[data-loaded]) {
+  animation: none;
+  background-image: none;
+}
+
+/* 无障碍：系统要求减少动效时，shimmer 停住、淡入改瞬时 */
+@media (prefers-reduced-motion: reduce) {
+  .prose .prose-media__link:has(img[data-lqip]) {
+    animation: none;
+  }
+
+  .prose .prose-media__link img[data-lqip] {
+    transition: none;
+  }
+}
+
+/*
  * ---------- 「可点开放大」的角标 ----------
  *
  * 一个右下角的放大镜方块，叠在图上。两条纪律：

@@ -113,6 +113,8 @@ export type IconName =
   | 'zoom-out'
   | 'download'
   | 'fit'
+  // ---------- 链接预览卡 ----------
+  | 'play'
 
 /** 个人资料中的一条社交链接。 */
 export interface ProfileLink {
@@ -319,6 +321,12 @@ export interface Messages {
   imageViewerOpenOriginal: string
   /** 键盘提示。 */
   imageViewerHint: string
+
+  // ---------- 链接悬浮预览卡 ----------
+  /** bilibili 元信息：播放量（`{count}` 已缩写成 1.2k）。 */
+  linkPreviewViews: string
+  /** bilibili 元信息：点赞数。 */
+  linkPreviewLikes: string
 }
 
 /** 语言元信息。 */

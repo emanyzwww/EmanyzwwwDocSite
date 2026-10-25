@@ -1,0 +1,183 @@
+/* =========================================================
+   链接悬浮预览卡
+   ---------------------------------------------------------
+   属于「需要遮挡内容的浮层」，因此是全站少数允许带阴影的元素
+   （DESIGN.md 6.2：阴影只给浮层）。
+
+   DOM（由 LinkPreviewCard.vue 生成）：
+     <div class="link-preview">          ← Teleport 到 body，fixed 定位
+       <p class="link-preview__site">    ← 站点名（GitHub / bilibili / …）
+       <p class="link-preview__title">   ← 标题
+       <p class="link-preview__desc">    ← 描述（可无）
+       <p class="link-preview__meta">    ← 元信息行（可无）
+     </div>
+
+   定位由组件内联 style 给出（依赖运行时测量的锚点矩形），这里只管外观。
+   ========================================================= */
+
+.link-preview {
+  position: fixed;
+  z-index: var(--z-dock);
+  max-width: 24rem;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: var(--border-width) solid var(--border-subtle);
+  /* 浮层语义：需要遮挡正文，允许阴影（DESIGN.md 6.2） */
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* 进出动画：走 usePresence 的 present / is-exiting 契约 */
+.link-preview {
+  animation: link-preview-in var(--duration-fast) var(--ease-out);
+}
+
+.link-preview.is-exiting {
+  animation: link-preview-out 80ms var(--ease-in) forwards;
+}
+
+@keyframes link-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes link-preview-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+/* ---------- 内容 ---------- */
+
+.link-preview__site {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.link-preview__site-icon {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.link-preview__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-default);
+  /* 两行截断：标题超长时不让卡片失控 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.link-preview__desc {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.link-preview__meta {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-2xs);
+  color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 骨架（fetch 中） ---------- */
+
+.link-preview__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.link-preview__sk {
+  display: block;
+  height: 0.75rem;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-surface-alt);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--border-subtle) 60%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: link-preview-shimmer 1.4s linear infinite;
+}
+
+.link-preview__sk.site {
+  width: 30%;
+  height: 0.5rem;
+}
+
+.link-preview__sk.title {
+  width: 85%;
+  height: 0.875rem;
+}
+
+.link-preview__sk.line {
+  width: 100%;
+}
+
+.link-preview__sk.line.short {
+  width: 60%;
+}
+
+@keyframes link-preview-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- 触屏 / 键盘 ---------- */
+
+/* 触屏没有 hover：卡片只由键盘 focus 触发，pointer coarse 下依旧可达 */
+@media (hover: none) {
+  .link-preview {
+    display: none;
+  }
+}
+
+/* ---------- 降低动效偏好 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .link-preview,
+  .link-preview.is-exiting,
+  .link-preview__sk {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -2,8 +2,10 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { useImageViewer } from '../../composables/useImageViewer'
+import { dismiss, focusLink, hoverLink, unhoverLink } from '../../composables/useLinkPreview'
 import { useI18n } from '../../i18n'
 import ImageViewer from '../common/ImageViewer.vue'
+import LinkPreviewCard from '../common/LinkPreviewCard.vue'
 import ScrollBar from '../common/ScrollBar.vue'
 import MobileDock from '../mobile/MobileDock.vue'
 import SearchPanel from '../site/SearchPanel.vue'
@@ -83,14 +85,78 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   openLightbox(active)
 }
 
+/*
+ * ---------- 链接悬浮预览（委托，同 lightbox 的模式） ----------
+ *
+ * 只对 `.prose` 内的链接生效：正文是预览的主要场景；导航、侧栏、页脚的
+ * 链接目标一目了然（「首页」「文章」），弹卡反而是噪声。
+ *
+ * mouseover/mouseout 会因为穿过子元素而高频触发，但 useLinkPreview 里的
+ * 进入/离开延迟天然把抖动吃掉了（反复 hover/unhover 只是重置定时器）。
+ * focusin 走捕获：focus 不冒泡到 document 的普通监听。
+ */
+function isPreviewableLink(element: Element | null | undefined): element is HTMLAnchorElement {
+  if (!(element instanceof HTMLAnchorElement)) return false
+  const href = element.getAttribute('href')
+  if (!href) return false
+  // 锚点、js:、mailto: 等不弹卡
+  try {
+    if (!/^https?:/i.test(new URL(href, location.origin).protocol)) return false
+  } catch {
+    return false
+  }
+  return element.closest('.prose') !== null
+}
+
+function closestLink(target: Element | null): HTMLAnchorElement | null {
+  return target?.closest?.('a') ?? null
+}
+
+function onDocumentMouseOver(event: MouseEvent): void {
+  if (event.buttons > 0) return // 拖动选中文本时不算悬浮
+  const link = closestLink(event.target as Element | null)
+  if (!isPreviewableLink(link)) return
+  hoverLink(link)
+}
+
+function onDocumentMouseOut(event: MouseEvent): void {
+  const link = closestLink(event.target as Element | null)
+  if (!isPreviewableLink(link)) return
+  // relatedTarget 还在同一个链接里（穿过子元素）就不算离开
+  if (event.relatedTarget instanceof Node && link.contains(event.relatedTarget)) return
+  unhoverLink()
+}
+
+function onDocumentFocusIn(event: FocusEvent): void {
+  const link = closestLink(event.target as Element | null)
+  if (!isPreviewableLink(link)) return
+  focusLink(link)
+}
+
+function onDocumentFocusOut(event: FocusEvent): void {
+  const link = closestLink(event.target as Element | null)
+  if (!isPreviewableLink(link)) return
+  unhoverLink()
+}
+
 onMounted(() => {
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('keydown', onDocumentKeydown)
+  document.addEventListener('mouseover', onDocumentMouseOver)
+  document.addEventListener('mouseout', onDocumentMouseOut)
+  document.addEventListener('focusin', onDocumentFocusIn)
+  document.addEventListener('focusout', onDocumentFocusOut)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onDocumentKeydown)
+  document.removeEventListener('mouseover', onDocumentMouseOver)
+  document.removeEventListener('mouseout', onDocumentMouseOut)
+  document.removeEventListener('focusin', onDocumentFocusIn)
+  document.removeEventListener('focusout', onDocumentFocusOut)
+  // 组件销毁时收起悬浮卡，避免残留一个指向已失效锚点的浮层
+  dismiss()
 })
 </script>
 
@@ -114,5 +180,7 @@ onBeforeUnmount(() => {
     <SearchPanel v-model:open="searchOpen" />
 
     <ImageViewer />
+
+    <LinkPreviewCard />
   </div>
 </template>

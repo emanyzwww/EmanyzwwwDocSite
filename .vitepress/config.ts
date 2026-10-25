@@ -414,7 +414,15 @@ export default defineConfig({
           // 头像等图片走同源 + data:（Vite 可能内联小图）
           "img-src 'self' data:",
           "font-src 'self'",
-          "connect-src 'self'",
+          /*
+           * connect-src 的两个额外域名给「链接悬浮预览」用：
+           * - api.github.com：仓库卡（stars / 语言 / 更新时间）
+           * - api.bilibili.com：视频卡（播放 / 点赞）
+           * 两者都支持 CORS；请求由用户悬浮触发、带 24h 本地缓存去重。
+           * 新增链接 provider 时，其 API 域名必须同步加进这里，
+           * 否则 fetch 会被 CSP 静默拦截（表现为永远降级成通用卡）。
+           */
+          "connect-src 'self' https://api.github.com https://api.bilibili.com",
           "media-src 'self'",
           "manifest-src 'self'",
           "object-src 'none'",

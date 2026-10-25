@@ -74,4 +74,8 @@ export const en: Messages = {
   imageViewerRetry: 'Retry',
   imageViewerOpenOriginal: 'Open original in a new tab',
   imageViewerHint: '← → to navigate, + − to zoom, 0 to fit, 1 for actual size, Esc to close',
+
+  // ---------- Link preview card ----------
+  linkPreviewViews: '{count} views',
+  linkPreviewLikes: '{count} likes',
 }

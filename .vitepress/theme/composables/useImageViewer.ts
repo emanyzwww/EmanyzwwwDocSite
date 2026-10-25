@@ -31,6 +31,15 @@ export interface LightboxItem {
   name: string
   /** 内容指纹，用于去重（同一张图在正文里出现两次只算一张）。 */
   key: string
+  /**
+   * LQIP 占位图（`data:` URI，来自正文 `<img data-lqip>`）。
+   *
+   * 查看器是渐进加载的：先放 672 缩略图、再换原图。缩略图**通常**有缓存
+   * （正文已经显示过），但「图片还没 lazy 加载完就被点击」时它也要等网络 ——
+   * 这时 LQIP 能先给舞台铺上这张图的色彩，与正文的加载态视觉一致。
+   * 没有则为空串。
+   */
+  lqip: string
   /** 触发元素，关闭后焦点要还给它。 */
   trigger: HTMLElement | null
   /**
@@ -203,6 +212,7 @@ function collectGallery(): LightboxItem[] {
       alt: img?.getAttribute('alt') ?? '',
       name: anchor.dataset.originName ?? '',
       key,
+      lqip: img?.dataset.lqip ?? '',
       trigger: anchor,
       /*
        * 原图固有尺寸：正文 `<img>` 上的 `width`/`height` 属性。

@@ -6,6 +6,7 @@ import {
   DISPLAY_WIDTHS,
   KEY_LENGTH,
   ladderWidths,
+  lqipFileName,
   originFileName,
   pickSrcWidth,
   planWidths,
@@ -165,6 +166,14 @@ describe('命名规则', () => {
   it('文件名里不含平台 / 时间戳（跨平台稳定）', () => {
     const name = variantFileName('f'.repeat(64), 672)
     expect(name).toMatch(/^assets\/media\/f{12}-\d+\.webp$/)
+  })
+
+  it('LQIP 文件名：同 sha 唯一、不带宽度档、与展示变体不同名', () => {
+    const key = 'd'.repeat(64)
+    const name = lqipFileName(key)
+    expect(name).toBe('assets/media/dddddddddddd-lqip.webp')
+    expect(name).not.toBe(variantFileName(key, 672))
+    expect(name).not.toBe(variantFileName(key, 336))
   })
 })
 

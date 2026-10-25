@@ -171,6 +171,13 @@ export const ICONS: Record<IconName, IconDef> = {
     mode: 'stroke',
     body: `<path d="M9 4H4v5" /><path d="M15 4h5v5" /><path d="M15 20h5v-5" /><path d="M9 20H4v-5" />`,
   },
+  // ---------- 链接预览卡 ----------
+  // 播放：圆角三角在圆里，bilibili 视频卡的站点图标
+  play: {
+    viewBox: '0 0 24 24',
+    mode: 'stroke',
+    body: `<circle cx="12" cy="12" r="10" /><path d="M10 8.5v7l6-3.5z" fill="currentColor" stroke="none" />`,
+  },
 }
 
 /** 取图标定义；名字非法时回退到 `link`，避免整页渲染失败。 */
