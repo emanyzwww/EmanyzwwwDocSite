@@ -952,18 +952,32 @@ export function usePopularPosts(limit = 5) {
 
 ### 现有组合式函数
 
-| 文件                 | 提供什么                                     |
-| -------------------- | -------------------------------------------- |
-| `usePosts`           | 当前语言的全部文章（已排序、已剔草稿）       |
-| `useTaxonomy`        | 当前语言的标签汇总（含每个标签的文章）       |
-| `useCurrentPost`     | 当前页面匹配到的文章（判断「是不是文章页」） |
-| `useAdjacentPosts`   | 上一篇 / 下一篇                              |
-| `useLocaleSwitch`    | 语言切换的选项与目标地址                     |
-| `useActiveAnchor`    | 目录高亮（当前滚动到哪一节）                 |
-| `useReadingProgress` | 阅读进度 0–1                                 |
-| `useDockState`       | 移动端「阅读态」：页头隐藏 / 胶囊收成圆      |
-| `useScrollBar`       | 自绘滚动条：拇指长度、位置与拖拽             |
-| `useImageViewer`     | 图片查看器：画廊、翻页、缩放、平移、状态     |
+| 文件                 | 提供什么                                       |
+| -------------------- | ---------------------------------------------- |
+| `usePosts`           | 当前语言的全部文章（已排序、已剔草稿）         |
+| `useTaxonomy`        | 当前语言的标签汇总（含每个标签的文章）         |
+| `useCurrentPost`     | 当前页面匹配到的文章（判断「是不是文章页」）   |
+| `useAdjacentPosts`   | 上一篇 / 下一篇                                |
+| `useLocaleSwitch`    | 语言切换的选项与目标地址（文章先按配对键直达） |
+| `useActiveAnchor`    | 目录高亮（当前滚动到哪一节）                   |
+| `useReadingProgress` | 阅读进度 0–1                                   |
+| `useDockState`       | 移动端「阅读态」：页头隐藏 / 胶囊收成圆        |
+| `useScrollBar`       | 自绘滚动条：拇指长度、位置与拖拽               |
+| `useImageViewer`     | 图片查看器：画廊、翻页、缩放、平移、状态       |
+
+**`useLocaleSwitch` 的目标地址按四级推导**（详见 `support/translation.ts` 注释）：
+
+1. **文章配对**：当前页是文章时，按配对键直达另一语言的同一篇。
+   配对键来自 frontmatter 的 `translationKey`，或由 `posts/YYYY/MM/DD/NN/`
+   目录编号推导——两语言 slug 本地化后路径不同名，纯路径匹配必然失配，
+   这是「中文文章目录改中文名后语言切换退回列表页」那个 bug 的修复；
+2. 完全同名的页面（about 等非文章页）；
+3. 同栏目索引（`/en/posts/`）；
+4. 语言首页。
+
+数据源是 `posts.data.ts`（构建期已为每篇文章算好 `translationKey`）
+与 `pages.data.ts`，不在运行时猜路径。`config.ts` 的 hreflang 互指
+（`alternateLinks`）复用同一个配对索引，保证 SEO 互指与切换行为一致。
 
 **`useDockState` 是模块级单例，可以多处调用**
 （`SiteHeader` 与 `MobileDock` 就各调了一次），不会重复绑定事件。
@@ -1394,6 +1408,7 @@ pnpm build         # 构建（也会暴露类型问题）
 | -------------------------- | ----------------------------------------------------------- |
 | `urls.test.ts`             | 相对路径 → URL、中文编码、与 `decodePath` 互逆              |
 | `paths.test.ts`            | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性  |
+| `translation.test.ts`      | 跨语言配对键推导（显式 > 目录编号）、配对索引与回退         |
 | `pagination.test.ts`       | 分页边界（空列表、越界、非法 perPage）                      |
 | `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                     |
 | `dev-redirect.test.ts`     | `Accept-Language` 解析                                      |
@@ -1431,7 +1446,8 @@ pnpm build         # 构建（也会暴露类型问题）
 手动验证见 DESIGN.md 7.5 末尾。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
-`.vitepress/support/urls.ts` 与 `.vitepress/support/locale-paths.ts`，
+`.vitepress/support/urls.ts`、`.vitepress/support/locale-paths.ts`
+与 `.vitepress/support/translation.ts`，
 **不 import `vitepress`**；需要 `withBase` 的包装留在 `theme/support/paths.ts`。
 
 图片管线同理：`media/planner.ts` 与 `media/probe.ts` 是纯函数、可直接加载；

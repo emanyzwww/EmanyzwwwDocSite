@@ -2,11 +2,14 @@
  * 语言切换。
  *
  * 规则（比旧站更明确）：
+ * 0. 当前页是**文章**且有跨语言配对键 → 按键直达目标语言的同一篇文章
+ *    （slug 本地化后路径不再同名，路径匹配对文章必然失效）；
  * 1. 目标语言存在**完全对应**的页面 → 直达；
  * 2. 否则退到目标语言的**同栏目索引**（如 `/en/posts/`）；
  * 3. 再不行退到目标语言的**首页**。
  *
- * 「页面是否存在」由构建期生成的 `pages.data.ts` 决定，不做字符串猜测。
+ * 「页面是否存在」由构建期生成的 `pages.data.ts` 决定，不做字符串猜测；
+ * 「文章配对」由 `posts.data.ts` 的 `translationKey` 决定（见 `support/translation.ts`）。
  * 两种语言地位对等，都是 `/zh-cn/`、`/en/` 这样的前缀。
  */
 
@@ -14,7 +17,9 @@ import { useData, useRoute } from 'vitepress'
 import { computed } from 'vue'
 
 import { data as pages } from '../../data/pages.data'
+import { data as posts } from '../../data/posts.data'
 import { asLocale, LOCALE_CODES, LOCALES } from '../../data/site'
+import { buildTranslationIndex, translatedUrl } from '../../support/translation'
 import type { LocaleCode } from '../../types'
 import { stripLocale, stripRouteBase, withLocale } from '../support/paths'
 
@@ -28,6 +33,22 @@ export interface LocaleOption {
 
 /** 页面存在性索引（存的是编码后的 URL，与 `RawDoc.url` 一致）。 */
 const knownPages = new Set(pages.urls)
+
+/** 跨语言配对索引：配对键 → 语言 → 文章地址。`posts.data.ts` 构建期已算好键。 */
+const translationIndex = buildTranslationIndex(posts)
+
+/**
+ * 由「剥掉语言前缀的裸路径」反查配对键。
+ *
+ * `resolveTarget` 拿到的是 `/posts/.../hello-world/` 这样的裸路径，
+ * 而 `PostSummary.url` 是 `/en/posts/.../`（含语言前缀、已编码），
+ * 所以这里先 `stripLocale` 再作键。裸路径可能未编码（SSG 原文）也可能已编码
+ * （浏览器 `route.path`），统一 `encodeURI` 归一化——对已编码串是恒等变换。
+ */
+const translationKeyByUrl = new Map<string, string>()
+for (const [key, urls] of translationIndex) {
+  for (const url of Object.values(urls)) translationKeyByUrl.set(encodeURI(stripLocale(url)), key)
+}
 
 export function useLocaleSwitch() {
   const route = useRoute()
@@ -63,12 +84,21 @@ export function useLocaleSwitch() {
 }
 
 /**
- * 按上面三条规则推导目标地址。
+ * 按上面四条规则推导目标地址（0 → 1 → 2 → 3）。
  *
- * 比较时统一编码：`knownPages` 存的是 `encodeURI` 后的形式，
+ * 比较时统一编码：`knownPages` / 配对索引存的是 `encodeURI` 后的形式，
  * 而 `route.path` 在浏览器里已经是编码后的（中文标签页会是 `%E9%9A%8F...`）。
  */
 function resolveTarget(bare: string, locale: LocaleCode): string {
+  // 0. 文章配对：按键直达目标语言的同一篇文章（slug 不同也能配上）。
+  //    `encodeURI` 把 SSG 的未编码原文与浏览器的已编码路径归一到同一形式。
+  const byKey = translatedUrl(
+    translationIndex,
+    translationKeyByUrl.get(encodeURI(bare)) ?? null,
+    locale,
+  )
+  if (byKey) return byKey
+
   // 1. 完全对应的页面
   const exact = withLocale(bare, locale)
   if (knownPages.has(exact)) return exact

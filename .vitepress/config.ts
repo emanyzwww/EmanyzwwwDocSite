@@ -20,6 +20,7 @@ import { writeNotFoundFallback } from './support/not-found'
 import { collectRenderedContent } from './support/rendered'
 import { writeRobots } from './support/robots'
 import { writeFeeds } from './support/rss'
+import { buildTranslationIndex, translatedUrl } from './support/translation'
 import { toPageUrl } from './support/urls'
 import { pageCount } from './theme/support/pagination'
 import type { LocaleCode, TagRef } from './types'
@@ -93,18 +94,28 @@ function alternateLinks(
   const links: [string, Record<string, string>][] = []
 
   for (const code of LOCALE_CODES) {
-    const target = `/${code}${bare}`
+    // 当前语言的这一页**一定存在**（我们正在渲染它），无条件输出。
+    if (code === locale) {
+      links.push([
+        'link',
+        { rel: 'alternate', hreflang: LOCALES[code].lang, href: `${SITE_URL}${path}` },
+      ])
+      continue
+    }
 
     /*
-     * 当前语言的这一页**一定存在**（我们正在渲染它），无条件输出。
-     *
-     * 其它语言则必须确认页面真实存在再输出：标签页的 URL 由 `index.paths.ts`
-     * 在构建期按实际标签动态生成，`readPageUrls()` 里只有模板文件
-     * `tags/[tag]/index.md`，拿不到 `tags/随笔/`；因此宁可少输出一条，
-     * 也不要输出一条指向 404 的互指（那会让整组 hreflang 失效）。
+     * 其它语言按两级判断：
+     * 1. 文章：按配对键取目标语言同键文章的真实地址——
+     *    slug 本地化后各语言路径不同名，路径替换必然失配；
+     * 2. 非文章：同名路径存在才输出。标签页的 URL 由 `index.paths.ts`
+     *    构建期按实际标签动态生成，`readPageUrls()` 里只有模板文件
+     *    `tags/[tag]/index.md`，拿不到 `tags/随笔/`；因此宁可少输出一条，
+     *    也不要输出一条指向 404 的互指（那会让整组 hreflang 失效）。
      */
-    const exists = code === locale || known.has(target)
-    if (!exists) continue
+    const target =
+      translatedUrl(translationIndexOf(), urlKeyByUrl().get(path) ?? null, code) ??
+      (known.has(`/${code}${bare}`) ? `/${code}${bare}` : null)
+    if (!target) continue
 
     links.push([
       'link',
@@ -140,6 +151,35 @@ let knownPagesCache: Set<string> | null = null
 function knownPages(): Set<string> {
   knownPagesCache ??= new Set(readPageUrls())
   return knownPagesCache
+}
+
+/**
+ * 文章跨语言配对索引（编码后的站点路径 → 配对键）。
+ *
+ * 文章 slug 本地化后（中文目录「你好，世界」）各语言路径不再同名，
+ * `alternateLinks` 原先的「整条路径换前缀」判断会漏掉正确的互指。
+ * 改为复用 `support/translation.ts` 的配对键：当前页是文章时，
+ * 反查它的键，再取目标语言同键文章的真实地址。
+ *
+ * 与 `pages.data.ts` / `useLocaleSwitch.ts` 同源（都走 `readPosts()`），
+ * 懒建方式同 `knownPages()`。
+ */
+let translationIndexCache: ReturnType<typeof buildTranslationIndex> | null = null
+function translationIndexOf(): ReturnType<typeof buildTranslationIndex> {
+  translationIndexCache ??= buildTranslationIndex(readPosts())
+  return translationIndexCache
+}
+
+/** 文章地址（编码后）→ 配对键。给 `alternateLinks` 由当前页反查配对键用。 */
+let urlKeyCache: Map<string, string> | null = null
+function urlKeyByUrl(): Map<string, string> {
+  if (!urlKeyCache) {
+    urlKeyCache = new Map()
+    for (const [key, urls] of translationIndexOf()) {
+      for (const url of Object.values(urls)) urlKeyCache.set(url, key)
+    }
+  }
+  return urlKeyCache
 }
 
 /**

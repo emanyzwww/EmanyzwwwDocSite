@@ -44,6 +44,13 @@ export interface PostSummary {
   locale: LocaleCode
   /** 源文件相对 `docs/` 的路径，便于排查。 */
   filePath: string
+  /**
+   * 跨语言配对键（同一篇文章各语言版本共享；详见 `support/translation.ts`）。
+   *
+   * 来自 frontmatter 的显式声明，或由 `posts/YYYY/MM/DD/NN/` 目录编号推导。
+   * 没有稳定键的页面（about 等）为 `null`，语言切换对它们退回路径匹配。
+   */
+  translationKey: string | null
 }
 
 /** 标签的最小引用（用于文章元信息、卡片等处）。 */

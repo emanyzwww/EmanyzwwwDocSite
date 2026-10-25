@@ -24,6 +24,7 @@ import {
   plainText,
   truncate,
 } from './format'
+import { translationKeyOf } from './translation'
 import { toPageUrl } from './urls'
 
 /** 内容根目录。优先取 VitePress 已解析的 `srcDir`，避免依赖启动目录。 */
@@ -215,6 +216,7 @@ export function toPostSummary(doc: RawDoc): PostSummary {
     draft: doc.data.draft === true,
     locale: doc.locale,
     filePath: doc.filePath,
+    translationKey: translationKeyOf(doc.data, doc.filePath),
   }
 }
 
