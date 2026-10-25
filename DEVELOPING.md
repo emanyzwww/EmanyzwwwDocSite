@@ -283,18 +283,18 @@ export const PROFILE: Profile = {
 
 ### `config.ts` —— 构建行为
 
-| 想改           | 位置                                                 |
-| -------------- | ---------------------------------------------------- |
-| 代码高亮主题   | `markdown.theme`（当前 `github-dark-default`）       |
-| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`，可加 4）    |
-| 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）               |
-| 锚点跳转偏移   | `scrollOffset`（当前 80，配合 4rem 页头）            |
-| 站点地图域名   | `SITEMAP_HOSTNAME`（自动 = 站点 origin + `VP_BASE`） |
-| 页头 meta      | `head` 数组                                          |
-| 页面标题怎么拼 | `transformPageData`                                  |
-| OG / RSS 标签  | `transformHead`                                      |
-| RSS 生成逻辑   | `buildEnd` → `support/rss.ts`                        |
-| robots.txt     | `buildEnd` → `support/robots.ts`                     |
+| 想改           | 位置                                                                             |
+| -------------- | -------------------------------------------------------------------------------- |
+| 代码高亮主题   | `markdown.theme`（当前 `github-dark-default`）                                   |
+| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`，可加 4）                                |
+| 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）                                           |
+| 锚点跳转偏移   | `scrollOffset`（当前 80；仅影响跨页 hash 定位，页内滚动读 `scroll-padding-top`） |
+| 站点地图域名   | `SITEMAP_HOSTNAME`（自动 = 站点 origin + `VP_BASE`）                             |
+| 页头 meta      | `head` 数组                                                                      |
+| 页面标题怎么拼 | `transformPageData`                                                              |
+| OG / RSS 标签  | `transformHead`                                                                  |
+| RSS 生成逻辑   | `buildEnd` → `support/rss.ts`                                                    |
+| robots.txt     | `buildEnd` → `support/robots.ts`                                                 |
 
 ### 部署路径
 
@@ -1404,22 +1404,22 @@ pnpm build         # 构建（也会暴露类型问题）
 
 `tests/` 下只测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
 
-| 文件                       | 覆盖                                                        |
-| -------------------------- | ----------------------------------------------------------- |
-| `urls.test.ts`             | 相对路径 → URL、中文编码、与 `decodePath` 互逆              |
-| `paths.test.ts`            | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性  |
-| `translation.test.ts`      | 跨语言配对键推导（显式 > 目录编号）、配对索引与回退         |
-| `pagination.test.ts`       | 分页边界（空列表、越界、非法 perPage）                      |
-| `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                     |
-| `dev-redirect.test.ts`     | `Accept-Language` 解析                                      |
-| `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算           |
-| `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接       |
-| `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头） |
-| `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关       |
-| `anchor-scroll.test.ts`    | 锚点留白解析、滚动扣减、**滚动锁排队**（iOS 真机 bug）      |
-| `presence.test.ts`         | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约           |
-| `overlay-registry.test.ts` | 浮层强制关闭登记表：注册、注销、幂等                        |
-| `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化      |
+| 文件                       | 覆盖                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| `urls.test.ts`             | 相对路径 → URL、中文编码、与 `decodePath` 互逆                                |
+| `paths.test.ts`            | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性                    |
+| `translation.test.ts`      | 跨语言配对键推导（显式 > 目录编号）、配对索引与回退                           |
+| `pagination.test.ts`       | 分页边界（空列表、越界、非法 perPage）                                        |
+| `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                                       |
+| `dev-redirect.test.ts`     | `Accept-Language` 解析                                                        |
+| `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算                             |
+| `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接                         |
+| `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                   |
+| `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关                         |
+| `anchor-scroll.test.ts`    | 锚点留白（读 `scroll-padding-top`）、滚动扣减、**滚动锁排队**（iOS 真机 bug） |
+| `presence.test.ts`         | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约                             |
+| `overlay-registry.test.ts` | 浮层强制关闭登记表：注册、注销、幂等                                          |
+| `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化                        |
 
 `scripts.test.ts` 覆盖的是「建错会静默写坏内容」的那批函数：
 `nextSequence`（序号会不会撞号）、`stringifyFrontmatter`（会不会写坏 YAML）、
@@ -1444,6 +1444,14 @@ pnpm build         # 构建（也会暴露类型问题）
 等锁归零后再滚。契约是"锁着时一次都不许滚，解锁后必须滚到正确位置"。
 ⚠️ 这个 bug 用普通移动 UA 复现不出来，必须伪装 iPhone UA；
 手动验证见 DESIGN.md 7.5 末尾。
+
+锚点滚动的**执行者唯一性**也有一条架构契约：目录链接（`.toc__list` /
+`.m-toc__list`）与正文 `header-anchor` 都带 `vp-raw` —— 这是 VitePress
+点击委托的豁免类，没有它 VitePress 会在自己的 rAF 里先做一次无法取消的
+`window.scrollTo(0, y)`，与锁释放后的位置还原叠加，就是手机上
+「先抽搐再平滑跳」的来源。目录列表在渲染层打标（OutlineCard /
+MobileDock），`header-anchor` 由 `theme/index.ts` 在 `onContentUpdated`
+时补打（`markHeaderAnchorsRaw`）。新增目录类 UI 时记得同样打 `vp-raw`。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
 `.vitepress/support/urls.ts`、`.vitepress/support/locale-paths.ts`

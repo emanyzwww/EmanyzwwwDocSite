@@ -314,7 +314,11 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <ul class="m-toc__list">
+        <!--
+          `vp-raw`：让 VitePress 的点击委托放行，锚点滚动由 anchor-scroll
+          独家接管（桌面目录同款，理由见 OutlineCard.vue）。
+        -->
+        <ul class="m-toc__list vp-raw">
           <li v-for="item in flatOutline" :key="item.slug" :data-level="item.level">
             <a :href="`#${item.slug}`" @click.prevent="goTo()">{{ item.title }}</a>
           </li>

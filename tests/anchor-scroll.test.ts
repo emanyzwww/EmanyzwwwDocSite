@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  parseAnchorOffset,
   requestAnchorScroll,
   scrollToAnchor,
 } from '../.vitepress/theme/support/anchor-scroll'
@@ -21,56 +20,29 @@ import {
  * 这里测的是替代实现里最容易偏掉的那部分：**顶部留白**。
  */
 
-describe('parseAnchorOffset', () => {
-  it('rem 换算成 px', () => {
-    expect(parseAnchorOffset('4.5rem')).toBe(72)
-    expect(parseAnchorOffset('5rem', 20)).toBe(100)
-  })
-
-  it('px 原样返回', () => {
-    expect(parseAnchorOffset('96px')).toBe(96)
-    expect(parseAnchorOffset('  64px  ')).toBe(64)
-  })
-
-  it('无单位按 px 处理', () => {
-    expect(parseAnchorOffset('80')).toBe(80)
-  })
-
-  it('calc() 原文回退到 80（自定义属性读到的就是未解析的 calc）', () => {
-    // 这是实际会遇到的情况：--anchor-offset 声明为 calc(...)，
-    // getComputedStyle 对自定义属性返回原文，不能当数字用
-    expect(parseAnchorOffset('calc(var(--header-height) + var(--space-4))')).toBe(80)
-  })
-
-  it('空串回退到 80', () => {
-    expect(parseAnchorOffset('')).toBe(80)
-    expect(parseAnchorOffset('   ')).toBe(80)
-  })
-
-  it('非法值回退到 80', () => {
-    expect(parseAnchorOffset('abc')).toBe(80)
-    expect(parseAnchorOffset('auto')).toBe(80)
-  })
-})
-
 /**
- * `scrollToAnchor` 的 DOM 行为。
+ * 锚点平滑滚动。
  *
- * 用最小的 document 替身：只提供 `getElementById`，并记录
- * `window.scrollTo` 的调用参数。
+ * 改造前 VitePress 的 `scrollTo()` 只有「距离 < 一屏」才平滑，其余硬跳 ——
+ * 而目录的作用恰恰是跨章节跳转，所以实测点目录永远是硬跳。
+ * 这里测的是替代实现里最容易偏掉的那部分：**顶部留白**。
+ *
+ * 偏移来源是 `scroll-padding-top` 的解析值（不再解析 `--anchor-offset`
+ * 的 calc 原文），因此替身里直接给 `scrollPaddingTop` 一个 px 字符串。
  */
+
 describe('scrollToAnchor', () => {
   function setup(options: {
     targetTop?: number
     scrollY?: number
-    /** `--anchor-offset` 的原始值 */
-    offsetVar?: string
+    /** `scroll-padding-top` 的解析值（px 字符串） */
+    offset?: string
     reducedMotion?: boolean
   }) {
     const {
       targetTop = 1200,
       scrollY = 0,
-      offsetVar = '96px',
+      offset = '96px',
       reducedMotion = false,
     } = options
 
@@ -81,9 +53,7 @@ describe('scrollToAnchor', () => {
       scrollTo,
       matchMedia: (query: string) => ({ matches: reducedMotion && query.includes('reduce') }),
     })
-    vi.stubGlobal('getComputedStyle', () => ({
-      getPropertyValue: () => offsetVar,
-    }))
+    vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: offset }))
     vi.stubGlobal('document', {
       getElementById: (id: string) =>
         id === 'section'
@@ -95,7 +65,7 @@ describe('scrollToAnchor', () => {
   }
 
   it('扣掉页头留白后滚动', () => {
-    const { scrollTo } = setup({ targetTop: 1200, scrollY: 0, offsetVar: '96px' })
+    const { scrollTo } = setup({ targetTop: 1200, scrollY: 0, offset: '96px' })
     const ok = scrollToAnchor('#section')
 
     expect(ok).toBe(true)
@@ -104,7 +74,7 @@ describe('scrollToAnchor', () => {
   })
 
   it('已在滚动位置时按当前 scrollY 换算（不是绝对 0）', () => {
-    const { scrollTo } = setup({ targetTop: 1200, scrollY: 400, offsetVar: '96px' })
+    const { scrollTo } = setup({ targetTop: 1200, scrollY: 400, offset: '96px' })
     scrollToAnchor('#section')
 
     // rect.top 相对视口 = 1200 - 400 = 800；800 + scrollY(400) - 96 = 1104
@@ -112,7 +82,7 @@ describe('scrollToAnchor', () => {
   })
 
   it('不会滚到负数（目标在文档最顶部时）', () => {
-    const { scrollTo } = setup({ targetTop: 20, scrollY: 0, offsetVar: '96px' })
+    const { scrollTo } = setup({ targetTop: 20, scrollY: 0, offset: '96px' })
     scrollToAnchor('#section')
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
@@ -134,7 +104,7 @@ describe('scrollToAnchor', () => {
       scrollTo: vi.fn(),
       matchMedia: () => ({ matches: false }),
     })
-    vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '0px' }))
+    vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: '0px' }))
     vi.stubGlobal('document', { getElementById })
 
     const ok = scrollToAnchor('#%E4%B8%AD%E6%96%87%E6%A0%87%E9%A2%98')
@@ -146,6 +116,14 @@ describe('scrollToAnchor', () => {
   it('目标不存在时返回 false（交给浏览器默认行为）', () => {
     setup({})
     expect(scrollToAnchor('#missing')).toBe(false)
+  })
+
+  it('scroll-padding-top 非法时回退 80', () => {
+    const { scrollTo } = setup({ targetTop: 1200, offset: 'auto' })
+    scrollToAnchor('#section')
+
+    // 1200 - 回退值 80 = 1120
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1120, behavior: 'smooth' })
   })
 })
 
@@ -221,7 +199,7 @@ describe('滚动锁与锚点排队', () => {
         id === 'section' ? { getBoundingClientRect: () => ({ top: 1200 }) } : null,
     })
     vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Windows NT 10.0)', maxTouchPoints: 0 })
-    vi.stubGlobal('getComputedStyle', () => ({ getPropertyValue: () => '80px' }))
+    vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: '80px' }))
 
     return { scrollTo, html, body }
   }

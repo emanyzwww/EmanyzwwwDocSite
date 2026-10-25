@@ -57,7 +57,14 @@ const hasOutline = computed(() => tree.value.length > 0)
       <AppIcon name="list" />
       {{ m.onThisPage }}
     </p>
-    <ul class="toc__list">
+    <!--
+      `vp-raw` 是 VitePress 路由委托的豁免类（router.js 对 closest('.vp-raw')
+      的链接直接放行）：目录/标题锚点必须由 `support/anchor-scroll.ts` **独家**
+      接管 —— VitePress 自己的 scrollTo() 会排在 rAF 里做一次无法取消的
+      window.scrollTo(0, y)，移动端浮层还开着时那次滚动会先跳走、锁释放后
+      又被还原，正是「先抽搐再平滑跳过去」的直因。见 anchor-scroll.ts 顶注。
+    -->
+    <ul class="toc__list vp-raw">
       <OutlineNode v-for="node in tree" :key="node.slug" :node="node" :active-id="activeId" />
     </ul>
   </div>

@@ -17,7 +17,7 @@ import type { Theme } from 'vitepress'
 import type { Messages } from '../types'
 import { MESSAGES } from './i18n'
 import Layout from './Layout.vue'
-import { installAnchorScroll } from './support/anchor-scroll'
+import { installAnchorScroll, markHeaderAnchorsRaw } from './support/anchor-scroll'
 import { localeOfPath } from './support/paths'
 import { installRouteTransition } from './support/route-transition'
 
@@ -65,10 +65,25 @@ export default {
      * 必须用捕获阶段抢在 VitePress 的 router 前面（它会硬跳），
      * 详见 support/anchor-scroll.ts 顶部那段推导。
      */
+    /*
+     * 目录/标题锚点的平滑滚动。
+     *
+     * 目录链接与 header-anchor 都打上了 `vp-raw`（VitePress 委托的豁免类），
+     * 它们不会进入 VitePress 的点击处理 —— 滚动由 anchor-scroll 独家执行，
+     * 避免"VitePress 先滚一次、锁释放后还原、我们再平滑滚一次"的抽搐。
+     * 详见 support/anchor-scroll.ts 顶部那段推导。
+     */
     installAnchorScroll()
 
-    onContentUpdated(localizeCopyButtons)
+    onContentUpdated(() => {
+      localizeCopyButtons()
+      // 每次内容更新后，给新生成的标题锚补打豁免类
+      markHeaderAnchorsRaw()
+    })
     // 首屏内容在挂载后才渲染完成，等一帧再标记
-    window.requestAnimationFrame(localizeCopyButtons)
+    window.requestAnimationFrame(() => {
+      localizeCopyButtons()
+      markHeaderAnchorsRaw()
+    })
   },
 } satisfies Theme

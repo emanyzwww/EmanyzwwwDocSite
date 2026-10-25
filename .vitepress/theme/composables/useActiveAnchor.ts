@@ -19,8 +19,13 @@ import { useScrollEffect } from '../support/scroll'
 /**
  * 阅读线距视口顶部的距离（px）。
  *
- * 从 `--anchor-offset` 读，保证与 `scroll-padding-top` 一致——
- * 之前这里写死 96px、CSS 算出来是 80px，导致点击目录后高亮会偏一格。
+ * 直接读 `scroll-padding-top` 的**解析值**（浏览器已把
+ * `--anchor-offset` 的 calc 展开成 px），与锚点跳转
+ * （`anchor-scroll.ts` 的 `anchorOffset()`）同一个来源 ——
+ * 点击目录后高亮必然落在刚跳到的那一项上，不存在两套算法对不齐。
+ * 之前这里 parseFloat 自定义属性（拿到的是未解析的 calc 原文）
+ * 只能回退 80，移动端页头 3.5rem 时与真实落点差 8px。
+ *
  * 读不到时回退到 80px（4rem 页头 + 1rem 余量，16px 根字号）。
  */
 const FALLBACK_READING_LINE = 80
@@ -28,7 +33,7 @@ const FALLBACK_READING_LINE = 80
 function readingLine(): number {
   if (typeof window === 'undefined') return FALLBACK_READING_LINE
 
-  const raw = getComputedStyle(document.documentElement).getPropertyValue('--anchor-offset')
+  const raw = getComputedStyle(document.documentElement).scrollPaddingTop
   const value = Number.parseFloat(raw)
   return Number.isFinite(value) ? value : FALLBACK_READING_LINE
 }
