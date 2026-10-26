@@ -115,6 +115,17 @@ export type IconName =
   | 'fit'
   // ---------- 链接预览卡 ----------
   | 'play'
+  // ---------- 嵌入块（块级指令） ----------
+  /** 仓库卡的 stars 前缀。 */
+  | 'star'
+  /** `:::quote` 的装饰引号。 */
+  | 'quote'
+  /** `:::figure` 的类型标识。 */
+  | 'image'
+  /** `:::columns` 的类型标识。 */
+  | 'columns'
+  /** 卡片右上角的「可以点出去」提示。 */
+  | 'external'
 
 /** 个人资料中的一条社交链接。 */
 export interface ProfileLink {

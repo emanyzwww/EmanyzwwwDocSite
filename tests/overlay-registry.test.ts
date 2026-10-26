@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  closeAllOverlays,
-  registerOverlayCloser,
-} from '../.vitepress/theme/support/overlay'
+import { closeAllOverlays, registerOverlayCloser } from '../.vitepress/theme/support/overlay'
 
 /**
  * 浮层的"导航前强制关闭"登记表。

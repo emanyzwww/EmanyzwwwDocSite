@@ -171,15 +171,15 @@ describe('shouldReveal', () => {
   })
 
   it('拖拽时即使指针离开带子也显示', () => {
-    expect(
-      shouldReveal({ ...base, idleFor: 99999, pointerInside: false, dragging: true }),
-    ).toBe(true)
+    expect(shouldReveal({ ...base, idleFor: 99999, pointerInside: false, dragging: true })).toBe(
+      true,
+    )
   })
 
   it('拖拽且指针也在带内，仍然显示（不重复判断）', () => {
-    expect(
-      shouldReveal({ ...base, idleFor: 99999, pointerInside: true, dragging: true }),
-    ).toBe(true)
+    expect(shouldReveal({ ...base, idleFor: 99999, pointerInside: true, dragging: true })).toBe(
+      true,
+    )
   })
 
   it('空闲时长为 NaN 时按已空闲处理（宁可少显示）', () => {

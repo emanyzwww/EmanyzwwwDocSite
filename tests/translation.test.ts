@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PostSummary } from '../.vitepress/types'
 import {
   buildTranslationIndex,
   translatedUrl,
   translationKeyOf,
 } from '../.vitepress/support/translation'
+import type { PostSummary } from '../.vitepress/types'
 
 /** 文章跨语言配对：配对键推导与按键索引（修复中文 slug 下语言切换失配的回归锁）。 */
 
 describe('translationKeyOf', () => {
   it('从 posts 目录的日期+编号段推导配对键', () => {
-    expect(
-      translationKeyOf({}, 'zh-cn/posts/2026/10/19/01/你好，世界/index.md'),
-    ).toBe('posts/2026/10/19/01')
+    expect(translationKeyOf({}, 'zh-cn/posts/2026/10/19/01/你好，世界/index.md')).toBe(
+      'posts/2026/10/19/01',
+    )
     expect(translationKeyOf({}, 'en/posts/2026/10/19/01/hello-world/index.md')).toBe(
       'posts/2026/10/19/01',
     )
@@ -32,9 +32,9 @@ describe('translationKeyOf', () => {
   })
 
   it('显式声明容忍首尾空白，空串视同未声明', () => {
-    expect(translationKeyOf({ translationKey: '  my-post  ' }, 'en/posts/2026/01/01/01/x/index.md')).toBe(
-      'my-post',
-    )
+    expect(
+      translationKeyOf({ translationKey: '  my-post  ' }, 'en/posts/2026/01/01/01/x/index.md'),
+    ).toBe('my-post')
     expect(translationKeyOf({ translationKey: '   ' }, 'en/posts/2026/01/01/01/x/index.md')).toBe(
       'posts/2026/01/01/01',
     )
@@ -76,13 +76,19 @@ function post(url: string, locale: 'zh-cn' | 'en', translationKey: string | null
 
 describe('buildTranslationIndex / translatedUrl', () => {
   const index = buildTranslationIndex([
-    post('/zh-cn/posts/2026/10/19/01/%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C/', 'zh-cn', 'posts/2026/10/19/01'),
+    post(
+      '/zh-cn/posts/2026/10/19/01/%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C/',
+      'zh-cn',
+      'posts/2026/10/19/01',
+    ),
     post('/en/posts/2026/10/19/01/hello-world/', 'en', 'posts/2026/10/19/01'),
     post('/zh-cn/posts/2026/11/01/02/only-zh/', 'zh-cn', 'posts/2026/11/01/02'),
   ])
 
   it('按键取到目标语言的真实地址（slug 不同也能配上）', () => {
-    expect(translatedUrl(index, 'posts/2026/10/19/01', 'en')).toBe('/en/posts/2026/10/19/01/hello-world/')
+    expect(translatedUrl(index, 'posts/2026/10/19/01', 'en')).toBe(
+      '/en/posts/2026/10/19/01/hello-world/',
+    )
     expect(translatedUrl(index, 'posts/2026/10/19/01', 'zh-cn')).toBe(
       '/zh-cn/posts/2026/10/19/01/%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C/',
     )

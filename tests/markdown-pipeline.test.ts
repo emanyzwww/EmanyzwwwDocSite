@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { applySiteMarkdown, createSiteMarkdown, renderMarkdown } from '../.vitepress/support/markdown/index'
+import {
+  applySiteMarkdown,
+  createSiteMarkdown,
+  renderMarkdown,
+} from '../.vitepress/support/markdown/index'
 
 /**
  * 「同一条 Markdown，两条渲染路径结果一致」。

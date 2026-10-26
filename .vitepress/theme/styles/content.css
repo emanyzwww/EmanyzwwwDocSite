@@ -233,67 +233,159 @@
 }
 
 /*
- * ---------- 嵌入块（`:::github` / `:::link` / `:::figure` / `:::quote`） ----------
+ * ---------- 嵌入块（块级指令） ----------
  *
  * 由 `support/markdown/directives/` 在**构建期**生成，运行期由
  * `theme/embeds/` 只往容器内部追加节点（不改结构）。
  *
- * ## DOM 契约（改动要同步两个文件）
+ * 支持 6 种：github / link / figure / quote / columns / gallery。
  *
- *   <div class="embed embed--github" data-embed="github" data-target="owner/repo">
- *     <a class="embed__link" href="https://github.com/owner/repo">
- *       <span class="embed__repo"><strong>owner</strong>/repo</span>   ← 构建期
- *       <span class="embed__site">GitHub</span>                        ← 构建期
- *       <span class="embed__desc">描述</span>                          ← 运行期追加
- *       <span class="embed__meta">★ 1.2k · TS · 3 天前推送</span>      ← 运行期追加
- *     </a>
- *   </div>
+ * ## DOM 契约（改动要同步 `directives/builtins.ts`）
  *
- * ## 为什么全部用 <span>
+ * ```text
+ * .embed                         容器：只管外边距与对齐
+ *   .embed__link                 可点整卡（github / link）
+ *     .embed__icon               类型图标（构建期内联 SVG）
+ *     .embed__body
+ *       .embed__head             头行：标题 + 徽章
+ *         .embed__title          仓库名 / 链接标题
+ *         .embed__badge          站点名（GitHub / example.com）
+ *       .embed__skeleton         加载骨架（仅 github，增强后隐藏）
+ *       .embed__desc             描述（运行期追加）
+ *       .embed__meta             元信息（运行期追加）
+ *     .embed__arrow              右下/右上的"可点出去"箭头
+ * ```
  *
- * 容器在 `<p>` 里、链接是 `<a>`。**`<a>` 里不能放 `<p>`**——HTML 规范规定
+ * ## 为什么卡内一律用 `<span>`
+ *
+ * 容器在 `<p>` 里、整卡是 `<a>`。**`<a>` 里不能放 `<p>`**——HTML 规范规定
  * `<p>` 会关闭 `<a>`，浏览器解析时会把一张卡拆成三个并列的链接
- * （真实事故：Vue 报 hydration mismatch，卡片高度只剩一半）。
- * 所以卡内所有文字容器一律用 `<span>` + `display: block`。
+ * （真实事故：一张卡变三个 `<a>`，Vue 报 hydration mismatch，卡高只剩一半）。
  *
- * ## 两套视觉纪律
+ * ## 四条视觉纪律（全部来自 DESIGN.md）
  *
- * - **嵌入块是内容不是浮层**：不用阴影（DESIGN.md 6.2 只给浮层），
- *   靠表面色 + 边框与正文区分，与 VitePress 容器同族；
- * - **悬浮态只做最轻的反馈**（边框加深），不做位移/阴影——它不是按钮。
+ * 1. **卡片用 `--bg-surface` + `--radius-lg`**：这是 `DESIGN.md` 5.2 / 六节对
+ *    「卡片」的定义。早先误用了 `--bg-surface-alt` + `--radius-md`
+ *    （那是给标签和提示块的档位），卡片因此比正文还"轻"，看着没成型。
+ * 2. **无阴影**：阴影只给浮层（6.2）。嵌入块是内容，靠表面色 + 极轻描边收边。
+ * 3. **悬停只改描边，不做位移/缩放**：它不是按钮，别让它"弹"。
+ * 4. **图标是装饰**：`aria-hidden` 已由 `renderIcon` 写入，颜色跟 `currentColor`。
  */
+
 .embed {
-  margin-block: var(--space-4);
+  margin-block: var(--space-5);
 }
 
 /*
- * 头行：仓库名 / 标题在左，站点名在右。
+ * 卡片本体。
  *
- * 这个结构在增强前后**不变**（增强只往 `<a>` 里 head 之后追加节点），
- * 所以样式也不需要按状态分叉。
+ * `display: grid` 而不是 flex：图标 / 正文 / 箭头三段的比例由网格列决定，
+ * 正文自然占据 `1fr`，长仓库名省略号才能正确工作（flex 下要额外写
+ * `min-width: 0` 才不溢出，grid 的 `1fr` 天然如此）。
+ */
+.embed__link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+
+  /* 悬停只动描边：120ms 与全站其它交互同速（DESIGN.md motion） */
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.embed__link:hover {
+  border-color: var(--border-strong);
+}
+
+/* 键盘焦点：复用全局双焦点环，圆角跟卡片同心 */
+.embed__link:focus-visible {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+}
+
+/* ---------- 图标 ---------- */
+
+.embed__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* 2.25rem = 36px：比正文行高略大，与两行文字的头行视觉居中 */
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  color: var(--fg-muted);
+}
+
+.embed__icon .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* GitHub 图标用强调色：它是全站唯一有"品牌外链"意味的嵌入块 */
+.embed--github .embed__icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ---------- 正文区 ---------- */
+
+.embed__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* grid 的 minmax(0,1fr) 已保证可收缩，这里再兜一层防长单词溢出 */
+  min-width: 0;
+}
+
+/*
+ * 头行：标题在左、徽章在右。
+ *
+ * `align-items: baseline` 让中英混排时标题与徽章的基线对齐，
+ * 比 center 更稳（徽章是大写小字，vertical centering 会看起来偏高）。
  */
 .embed__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
+  min-width: 0;
 }
 
-.embed__repo,
 .embed__title {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
   color: var(--fg-default);
-  /* 长仓库名截断，不让卡片撑破布局 */
+  letter-spacing: var(--tracking-snug);
+
+  /* 单行截断：仓库名再长也不该让卡片变高 */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.embed__repo strong {
-  font-weight: var(--weight-semibold);
+/* owner 与 repo 之间的斜杠：压低对比，避免读成两个并列词 */
+.embed__slash {
+  margin-inline: 0.1em;
+  color: var(--fg-subtle);
+  font-weight: var(--weight-normal);
 }
 
-.embed__site {
+/*
+ * 站点徽章。
+ *
+ * 用 `--text-2xs` + 大写 + 正字距：这是 DESIGN.md 3.2 的 `overline` 用法，
+ * 让"GitHub"这类站点名退成标签而不是标题的一部分。
+ */
+.embed__badge {
   flex: none;
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
@@ -302,18 +394,7 @@
   color: var(--fg-subtle);
 }
 
-.embed__link {
-  display: block;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface-alt);
-  transition: border-color var(--duration-fast) var(--ease-out);
-}
-
-.embed__link:hover {
-  border-color: var(--border-control);
-}
+/* ---------- 描述与元信息（运行期追加） ---------- */
 
 .embed__desc {
   display: -webkit-box;
@@ -321,59 +402,337 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
 
-  margin-top: var(--space-2);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   color: var(--fg-muted);
 }
 
 .embed__meta {
-  display: block;
-  margin-top: var(--space-2);
-  font-size: var(--text-2xs);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+
+  font-size: var(--text-xs);
   color: var(--fg-subtle);
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- `:::figure`：图注 ---------- */
-
-.embed--figure {
-  margin-block: var(--space-5);
+/* 单个片段：图标与文字左对齐，图标不参与文字基线 */
+.embed__meta-part {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
-/* 内层可能已经是 `figure.prose-media`（媒体管线升的），把它的外边距吃掉 */
+/* 片段之间的分隔符：压低对比，只做停顿不参与阅读 */
+.embed__meta-sep {
+  color: var(--border-strong);
+}
+
+/* 元信息里的星标图标：填充式，比文字略大才看得清 */
+.embed__meta .icon {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  color: var(--accent);
+}
+
+/* ---------- 箭头 ---------- */
+
+.embed__arrow {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  color: var(--fg-subtle);
+  /*
+   * 悬停时右移 2px 并染成强调色：这是全站唯一允许的位移提示，
+   * 因为它表达的是「要跳走了」，与链接语义直接相关。
+   * 卡片本体不动（见上方四条纪律第 3 条）。
+   */
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.embed__arrow .icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.embed__link:hover .embed__arrow {
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+/* ---------- 加载骨架（仅 GitHub，增强完成后移除） ---------- */
+
+/*
+ * 骨架只在**还没拿到数据**时出现。
+ *
+ * 三条理由让它值得存在：
+ * 1. GitHub API 有 100–300ms 的往返，期间卡片若只有一行仓库名，
+ *    增强完成时会"长高"一下，观感是跳版；
+ * 2. 骨架预先占住描述与元信息的高度，卡片高度一次到位；
+ * 3. 骨架的 shimmer 与正文图片的骨架同源（同一个渐变与时长），
+ *    读者不会觉得这是两套加载语言。
+ *
+ * 增强完成后由运行期给容器加 `data-enhanced="true"`，本规则随之隐藏。
+ */
+/*
+ * 拿到数据后骨架退场。
+ *
+ * 骨架节点**保留在 DOM 里**、只靠 `data-enhanced="true"` 隐藏（不是删掉）：
+ * 删节点会让卡片高度在描述插入的同一帧变化，两次重排叠加反而更跳。
+ *
+ * ## 为什么默认不显示骨架
+ *
+ * 骨架表达的是「正在取数据」，而「能不能取数据」只有 JS 知道。
+ * 本仓库没有可靠的「JS 已启用」钩子（VitePress 不往 `<html>` 加 `.js` 类），
+ * 所以默认隐藏、由运行期在**开始请求时**显式打开 `data-loading="true"`。
+ *
+ * 这样三种情况都对：
+ * - 无 JS：永远不亮骨架，读者看到的就是那条完整可用的链接；
+ * - 有 JS 但在视口外：还没开始请求，不亮；
+ * - 进入视口开始请求：亮骨架占位，拿到数据后由 `data-enhanced` 收起。
+ */
+.embed__skeleton {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.embed[data-loading='true']:not([data-enhanced='true']) .embed__skeleton {
+  display: flex;
+}
+
+.embed__sk {
+  display: block;
+  height: 0.75rem;
+  border-radius: var(--radius-xs);
+  background-color: var(--bg-surface-alt);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--border-subtle) 70%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: embed-shimmer 1.4s linear infinite;
+}
+
+.embed__sk--line {
+  width: 100%;
+}
+
+.embed__sk--short {
+  width: 55%;
+}
+
+@keyframes embed-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- `:::figure` ---------- */
+
+.embed--figure {
+  margin-block: var(--space-6);
+}
+
+/* 内层可能已经是 `figure.prose-media`（媒体管线升的），吃掉它的外边距 */
 .embed--figure .embed__media > * {
   margin-block: 0;
 }
 
+/*
+ * 图注。
+ *
+ * 左侧一条 2px 强调色短线做「这是图注不是正文」的非颜色提示
+ * （色盲用户不能只靠灰度差区分）。短线与文字基线对齐。
+ */
 .embed__caption {
-  /* 8px < 块间距 20/24px：图注属于上面那张图，不是下一段的开头 */
-  margin-top: var(--space-2);
-  color: var(--fg-subtle);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+
+  /* 8px < 块间距，图注属于它上面那张图（DESIGN.md 5.2 的反向应用） */
+  margin-top: var(--space-3);
   font-size: var(--text-sm);
-  text-align: center;
+  line-height: var(--leading-normal);
+  color: var(--fg-subtle);
 }
 
-/* ---------- `:::quote`：引用 + 出处 ---------- */
+.embed__caption-mark {
+  flex: none;
+  width: 1.25rem;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent-border);
+  /* 把短线从基线上抬到文字视觉中线 */
+  transform: translateY(-0.3em);
+}
+
+/* ---------- `:::quote` ---------- */
 
 .embed--quote {
-  margin-block: var(--space-5);
+  margin-block: var(--space-6);
 }
 
 /*
- * 容器内的 blockquote 不再叠加左内边距之外的东西：
- * 引用样式（左边框、颜色）继续由下方 `.prose blockquote` 统一提供，
- * 这里只保证它贴着 `<figure>` 的边。
+ * 引用块保留原生 `<blockquote>` 的左侧细线与次级文字色（见下方
+ * `.prose blockquote`），这里只做两件事：
+ * 1. 给装饰引号留出内边距；
+ * 2. 让引用在视觉上"属于这条出处"，而不是独立浮着。
  */
 .embed--quote blockquote {
+  position: relative;
   margin: 0;
+  padding-left: var(--space-8);
 }
 
-.embed__source {
-  margin-top: var(--space-2);
+.embed__quote-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--accent-border);
+}
+
+.embed__quote-mark .icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/*
+ * 出处：右对齐，与引文形成「引文 ← → 出处」的呼应。
+ *
+ * 必须写成 `.prose .embed__source`（0,2,0）而不是 `.embed__source`（0,1,0）：
+ * 下方 `.prose figcaption`（0,1,1）给所有图注设了 `text-align: center`，
+ * 特异性比单个类高，会把这里的右对齐覆盖掉（实测出处确实被居中了）。
+ */
+.prose .embed__source {
+  margin-top: var(--space-3);
   font-size: var(--text-sm);
   color: var(--fg-subtle);
   text-align: right;
+}
+
+/* 出处前加一个破折号（CSS 生成内容，不污染可复制的文字） */
+.embed__source::before {
+  content: '—';
+  margin-right: var(--space-2);
+  color: var(--border-strong);
+}
+
+/* ---------- `:::columns` 分栏 ---------- */
+
+.embed--columns {
+  margin-block: var(--space-6);
+}
+
+/*
+ * 列数由 `data-columns` 决定（构建期写入），这里读进自定义属性再喂给 grid。
+ * 用 `var(--columns, 2)` 兜底：万一属性缺失也不会变成 0 列。
+ */
+.embed__columns {
+  --columns: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.embed--columns[data-columns='3'] .embed__columns {
+  --columns: 3;
+}
+
+.embed__column {
+  min-width: 0;
+}
+
+/* 列内的第一/最后一个块不吃外边距，避免列首列尾多出一截 */
+.embed__column > :first-child {
+  margin-top: 0;
+}
+
+.embed__column > :last-child {
+  margin-bottom: 0;
+}
+
+/* 空列（作者多写了 ---）直接不占位，否则会留一条空白 gutter */
+.embed__column:empty {
+  display: none;
+}
+
+/* ---------- `:::gallery` 网格 ---------- */
+
+.embed--gallery {
+  margin-block: var(--space-6);
+}
+
+/*
+ * 画廊：每格一张图，等宽等比。
+ *
+ * 图片本身已经由媒体管线升成 `<figure class="prose-media">`（多档 srcset +
+ * 点开放大），这里只需把它们排成网格并去掉 figure 自带的外边距。
+ */
+.embed__gallery {
+  --columns: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.embed--gallery[data-columns='3'] .embed__gallery {
+  --columns: 3;
+}
+
+.embed--gallery[data-columns='4'] .embed__gallery {
+  --columns: 4;
+}
+
+.embed__gallery > * {
+  margin: 0;
+}
+
+/* ---------- 窄屏：分栏与画廊降为单列 ----------
+ *
+ * 704px 是全站「正文满宽」的断点（672 + 两侧 16px，见 `media/planner.ts`
+ * 里 `sizes` 的推导）。窄于此再并排两栏，中文每行不足 15 字，读起来是折磨。
+ */
+@media (max-width: 703px) {
+  .embed__columns,
+  .embed--gallery .embed__gallery {
+    --columns: 1;
+  }
+}
+
+/* 三列画廊在中等宽度下退成两列，避免一格只剩 150px */
+@media (min-width: 704px) and (max-width: 900px) {
+  .embed--gallery[data-columns='3'] .embed__gallery,
+  .embed--gallery[data-columns='4'] .embed__gallery {
+    --columns: 2;
+  }
+}
+
+/* ---------- 降低动效偏好 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .embed__sk {
+    animation: none;
+  }
+
+  .embed__link,
+  .embed__arrow {
+    transition: none;
+  }
+
+  .embed__link:hover .embed__arrow {
+    transform: none;
+  }
 }
 
 /*

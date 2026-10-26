@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { resetDock, resetDockStateForTests, useDockState } from '../.vitepress/theme/composables/useDockState'
+import {
+  resetDock,
+  resetDockStateForTests,
+  useDockState,
+} from '../.vitepress/theme/composables/useDockState'
 
 /**
  * 移动端「阅读态」状态机。

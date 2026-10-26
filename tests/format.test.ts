@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { countWords, formatRfc822, parseDate, plainText, truncate } from '../.vitepress/support/format'
+import {
+  countWords,
+  formatRfc822,
+  parseDate,
+  plainText,
+  truncate,
+} from '../.vitepress/support/format'
 
 /** 日期与文本工具（纯函数，构建期与运行期共用）。 */
 

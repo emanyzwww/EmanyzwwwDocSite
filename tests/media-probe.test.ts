@@ -26,8 +26,31 @@ function pngHeader(width: number, height: number): Uint8Array {
 
 /** 构造一张最小 JPEG 的头部（SOI + APP0 + SOF0）。 */
 function jpegHeader(width: number, height: number): Uint8Array {
-  const app0 = [0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00]
-  const sof0 = [0xff, 0xc0, 0x00, 0x11, 0x08, (height >> 8) & 0xff, height & 0xff, (width >> 8) & 0xff, width & 0xff, 0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]
+  const app0 = [
+    0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01,
+    0x00, 0x00,
+  ]
+  const sof0 = [
+    0xff,
+    0xc0,
+    0x00,
+    0x11,
+    0x08,
+    (height >> 8) & 0xff,
+    height & 0xff,
+    (width >> 8) & 0xff,
+    width & 0xff,
+    0x03,
+    0x01,
+    0x11,
+    0x00,
+    0x02,
+    0x11,
+    0x01,
+    0x03,
+    0x11,
+    0x01,
+  ]
   return new Uint8Array([0xff, 0xd8, ...app0, ...sof0, 0xff, 0xd9])
 }
 
@@ -106,7 +129,14 @@ describe('readImageSize（JPEG）', () => {
   })
 
   it('只有 SOI 时返回 null（不把随机字节当尺寸）', () => {
-    expect(readImageSize(new Uint8Array([0xff, 0xd8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]))).toBeNull()
+    expect(
+      readImageSize(
+        new Uint8Array([
+          0xff, 0xd8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00,
+        ]),
+      ),
+    ).toBeNull()
   })
 })
 
@@ -135,7 +165,9 @@ describe('readImageSize（GIF）', () => {
 
 describe('readImageSize（SVG）', () => {
   it('width / height 属性优先', () => {
-    expect(readImageSize(svgBytes('<svg width="120" height="80" viewBox="0 0 1 1"></svg>'))).toEqual({
+    expect(
+      readImageSize(svgBytes('<svg width="120" height="80" viewBox="0 0 1 1"></svg>')),
+    ).toEqual({
       width: 120,
       height: 80,
     })
@@ -157,9 +189,10 @@ describe('readImageSize（SVG）', () => {
 
   it('不把 stroke-width 误当成 width', () => {
     // 回归：早期用 `\bwidth` 会命中 `stroke-width`，读出描边宽度当画布宽
-    expect(
-      readImageSize(svgBytes('<svg stroke-width="9" viewBox="0 0 200 100"></svg>')),
-    ).toEqual({ width: 200, height: 100 })
+    expect(readImageSize(svgBytes('<svg stroke-width="9" viewBox="0 0 200 100"></svg>'))).toEqual({
+      width: 200,
+      height: 100,
+    })
   })
 
   it('XML 声明与注释在前面也能认', () => {

@@ -1,14 +1,17 @@
 import MarkdownIt from 'markdown-it'
 import { describe, expect, it } from 'vitest'
 
-import { applySiteMarkdown } from '../.vitepress/support/markdown/index'
+import { normalizeRepoSpec, parseGitHubRepo } from '../.vitepress/shared/github'
 import { directiveNames } from '../.vitepress/support/markdown/directives/index'
-import { getDirective, unknownDirectiveMessage } from '../.vitepress/support/markdown/directives/registry'
 import {
   parseDirectiveArgs,
   splitDirectiveLine,
 } from '../.vitepress/support/markdown/directives/parse'
-import { normalizeRepoSpec, parseGitHubRepo } from '../.vitepress/shared/github'
+import {
+  getDirective,
+  unknownDirectiveMessage,
+} from '../.vitepress/support/markdown/directives/registry'
+import { applySiteMarkdown } from '../.vitepress/support/markdown/index'
 
 /**
  * 块级指令系统。
@@ -73,14 +76,14 @@ describe('参数解析', () => {
 
 describe('注册表', () => {
   it('内置四个指令都已注册', () => {
-    expect(directiveNames()).toEqual(['figure', 'github', 'link', 'quote'])
+    expect(directiveNames()).toEqual(['columns', 'figure', 'gallery', 'github', 'link', 'quote'])
     expect(getDirective('GitHub')?.name).toBe('github')
   })
 
   it('未知指令的报错列出可用类型并纠错', () => {
     const message = unknownDirectiveMessage('gihub')
     expect(message).toContain(':::gihub')
-    expect(message).toContain('figure / github / link / quote')
+    expect(message).toContain('columns / figure / gallery / github / link / quote')
     // 编辑距离 1，应该猜得到
     expect(message).toContain('你是不是想写：:::github')
   })
@@ -97,7 +100,8 @@ describe(':::github', () => {
     expect(html).toContain('data-embed="github"')
     expect(html).toContain('data-target="vuejs/core"')
     expect(html).toContain('href="https://github.com/vuejs/core"')
-    expect(html).toContain('<strong>vuejs</strong>/core')
+    expect(html).toContain('<strong>vuejs</strong>')
+    expect(html).toContain('embed__title')
   })
 
   it('接受完整链接与子路径', () => {
@@ -114,12 +118,38 @@ describe(':::github', () => {
     expect(() => render(':::github not-a-repo\n:::')).toThrow(/无法识别仓库/)
   })
 
-  it('产出**不含** `<p>`（`<a>` 里放 `<p>` 会被浏览器拆卡）', () => {
+  it('产出**不含**块级元素（`<a>` 里放 `<p>`/`<div>` 会被浏览器拆卡）', () => {
     const html = render(':::github vuejs/core\n:::')
     // 只在 `<a>` 内部检查：外层容器允许有段落
     const anchorInner = /<a class="embed__link"[\s\S]*?<\/a>/.exec(html)?.[0] ?? ''
-    expect(anchorInner).not.toContain('<p')
-    expect(anchorInner).not.toContain('<div')
+
+    /*
+     * 判据用「开标签」而不是宽松的 `<p` / `<div` 子串：
+     * 内联 SVG 里含有 `<path ...>`，子串检查会把它误判成段落
+     * （这个断言第一次写时就是这么假红的）。
+     */
+    expect(anchorInner).not.toMatch(/<p[\s>]/)
+    expect(anchorInner).not.toMatch(/<div[\s>]/)
+    // 卡内文字容器必须是 span
+    expect(anchorInner).toContain('<span class="embed__title">')
+    expect(anchorInner).toContain('<span class="embed__badge">GitHub</span>')
+  })
+
+  it('带类型图标与「可点出去」箭头', () => {
+    const html = render(':::github vuejs/core\n:::')
+    expect(html).toContain('embed__icon')
+    // 图标是内联 SVG（构建期拼好，运行期零请求）
+    expect(html).toMatch(/<span class="embed__icon"><svg/)
+    // aria-hidden：图标是装饰，语义由文字承担
+    expect(html).toMatch(/aria-hidden="true"/)
+    expect(html).toContain('embed__arrow')
+  })
+
+  it('骨架以 data-loading 门控（无 JS 时不出现）', () => {
+    const html = render(':::github vuejs/core\n:::')
+    // 骨架节点存在（供运行期点亮），但没有 data-loading 时 CSS 不显示
+    expect(html).toContain('embed__skeleton')
+    expect(html).not.toContain('data-loading="true"')
   })
 })
 
@@ -174,6 +204,97 @@ describe(':::quote（有正文）', () => {
     const html = render(':::quote 出处\n第一段 ==高亮==\n\n第二段\n:::')
     expect(html).toContain('<mark>高亮</mark>')
     expect(html).toContain('<p>第二段</p>')
+  })
+
+  it('出处用 figcaption 承载，且带装饰引号', () => {
+    const html = render(':::quote 《书名》\n引文\n:::')
+    expect(html).toContain('<figcaption class="embed__source">《书名》</figcaption>')
+    expect(html).toContain('embed__quote-mark')
+  })
+
+  it('不写出处时不产出空的 figcaption', () => {
+    const html = render(':::quote\n只有引文\n:::')
+    expect(html).not.toContain('embed__source')
+    expect(html).toContain('<p>只有引文</p>')
+  })
+
+  it('也接受 source= 具名参数', () => {
+    const html = render(':::quote source="《某书》"\n引文\n:::')
+    expect(html).toContain('《某书》')
+  })
+})
+
+describe(':::columns（按 --- 分栏）', () => {
+  it('两栏各包一个 embed__column', () => {
+    const html = render(':::columns 2\n左栏\n\n---\n\n右栏\n:::')
+    expect(html).toContain('data-columns="2"')
+    expect((html.match(/class="embed__column"/g) ?? []).length).toBe(2)
+    expect(html).toContain('左栏')
+    expect(html).toContain('右栏')
+  })
+
+  it('三栏', () => {
+    const html = render(':::columns 3\nA\n\n---\n\nB\n\n---\n\nC\n:::')
+    expect((html.match(/class="embed__column"/g) ?? []).length).toBe(3)
+    expect(html).toContain('data-columns="3"')
+  })
+
+  it('不写列数时默认两栏', () => {
+    const html = render(':::columns\nA\n\n---\n\nB\n:::')
+    expect(html).toContain('data-columns="2"')
+  })
+
+  it('没有 --- 时退化成单列（不产生空 column 包裹）', () => {
+    const html = render(':::columns 2\n只有一段\n:::')
+    // 用引号收尾匹配，避免命中 `embed__columns` 这个容器类名
+    expect(html).not.toContain('class="embed__column"')
+    expect(html).toContain('只有一段')
+  })
+
+  it('列分隔符不残留 <hr>', () => {
+    const html = render(':::columns 2\nA\n\n---\n\nB\n:::')
+    expect(html).not.toContain('<hr')
+  })
+
+  it('列内可以写列表与代码', () => {
+    const html = render(':::columns 2\n- 甲\n- 乙\n\n---\n\n`code`\n:::')
+    expect(html).toContain('<li>甲</li>')
+    expect(html).toContain('<code>code</code>')
+  })
+
+  it('列数超范围报错', () => {
+    expect(() => render(':::columns 5\nA\n\n---\n\nB\n:::')).toThrow(/必须是 2 或 3/)
+    expect(() => render(':::columns 1\nA\n:::')).toThrow(/必须是 2 或 3/)
+  })
+})
+
+describe(':::gallery', () => {
+  it('网格容器 + 列数属性', () => {
+    const html = render(':::gallery\n![a](/a.png)\n:::')
+    expect(html).toContain('data-embed="gallery"')
+    expect(html).toContain('data-columns="2"')
+    expect(html).toContain('embed__gallery')
+  })
+
+  it('三张连续图片被拆成三个独立段落（否则网格只有一格）', () => {
+    const html = render(':::gallery\n![a](/a.png)\n![b](/b.png)\n![c](/c.png)\n:::')
+    // 同一个 <p> 里出现两张 <img> 就说明没拆开
+    const paragraphs = html.match(/<p>[\s\S]*?<\/p>/g) ?? []
+    for (const p of paragraphs) {
+      expect((p.match(/<img/g) ?? []).length).toBeLessThanOrEqual(1)
+    }
+    expect((html.match(/<img/g) ?? []).length).toBe(3)
+  })
+
+  it('带文字的段落不拆（避免破坏有语义的段落）', () => {
+    const html = render(':::gallery\n说明\n\n![a](/a.png)\n:::')
+    expect(html).toContain('<p>说明</p>')
+  })
+
+  it('列数可指定 3 / 4，超范围报错', () => {
+    expect(render(':::gallery 3\n![a](/a.png)\n:::')).toContain('data-columns="3"')
+    expect(render(':::gallery 4\n![a](/a.png)\n:::')).toContain('data-columns="4"')
+    expect(() => render(':::gallery 5\n![a](/a.png)\n:::')).toThrow(/必须是 2 \/ 3 \/ 4/)
   })
 })
 

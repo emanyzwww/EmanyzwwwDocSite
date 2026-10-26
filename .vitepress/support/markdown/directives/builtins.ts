@@ -1,7 +1,7 @@
 /**
- * 指令实现：`:::github` / `:::link` / `:::figure` / `:::quote`。
+ * 指令实现：`:::github` / `:::link` / `:::figure` / `:::quote` / `:::columns` / `:::gallery`。
  *
- * ## 共同纪律（每一条都在 `registry.ts` 里写死了理由）
+ * ## 共同纪律（理由写在 `registry.ts` 顶部）
  *
  * 1. **`open()` / `close()` 必须同步、纯函数**：不读网络、不读文件系统。
  * 2. **产物必须是「已经完整」的 HTML**：没有任何"先占位、稍后改写"的标记。
@@ -9,10 +9,26 @@
  *    运行期增强（`theme/embeds/`）只是往里补描述与元信息。
  *    断网、禁用 JS、接口挂掉——读者看到的仍然是一条能点的链接。
  *
- * 第 3 条是这次重构的核心收益：它让「构建期联网」这件事在结构上不再必要。
+ * ## DOM 设计原则（视觉契约的另一半在 `content.css`）
+ *
+ * 所有指令都产出同一套骨架，保证六种块看起来是「一家」的：
+ *
+ * ```text
+ * .embed                  容器（决定外边距与对齐）
+ *   [.embed__icon]        可选：类型图标（build-time 内联 SVG）
+ *   .embed__body          内容主体
+ *     .embed__head        头行：标题 / 仓库名 + 右侧站点名
+ *     .embed__desc        描述（可选）
+ *     .embed__meta        元信息（可选）
+ *   [.embed__arrow]       可选：右上角"可以点出去"箭头
+ * ```
+ *
+ * **卡内一律用 `<span>`**：`<a>` 里放 `<p>` 会被浏览器按规范拆开
+ * （真实事故：一张卡变成三个并列链接，Vue 报 hydration mismatch）。
  */
 
 import { normalizeRepoSpec, repoPageUrl, splitRepo } from '../../../shared/github'
+import { renderIcon } from '../../../shared/icons'
 import type { Directive, DirectiveArgs, DirectiveContext } from './registry'
 
 /* ------------------------------------------------------------------ *
@@ -66,6 +82,11 @@ function expectKnownKeys(
   }
 }
 
+/** 类型图标。`.embed__icon` 定位在左侧，颜色随 `currentColor`。 */
+function typeIcon(name: Parameters<typeof renderIcon>[0]): string {
+  return `<span class="embed__icon">${renderIcon(name)}</span>`
+}
+
 /* ------------------------------------------------------------------ *
  * `:::github owner/repo`
  * ------------------------------------------------------------------ */
@@ -73,24 +94,11 @@ function expectKnownKeys(
 /**
  * GitHub 仓库卡。
  *
- * 构建期产出：
+ * 构建期产出「图标 + 仓库名 + 站点名 + 一条真链接」，
+ * 运行期补描述与元信息（★ / 语言 / 最近推送）。
  *
- * ```html
- * <div class="embed embed--github" data-embed="github" data-target="vuejs/core">
- *   <a class="embed__link" href="https://github.com/vuejs/core">
- *     <span class="embed__repo"><strong>vuejs</strong>/core</span>
- *     <span class="embed__site">GitHub</span>
- *   </a>
- * </div>
- * ```
- *
- * 这就是「已完成的 HTML」：一条真链接，链接文字就是仓库名。
- * 运行期 `theme/embeds/github.ts` 读到 `data-embed` 后去补描述/★/语言，
- * 补成功就换成卡片版式，失败就保持现在这条链接——**不需要任何回退逻辑**，
- * 因为基线本身就是可用的。
- *
- * 与旧实现的关键差别：旧版在渲染期打电话拿数据、拿不到就输出"半张卡"
- * （`github-card--pending`，没有对应样式），那才是"显示有问题"的来源。
+ * 未增强时卡片只有一行——这是刻意的：**它必须自己看起来是完整的**，
+ * 而不是"一个正在等数据的半成品"。
  */
 const githubDirective: Directive = {
   name: 'github',
@@ -122,18 +130,24 @@ const githubDirective: Directive = {
 
     const href = repoPageUrl(fullName)
     const { owner, repo } = splitRepo(fullName)
-    /*
-     * 仓库名与站点名包在 `.embed__head` 里：增强后运行期会往**链接内部、
-     * head 之后**追加描述与元信息，所以 head 必须是一个独立的行容器。
-     * 给定这个结构，增强代码就不必解析文本、也不必再包一层。
-     */
+
     return (
       `<div class="embed embed--github" data-embed="github" data-target="${escapeAttr(fullName)}">` +
       `<a class="embed__link" href="${escapeAttr(href)}" rel="noopener noreferrer">` +
+      typeIcon('github') +
+      `<span class="embed__body">` +
       `<span class="embed__head">` +
-      `<span class="embed__repo"><strong>${escapeHtml(owner)}</strong>/${escapeHtml(repo)}</span>` +
-      `<span class="embed__site">GitHub</span>` +
-      `</span></a></div>`
+      `<span class="embed__title"><strong>${escapeHtml(owner)}</strong>` +
+      `<span class="embed__slash">/</span>${escapeHtml(repo)}</span>` +
+      `<span class="embed__badge">GitHub</span>` +
+      `</span>` +
+      `<span class="embed__skeleton" aria-hidden="true">` +
+      `<span class="embed__sk embed__sk--line"></span>` +
+      `<span class="embed__sk embed__sk--line embed__sk--short"></span>` +
+      `</span>` +
+      `</span>` +
+      `<span class="embed__arrow">${renderIcon('external')}</span>` +
+      `</a></div>`
     )
   },
   close() {
@@ -148,10 +162,9 @@ const githubDirective: Directive = {
 /**
  * 外部链接卡。
  *
- * 构建期只有一条链接（带 `data-embed="link"`），运行期将来可以走
- * OpenGraph 拉取来补标题与摘要。**现在不做任何网络请求**，
- * 也就是说它当前的行为等于一条带样式的链接——这完全符合预期：
- * 能力先留出接口，数据源以后再接。
+ * 构建期只有链接本身（+ 站点名兜底标题），运行期可以走将来的 OpenGraph
+ * 拉取补标题与摘要。**现在不发任何网络请求**——它当前等于一条带样式的链接，
+ * 这完全符合预期：能力先留出接口，数据源以后再接。
  */
 const linkDirective: Directive = {
   name: 'link',
@@ -181,20 +194,27 @@ const linkDirective: Directive = {
       argError(ctx, `:::link 只接受 http(s) 链接，收到 ${url.protocol}`)
     }
 
-    /*
-     * 标题可选：作者不写就用域名兜底，这样卡片在任何情况下都有内容，
-     * 不会出现"一个空盒子等网络"的中间态。
-     */
     const site = url.hostname.replace(/^www\./, '')
-    const title = args.positional.slice(1).join(' ') || site
+    const custom = args.positional.slice(1).join(' ')
+    const title = custom || site
+    /*
+     * 标题与站点名相同时只显示一次：`:::link https://example.com` 不该
+     * 变成「example.com / example.com」两行同样的字。
+     */
+    const showSite = site !== title
 
     return (
       `<div class="embed embed--link" data-embed="link" data-target="${escapeAttr(url.href)}">` +
       `<a class="embed__link" href="${escapeAttr(url.href)}" rel="noopener noreferrer">` +
+      typeIcon('link') +
+      `<span class="embed__body">` +
       `<span class="embed__head">` +
       `<span class="embed__title">${escapeHtml(title)}</span>` +
-      `<span class="embed__site">${escapeHtml(site)}</span>` +
-      `</span></a></div>`
+      (showSite ? `<span class="embed__badge">${escapeHtml(site)}</span>` : '') +
+      `</span>` +
+      `</span>` +
+      `<span class="embed__arrow">${renderIcon('external')}</span>` +
+      `</a></div>`
     )
   },
   close() {
@@ -209,19 +229,25 @@ const linkDirective: Directive = {
 /** `:::figure` 的图注（两个阶段共用的唯一来源）。 */
 function figureCaption(args: DirectiveArgs): string {
   const caption = args.named.caption ?? ''
-  return caption ? `<figcaption class="embed__caption">${escapeHtml(caption)}</figcaption>` : ''
+  if (!caption) return ''
+  return (
+    `<figcaption class="embed__caption">` +
+    `<span class="embed__caption-mark" aria-hidden="true"></span>` +
+    escapeHtml(caption) +
+    `</figcaption>`
+  )
 }
 
 /**
  * 带图注的图片块。
  *
- * 正文里放一个标准的 Markdown 图片。**独占一段时媒体管线本来就会把它
- * 升成 `<figure class="prose-media">`**（多档 srcset + 点开放大），
- * 所以这里会形成 `figure > figure` —— 这在 HTML5 里是合法的，
- * 且分工清晰：内层负责图片本身的各种尺寸，外层负责图注。
+ * 内部是标准 Markdown 图片。**独占一段时媒体管线本来就会把它升成
+ * `<figure class="prose-media">`**（多档 srcset + 点开放大），
+ * 于是形成 `figure > figure`——HTML5 合法，且分工清晰：
+ * 内层管图片的各种尺寸，外层管图注。
  *
- * 为什么不复用自动升级：自动升级只拿 `title` 当图注，而 `title` 在
- * Markdown 里的语义是"悬停提示"，两者不总是一回事。要精确控制图注时写指令。
+ * 图注用 `caption` 参数而不是图片的 `title`：后者在 Markdown 里的语义是
+ * 悬停提示，两者不总是一回事。要精确控制图注时写指令。
  */
 const figureDirective: Directive = {
   name: 'figure',
@@ -242,12 +268,18 @@ const figureDirective: Directive = {
  * `:::quote 出处`
  * ------------------------------------------------------------------ */
 
+/** `:::quote` 的出处行（开/闭两个阶段共用）。 */
+function quoteSource(args: DirectiveArgs): string {
+  const source = args.named.source ?? args.positional.join(' ')
+  if (!source) return ''
+  return `<figcaption class="embed__source">${escapeHtml(source)}</figcaption>`
+}
+
 /**
  * 引用块 + 出处。
  *
- * 内部正文走标准 `blockquote`（继续用原生的引用样式），出处单独一行。
- * 这是"容器里放原生 Markdown"的示范：容器只负责加一层语义与出处，
- * 内部的段落、列表、代码块全部还是原生解析。
+ * 内部走标准 `blockquote`（复用 `content.css` 已有的引用样式：左侧细线 +
+ * 次级文字色），出处单独一行右对齐。这是"容器里放原生 Markdown"的示范。
  */
 const quoteDirective: Directive = {
   name: 'quote',
@@ -255,18 +287,106 @@ const quoteDirective: Directive = {
   example: ':::quote 《C 程序设计语言》\n第一个示例程序打印 “hello, world”。\n:::',
   body: 'markdown',
   open() {
-    /*
-     * 用 `<figure>` + `<blockquote>` 而不是 `<div>`：这是引用内容的正确语义，
-     * 读屏软件会念成「引用」，且 `content.css` 的 `blockquote` 样式直接复用。
-     */
-    return `<figure class="embed embed--quote" data-embed="quote"><blockquote>`
+    return (
+      `<figure class="embed embed--quote" data-embed="quote">` +
+      `<blockquote><span class="embed__quote-mark" aria-hidden="true">${renderIcon('quote')}</span>`
+    )
   },
-  close(args) {
-    const source = args.named.source ?? args.positional.join(' ')
-    const sourceHtml = source
-      ? `<figcaption class="embed__source">${escapeHtml(source)}</figcaption>`
-      : ''
-    return `</blockquote>${sourceHtml}</figure>`
+  close(args, ctx) {
+    expectKnownKeys(args, ctx, ['source'])
+    return `</blockquote>${quoteSource(args)}</figure>`
+  },
+}
+
+/* ------------------------------------------------------------------ *
+ * `:::columns`
+ * ------------------------------------------------------------------ */
+
+/**
+ * 多列并排。
+ *
+ * **只负责布局，不负责内容**：内部是任意 Markdown，用 `---` 分隔列
+ * （与 frontmatter 无关，这里只是把 `---` 当作列分隔符）。
+ *
+ * 为什么用 `---`：它天然是「水平的断开」，语义上像分栏线；
+ * 而 `\n\n` 空行在 Markdown 里意义不明（是段落还是分栏？）。
+ *
+ * 窄屏（< 704px）自动降为单列——手机上两栏中文会窄到不可读。
+ */
+const columnsDirective: Directive = {
+  name: 'columns',
+  summary: '把内容分成并排的多列（用单独一行的 --- 分隔列）',
+  example: ':::columns 2\n左栏内容\n\n---\n\n右栏内容\n:::',
+  body: 'markdown',
+  split: 'hr',
+  open(args, ctx) {
+    expectNoExtra(args, ctx, 1)
+    expectKnownKeys(args, ctx, [])
+
+    const raw = args.positional[0] ?? '2'
+    const count = Number(raw)
+    if (!Number.isInteger(count) || count < 2 || count > 3) {
+      argError(ctx, `:::columns 的列数必须是 2 或 3，收到 "${raw}"。`)
+    }
+
+    /*
+     * 列数写成 `data-columns` 而不是内联 style：样式归 CSS
+     * （`grid-template-columns: repeat(var(--columns), 1fr)`），
+     * 便于窄屏断点整体降为单列。
+     */
+    return (
+      `<div class="embed embed--columns" data-embed="columns" data-columns="${count}">` +
+      `<div class="embed__columns">`
+    )
+  },
+  close() {
+    return `</div></div>`
+  },
+}
+
+/* ------------------------------------------------------------------ *
+ * `:::gallery`
+ * ------------------------------------------------------------------ */
+
+/**
+ * 图片画廊（网格）。
+ *
+ * 内部写若干个标准 Markdown 图片，自动排成网格。
+ *
+ * 为什么不是"自动把连续图片变成画廊"：那需要嗅探，而嗅探正是这次重构要
+ * 消灭的东西（想拼图却拼了、不想拼却被拼了，作者无法表达意图）。
+ * 显式写 `:::gallery` 就没有歧义。
+ */
+const galleryDirective: Directive = {
+  name: 'gallery',
+  summary: '把多张图片排成网格（内部写标准 Markdown 图片）',
+  example: ':::gallery\n![a](./a.png)\n![b](./b.png)\n:::',
+  body: 'markdown',
+  /*
+   * 图片拆段**不在块级做**：块级规则运行时 `inline.children` 还是 `null`
+   * （inline 解析发生在稍后的 core 阶段），此时根本看不到图片。
+   * 这里只做标记，真正的拆分由 `installSplitImagesRule()` 的 core 规则
+   * 按 `env.splitImageRanges` 区间执行——见 `directives/images.ts`。
+   */
+  splitImages: true,
+  open(args, ctx) {
+    expectNoExtra(args, ctx, 1)
+    expectKnownKeys(args, ctx, [])
+
+    // 可选列数，默认 2
+    const raw = args.positional[0] ?? '2'
+    const count = Number(raw)
+    if (!Number.isInteger(count) || count < 2 || count > 4) {
+      argError(ctx, `:::gallery 的列数必须是 2 / 3 / 4，收到 "${raw}"。`)
+    }
+
+    return (
+      `<div class="embed embed--gallery" data-embed="gallery" data-columns="${count}">` +
+      `<div class="embed__gallery">`
+    )
+  },
+  close() {
+    return `</div></div>`
   },
 }
 
@@ -276,4 +396,6 @@ export const DIRECTIVES: readonly Directive[] = [
   linkDirective,
   figureDirective,
   quoteDirective,
+  columnsDirective,
+  galleryDirective,
 ]

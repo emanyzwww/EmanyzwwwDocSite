@@ -183,21 +183,46 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node
 }
 
-/** 元信息行文案（`★ 54.9k · TypeScript · 今天更新`）。 */
-function metaParts(data: RepoCardData, m: Messages): string[] {
-  const parts: string[] = []
-  if (data.stars > 0) parts.push(`★ ${compactNumber(data.stars)}`)
-  if (data.language) parts.push(data.language)
+/**
+ * 星标 SVG。
+ *
+ * 这里内联而不是复用 `renderIcon('star')`：那是构建期的字符串拼接工具，
+ * 运行期直接 `insertAdjacentHTML` 更省一次解析。形状与
+ * `shared/icons.ts` 的 `star` 完全一致（填充式五角星）。
+ */
+const STAR_ICON =
+  '<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">' +
+  '<path d="M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5L2.6 9.3l6.5-.9z" /></svg>'
+
+/** 元信息的一段：纯文本，或一个带图标的片段。 */
+interface MetaPart {
+  /** 文本内容。 */
+  text: string
+  /** 可选的前置图标名（如 stars 用 `star`）。 */
+  icon?: 'star'
+}
+
+/**
+ * 元信息行（`★ 54.9k · TypeScript · 今天有推送`）。
+ *
+ * 返回**结构化片段**而不是拼好的字符串：stars 前面要放一个星标 SVG，
+ * 用 `textContent` 拼字符串就塞不进去。渲染时再决定图标与分隔符。
+ */
+function metaParts(data: RepoCardData, m: Messages): MetaPart[] {
+  const parts: MetaPart[] = []
+  if (data.stars > 0) parts.push({ text: compactNumber(data.stars), icon: 'star' })
+  if (data.language) parts.push({ text: data.language })
 
   if (data.pushedAt) {
     const days = daysSince(data.pushedAt, Date.now())
-    if (days === 0) parts.push(m.embedUpdatedToday)
-    else if (days === 1) parts.push(m.embedUpdatedYesterday)
-    else if (days !== null && days < 30) parts.push(format(m.embedUpdatedDays, { count: days }))
-    else if (days !== null && days < 365) {
-      parts.push(format(m.embedUpdatedMonths, { count: Math.floor(days / 30) }))
+    if (days === 0) parts.push({ text: m.embedUpdatedToday })
+    else if (days === 1) parts.push({ text: m.embedUpdatedYesterday })
+    else if (days !== null && days < 30) {
+      parts.push({ text: format(m.embedUpdatedDays, { count: days }) })
+    } else if (days !== null && days < 365) {
+      parts.push({ text: format(m.embedUpdatedMonths, { count: Math.floor(days / 30) }) })
     } else if (days !== null) {
-      parts.push(format(m.embedUpdatedYears, { count: Math.floor(days / 365) }))
+      parts.push({ text: format(m.embedUpdatedYears, { count: Math.floor(days / 365) }) })
     }
   }
 
@@ -207,29 +232,51 @@ function metaParts(data: RepoCardData, m: Messages): string[] {
 /**
  * 把一张 `.embed--github` 升级成卡片版式。
  *
- * **只往 `.embed` 里追加节点**，不动容器本身，也不动外面的结构。
- * 重复调用是安全的（已经有 `is-enhanced` 就跳过）。
+ * ## 只加不改结构
+ *
+ * 只往 `.embed__body` 里追加描述与元信息，**不动**容器、卡片、头行——
+ * 静态 HTML 是 Vue 的 vnode 来源，动结构会引发 hydration mismatch
+ * （旧实现把 `<p>` 塞进 `<a>` 里，浏览器把一张卡拆成三个链接）。
+ *
+ * ## 骨架怎么退场
+ *
+ * 骨架节点**保留在 DOM 里**、只靠 `data-enhanced="true"` 让 CSS 隐藏
+ * （见 `content.css` 的 `.embed__skeleton` 一节）。
+ *
+ * 为什么不 `remove()`：删节点会让卡片高度瞬间变化，
+ * 而描述/元信息刚好在几乎同一帧插入，两个布局变化叠加观感更跳。
+ * 保留节点 + CSS 切换 `display` 只有一次重排。
  */
 function enhanceRepoCard(root: HTMLElement, data: RepoCardData, m: Messages): void {
   if (root.dataset.enhanced === 'true') return
 
-  const link = root.querySelector<HTMLAnchorElement>('.embed__link')
-  if (!link) return
+  const body = root.querySelector<HTMLElement>('.embed__body')
+  if (!body) return
 
-  // 描述
+  // 描述：插在骨架之前（骨架是最后一个子节点），顺序为 head → desc → meta → skeleton
   if (data.description) {
-    // 放在链接内部：整卡仍是同一个可点区域，点击语义不变
-    link.append(element('span', 'embed__desc', data.description))
+    const desc = element('span', 'embed__desc', data.description)
+    const skeleton = body.querySelector('.embed__skeleton')
+    body.insertBefore(desc, skeleton)
   }
 
-  // 元信息
+  // 元信息（stars 前面带星标 SVG，与站点其它元信息行语言一致）
   const parts = metaParts(data, m)
   if (parts.length > 0) {
-    link.append(element('span', 'embed__meta', parts.join(' · ')))
+    const meta = element('span', 'embed__meta')
+    for (const [index, part] of parts.entries()) {
+      if (index > 0) meta.append(element('span', 'embed__meta-sep', '·'))
+
+      const item = element('span', 'embed__meta-part')
+      if (part.icon === 'star') item.insertAdjacentHTML('afterbegin', STAR_ICON)
+      item.append(document.createTextNode(part.text))
+      meta.append(item)
+    }
+    const skeleton = body.querySelector('.embed__skeleton')
+    body.insertBefore(meta, skeleton)
   }
 
   root.dataset.enhanced = 'true'
-  root.classList.add('is-enhanced')
 }
 
 /* ------------------------------------------------------------------ *
@@ -289,7 +336,23 @@ export class EmbedEnhancer {
     const fullName = parseGitHubRepo(`https://github.com/${target}`)
     if (!fullName) return
 
-    const data = await loadRepo(`${fullName.owner}/${fullName.repo}`)
+    /*
+     * 骨架只在「确实开始请求、且要等网络」时点亮。
+     *
+     * 命中 localStorage 缓存时 `loadRepo` 同步返回，这里刚点亮就熄灭，
+     * 视觉上不可见（同一帧内完成），不必特殊处理。
+     * 失败时也必须清掉 `data-loading`——否则骨架会永久转下去，
+     * 而读者明明已经有一条可点的链接（这是最糟的失败态）。
+     */
+    root.dataset.loading = 'true'
+
+    let data: RepoCardData | null = null
+    try {
+      data = await loadRepo(`${fullName.owner}/${fullName.repo}`)
+    } finally {
+      delete root.dataset.loading
+    }
+
     if (this.disposed || !data) return
 
     enhanceRepoCard(root, data, this.m())

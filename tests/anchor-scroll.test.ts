@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  requestAnchorScroll,
-  scrollToAnchor,
-} from '../.vitepress/theme/support/anchor-scroll'
+import { requestAnchorScroll, scrollToAnchor } from '../.vitepress/theme/support/anchor-scroll'
 import {
   resetOverlayStateForTests,
   acquireScrollLock,
@@ -39,12 +36,7 @@ describe('scrollToAnchor', () => {
     offset?: string
     reducedMotion?: boolean
   }) {
-    const {
-      targetTop = 1200,
-      scrollY = 0,
-      offset = '96px',
-      reducedMotion = false,
-    } = options
+    const { targetTop = 1200, scrollY = 0, offset = '96px', reducedMotion = false } = options
 
     const scrollTo = vi.fn()
 
@@ -56,9 +48,7 @@ describe('scrollToAnchor', () => {
     vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: offset }))
     vi.stubGlobal('document', {
       getElementById: (id: string) =>
-        id === 'section'
-          ? { getBoundingClientRect: () => ({ top: targetTop - scrollY }) }
-          : null,
+        id === 'section' ? { getBoundingClientRect: () => ({ top: targetTop - scrollY }) } : null,
     })
 
     return { scrollTo }

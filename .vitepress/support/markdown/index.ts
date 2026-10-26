@@ -51,12 +51,26 @@ export interface SiteMarkdownOptions {
  * 用于页面正文：`markdown.config(md)` 拿到的是 VitePress 自己的实例，
  * 身上已挂 attrs / emoji / 内置容器等插件，我们只追加自己的部分。
  *
+ * ## 装配顺序（有语义，别随手调换）
+ *
+ * ```text
+ * 1. extendMarkdown      行内语法（==高亮==）+ 任务列表
+ * 2. media（若提供）      图片 → <figure> + srcset；注册 core 规则 media_figure
+ * 3. installDirectives   块级指令 + 图片拆段（要排在 media_figure 之前）
+ * ```
+ *
+ * **第 2 步必须早于第 3 步**：图片拆段的 core 规则要靠 `before('media_figure')`
+ * 精确落位。反过来装的话 `media_figure` 还不存在，`before()` 会抛
+ * `Parser rule not found`，只能退回「先占位再重排」的复杂写法——
+ * 而那种写法要碰 markdown-it 的私有字段 `__rules__`，很脆。
+ *
  * @param md markdown-it 实例（收 `unknown`：三份互不兼容的类型声明都能传进来）
  */
 export function applySiteMarkdown(md: unknown, options: SiteMarkdownOptions = {}): void {
   extendMarkdown(md as Parameters<typeof extendMarkdown>[0])
-  installDirectives(md)
+  // 媒体管线先装：它的 core 规则是图片拆段的定位锚点
   options.media?.(md)
+  installDirectives(md)
 }
 
 /**

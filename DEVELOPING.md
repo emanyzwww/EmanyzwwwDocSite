@@ -500,11 +500,22 @@ support/markdown/
 ├─ directives/
 │  ├─ registry.ts        类型、注册表、未知指令的报错（含拼写纠错）
 │  ├─ parse.ts           :::name 参数行的纯字符串解析
-│  ├─ block.ts           markdown-it block 规则（找配对围栏、递归内部 Markdown）
-│  ├─ builtins.ts        四个指令的实现（github / link / figure / quote）
+│  ├─ block.ts           markdown-it block 规则（找配对围栏、递归内部 Markdown、按 hr 分栏）
+│  ├─ images.ts          core 规则：把「一段里的连续图片」拆成每图一段（画廊用）
+│  ├─ builtins.ts        六个指令的实现（github / link / figure / quote / columns / gallery）
 │  └─ index.ts           installDirectives()
-└─ markdown-plugins.ts   （在上一级）行内语法：==高亮== 与任务列表
+├─ markdown-plugins.ts   （在上一级）行内语法：==高亮== 与任务列表
+└─ ../shared/icons.ts    图标表（构建期拼内联 SVG，运行期供 AppIcon）
 ```
+
+**四种扩展点与它们的时序**（改之前先看懂这张表，否则很容易做出「规则装了但不生效」）：
+
+| 需求                          | 挂在哪                                    | 为什么                                                      |
+| ----------------------------- | ----------------------------------------- | ----------------------------------------------------------- |
+| 新的块级指令                  | `block.ruler.before('fence')`             | 必须早于围栏代码块，否则代码里的 `:::` 会被当成指令         |
+| 改指令内部正文的 token        | `core.ruler.before(...)`                  | 块级阶段 `inline.children` 还是 `null`，看不到图片/行内节点 |
+| 升级图片渲染                  | `renderer.rules.image`（`mediaMarkdown`） | 需要文件系统与产物清单                                      |
+| 让某规则早于/晚于 figure 提升 | `core.ruler` + `reorderSplitImagesRule()` | 装配顺序受 `applySiteMarkdown()` 控制                       |
 
 **四条不可协商的纪律**（写在 `registry.ts` 顶部，改动前先读）：
 
@@ -568,6 +579,40 @@ support/markdown/
 5. 补 `tests/directives.test.ts` 用例（正常形态 + 缺参数 + 未知参数）。
 
 **不要**在指令里读文件系统或网络——那会让 `tests/offline-build.test.ts` 直接失败。
+
+#### 嵌入块的视觉契约
+
+所有指令共用一套骨架（`content.css` 的「嵌入块」一节顶部有完整 DOM 图）：
+
+```text
+.embed                  容器：只管外边距
+  .embed__link          可点整卡（github / link）
+    .embed__icon        类型图标（构建期内联 SVG，见 shared/icons.ts）
+    .embed__body
+      .embed__head      头行：.embed__title + .embed__badge
+      .embed__skeleton  加载骨架（data-loading 门控）
+      .embed__desc      描述（运行期追加）
+      .embed__meta      元信息（运行期追加）
+    .embed__arrow       可点出去的提示
+```
+
+四条纪律，全部来自 `DESIGN.md`：
+
+1. **卡片用 `--bg-surface` + `--radius-lg`**——这是 DESIGN.md 对「卡片」的定义。
+   早先误用了 `--bg-surface-alt` + `--radius-md`（那是标签和提示块的档位），
+   卡片因此比正文还"轻"，看起来没成型。
+2. **无阴影**（6.2 阴影只给浮层）。靠表面色 + 极轻描边收边。
+3. **悬停只改描边**。唯一允许的位移是 `.embed__arrow` 右移 2px——它表达
+   「要跳走了」，与链接语义直接相关。
+4. **卡内一律 `<span>`**。`<a>` 里放 `<p>` 会被浏览器拆卡（真实事故）。
+
+**新增指令时的样式清单**：
+
+- 外壳复用 `.embed`，不要新建顶层类名；
+- 需要图标就 `renderIcon('名字')`（构建期）或 `<AppIcon>`（运行期组件）；
+- 需要运行期数据回调就输出 `data-embed="名字"`，增强器在 `theme/embeds/`；
+- 骨架只在**确实要等网络**时用，且必须由 `data-loading` 门控
+  （无 JS 时不能永久显示——那会让读者以为一直在加载）。
 
 #### 已知限制：指令不能直接放进 VitePress 内置容器
 
@@ -1601,7 +1646,7 @@ pnpm build         # 构建（也会暴露类型问题）
 | `dev-redirect.test.ts`      | `Accept-Language` 解析                                                                           |
 | `markdown-plugins.test.ts`  | `==高亮==` 与任务列表的渲染、嵌套、**不误伤比较运算**（含双比较）                                |
 | `markdown-pipeline.test.ts` | 两条渲染路径（页面正文 / 简介卡片）对同一段 Markdown 产出一致                                    |
-| `directives.test.ts`        | 块级指令：参数解析、四个指令、嵌套、代码块内的 `:::`、错误文案、`shared/github`                  |
+| `directives.test.ts`        | 块级指令：参数解析、六个指令、分栏、图片拆段、嵌套、代码块内的 `:::`、错误文案                   |
 | `offline-build.test.ts`     | **构建期零网络**：把 `fetch` 换掉再真跑一次 `pnpm build`（守核心契约）                           |
 | `shared-github.test.ts`     | URL 解析与仓库名归一化、数字缩写、相对天数                                                       |
 | `media-planner.test.ts`     | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名                               |

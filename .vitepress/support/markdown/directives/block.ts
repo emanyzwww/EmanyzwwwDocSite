@@ -35,6 +35,8 @@ interface BlockState {
   line: number
   lineMax: number
   parentType: string
+  /** 已产出的 token 序列（`wrapColumns` 会就地增删）。 */
+  tokens: BlockToken[]
   push(type: string, tag: string, nesting: -1 | 0 | 1): BlockToken
   md: { block: { tokenize(state: BlockState, startLine: number, endLine: number): void } }
   env: Record<string, unknown>
@@ -46,6 +48,14 @@ interface BlockToken {
   content: string
   block: boolean
   map: [number, number] | null
+  /**
+   * `inline` token 的子节点。
+   *
+   * 只有 `inline` 有；其余 token 为 `null` 或不填。
+   * 声明它是因为 `splitParagraphImages` 要重组图片段落
+   * （判断「这一段是不是只有连续图片」必须看 children）。
+   */
+  children?: BlockToken[] | null
 }
 
 /** 规则链。 */
@@ -141,6 +151,96 @@ function findClosingLine(state: BlockState, startLine: number, endLine: number):
 
   return -1
 }
+
+/* ------------------------------------------------------------------ *
+ * 分栏
+ * ------------------------------------------------------------------ */
+
+/** 造一个 html_block token（纯数据，不经过 `state.push`）。 */
+function htmlBlock(content: string): BlockToken {
+  return { type: 'html_block', content, block: true, map: null }
+}
+
+/**
+ * 把 `split: 'hr'` 指令的内部 token 按 `<hr>` 切成若干列。
+ *
+ * ## 做法
+ *
+ * 内部已经 tokenize 完毕，token 序列形如：
+ *
+ * ```text
+ * html_block(开标签)
+ *   paragraph_open / inline / paragraph_close      ← 第 1 列
+ *   hr                                             ← 分隔符
+ *   paragraph_open / inline / paragraph_close      ← 第 2 列
+ * html_block(闭标签)
+ * ```
+ *
+ * 这里就地插入 `.embed__column` 的包裹 html_block：
+ *
+ * ```text
+ * html_block(<div class="embed__column">)   ← 第 1 列开始
+ *   …第 1 列内容…
+ * html_block(</div><div class="embed__column">)  ← 第 1 列结束 + 第 2 列开始
+ *   …第 2 列内容…
+ * html_block(</div>)                        ← 最后一列结束
+ * ```
+ *
+ * ## 边界
+ *
+ * - 首尾的 `hr`（作者多写了分隔线）会被丢掉，不产生空列；
+ * - 一个 `hr` 都没有时退化成单列——作者想要一列就没必要分栏，但也不该报错。
+ *
+ * @param state 块级状态（`tokens` 会被就地修改）
+ * @param openingTokenIndex 开标签在 `state.tokens` 里的下标
+ */
+function wrapColumns(state: BlockState, openingTokenIndex: number): void {
+  const tokens = state.tokens
+  const openToken = tokens[openingTokenIndex]
+  if (!openToken) return
+
+  /** 本指令产生的 token 区间：开标签之后、闭标签之前。 */
+  const bodyStart = openingTokenIndex + 1
+  /*
+   * 闭标签是最后 push 的，所以正文区间是 [bodyStart, tokens.length - 1)。
+   * 用 `-1` 精确排除它——列包裹必须夹在开标签与闭标签之间。
+   */
+  const bodyEnd = tokens.length - 1
+
+  /** 收集分隔符下标（`hr` 且位于本指令内部）。 */
+  const separators: number[] = []
+  for (let index = bodyStart; index < bodyEnd; index += 1) {
+    if (tokens[index]?.type === 'hr') separators.push(index)
+  }
+
+  // 没有任何分隔符：退化成单列，不额外包裹（避免空 div 影响布局）
+  if (separators.length === 0) return
+
+  /*
+   * 逐个把 `hr` 就地改写成「关上一列 + 打开下一列」。
+   *
+   * 改 `type` 而不是插入新 token：`hr` 的位置正好是两列的分界，
+   * 就地替换让下标全部保持稳定（不需要从后往前也能正确工作）。
+   */
+  for (const index of separators) {
+    const separator = tokens[index]
+    if (!separator) continue
+    separator.type = 'html_block'
+    separator.content = '</div><div class="embed__column">'
+  }
+
+  /*
+   * 首尾包裹。
+   *
+   * 从后往前插：先插尾部（下标大），再插头部——否则头部插入会让尾部下标失效。
+   */
+  tokens.splice(bodyEnd, 0, htmlBlock('</div>'))
+  tokens.splice(bodyStart, 0, htmlBlock('<div class="embed__column">'))
+}
+
+/* ------------------------------------------------------------------ *
+ * 图片拆段
+ * ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ *
  * 报错
@@ -264,6 +364,7 @@ function createRule(): BlockRule {
     const open = directive.open(args, context)
     const close = directive.close(args, context)
 
+    const openingTokenIndex = state.tokens.length
     const openToken = state.push('html_block', '', 0)
     openToken.content = open
     openToken.block = true
@@ -285,6 +386,33 @@ function createRule(): BlockRule {
       closeToken.content = close
       closeToken.block = true
       closeToken.map = null
+    }
+
+    /*
+     * `split: 'hr'` —— 把正文里的 `<hr>` 当作「列分隔符」。
+     *
+     * 内部 Markdown 已经把 `---` 解析成了 `hr` token，这里只需把它换成
+     * 「关上一列 / 打开下一列」的两段 HTML。放在 tokenize **之后**做，
+     * 而不是提前切源码：这样每一列内部仍然是完整的 Markdown 解析
+     * （列表、代码块、嵌套指令都不受影响）。
+     *
+     * **必须排在 close 之后**：闭标签也是 `html_block`，它要留在
+     * 列包裹的外面（`<div class="embed__columns">…列…</div>` 才是完整的）。
+     * 早一步调用会把 `</div>` 塞到闭标签内侧，产生错误的嵌套。
+     */
+    if (directive.split === 'hr') wrapColumns(state, openingTokenIndex)
+
+    /*
+     * `splitImages` —— 登记本指令的正文区间，实际拆分交给 core 阶段的规则。
+     *
+     * **不能在块级做**：块级规则运行时 `inline.children` 还是 `null`
+     * （inline 解析发生在稍后的 core 阶段），此时根本看不到图片。
+     * 这里只把「哪一段 token 需要拆」记到 env 上，`installSplitImagesRule()`
+     * 在 `inline` 之后按区间处理。
+     */
+    if (directive.splitImages) {
+      const ranges = (state.env.splitImageRanges ??= []) as Array<[number, number]>
+      ranges.push([openingTokenIndex, state.tokens.length - 1])
     }
 
     state.line = closingLine + 1

@@ -1,8 +1,12 @@
 import MarkdownIt from 'markdown-it'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import {
+  clearMediaRegistry,
+  resolveMedia,
+  resolveSource,
+} from '../.vitepress/support/media/registry'
 import { mediaMarkdown } from '../.vitepress/support/media/render'
-import { clearMediaRegistry, resolveMedia, resolveSource } from '../.vitepress/support/media/registry'
 import { setMediaRuntime } from '../.vitepress/support/media/runtime'
 
 /**
@@ -230,7 +234,10 @@ function installAttrsStandIn(md: MarkdownIt): void {
 
       // `{width=100}` → width 属性；`{data-plain}` → 空值属性
       const image = token.children.find((child) => child.type === 'image')
-      for (const item of raw.trim().replace(/^\{|\}$/g, '').split(/\s+/)) {
+      for (const item of raw
+        .trim()
+        .replace(/^\{|\}$/g, '')
+        .split(/\s+/)) {
         const [key, value] = item.split('=')
         if (key && image) image.attrSet(key, value ?? '')
       }
