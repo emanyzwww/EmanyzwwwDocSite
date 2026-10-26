@@ -4,7 +4,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useImageViewer } from '../../composables/useImageViewer'
 import { usePresence } from '../../composables/usePresence'
 import { format, useI18n } from '../../i18n'
-import { acquireScrollLock, releaseScrollLock, trapFocus } from '../../support/overlay'
+import {
+  acquireScrollLock,
+  registerOverlayCloser,
+  releaseScrollLock,
+  trapFocus,
+} from '../../support/overlay'
 import AppIcon from '../common/AppIcon.vue'
 
 /**
@@ -57,6 +62,8 @@ const {
   origin,
   clearOrigin,
   fitted,
+  neededWidth,
+  bestVariant,
 } = useImageViewer()
 
 /** 焦点陷阱的根：必须是舞台而不是整个对话框（见下方 `watch`）。 */
@@ -105,21 +112,40 @@ const turnDirection = ref<'next' | 'prev' | null>(null)
  * 手势判定阈值。
  *
  * - `MOVE_SLOP`：超过它才算「拖动」而不是「轻点」，用来吃掉手指微抖；
- * - `SWIPE_MAX_MS`：超过这个时长仍要够长的位移才算翻页（慢速拖动不是翻页手势）。
+ * - `SWIPE_MIN_PX` / `SWIPE_MAX_PX` / `SWIPE_RATIO`：翻页所需的最小横向位移，
+ *   按舞台宽的比例算，但**夹在 48–96px 之间**。
+ *
+ * ---------- 为什么不再按视口宽度算 ----------
+ *
+ * 旧实现是 `Math.max(48, window.innerWidth * 0.12)`。在 1920px 的显示器上
+ * 这个值是 **230px** —— 读者在整屏查看器里横拖 150px（已经很吃力了）
+ * 依然不翻页，体感就是"滑屏没反应"。而 PC 上唯一的替代入口是底部缩略图，
+ * 于是呈现为"点按钮和滑屏都不行，只有点小图可以"。
+ *
+ * 手势的手感必须跟着**手指/光标的可移动距离**走，也就是舞台宽，不是视口宽；
+ * 而且需要上限 —— 舞台上横拖四分之一屏在宽屏上已经很夸张了。
  */
 const MOVE_SLOP = 8
-const SWIPE_MAX_MS = 600
+const SWIPE_MIN_PX = 48
+const SWIPE_MAX_PX = 96
+const SWIPE_RATIO = 0.1
 
 /**
- * 当前图片的两个地址。
+ * 当前图片的三个地址。
  *
- * - `thumb`：正文里那张 672 档 webp，**浏览器已经有缓存**，打开时零延迟
- * - `src`：原图，放大后才看得出差别，体积大得多
+ * 旧实现只有 `thumb`（正文那张 672 档）与 `src`（原图）两级，于是陷入一个
+ * 死结：
  *
- * 两者配合做**渐进加载**：先用缓存好的展示图瞬间填满舞台，
- * 原图在后台静默换上来（见 `loadOrigin`）。这比"直接请求原图、白屏等"
- * 好得多，也比"只看 672 档、放大就糊"好得多 —— 需求里说的
- * "放大应当是完整原图"必须真的加载原图。
+ * | 阶段 | 请求的图 | 舞台 1365px 上的结果 |
+ * |------|----------|------------------------|
+ * | 先到 | 672 档   | **放大 2 倍插值 → 糊** |
+ * | 后到 | 原图 5.4 MB | 清晰，但白等很久 |
+ *
+ * 读者看到就是需求里那句"显示的图片会很糊，过一会清晰的图片才拉到"。
+ *
+ * 现在按**舞台真正需要的像素**在档位里挑（见 `useImageViewer.bestVariant`）：
+ * fit 状态用 2016 档（约 190 KB），到得快且肉眼无差；放大超过最大档或
+ * 没有多档时才退到原图。
  */
 const thumbSrc = computed(() => current.value?.thumb ?? '')
 const originSrc = computed(() => current.value?.src ?? '')
@@ -127,16 +153,13 @@ const originSrc = computed(() => current.value?.src ?? '')
 /**
  * LQIP 占位图（来自正文 `<img data-lqip>`，data URI）。
  *
- * 与正文同源：给舞台 `<img>` 当背景。渐进加载的两段之间（缩略图请求中、
- * 原图替换中）它都在下面垫着，观感从「黑屏等」变成「先看到色彩再变清晰」。
+ * 舞台加载的档位通常还没被正文请求过（正文按 672 档显示），
+ * 等它到位的时间就用这张极小模糊图铺底。
  */
 const lqipSrc = computed(() => current.value?.lqip ?? '')
 
-/** 当前实际渲染的地址。渐进加载完成后换成原图。 */
+/** 当前实际渲染的地址。渐进加载完成后换成更高档。 */
 const displaySrc = ref('')
-
-/** 原图是否已就绪（决定要不要继续显示加载态、以及是否显示"实际像素"）。 */
-const originLoaded = ref(false)
 
 /**
  * 实际请求的 `src`：失败重试时追加一个查询参数强制重新请求。
@@ -229,6 +252,31 @@ function thumbStyle(src: string): Record<string, string> {
   return { backgroundImage: `url("${src}")` }
 }
 
+/**
+ * LQIP 占位：作为舞台 `<img>` 的 `background-image`。
+ *
+ * ---------- 为什么写内联而不是 CSS ----------
+ *
+ * 旧实现靠 `data-lqip` 属性 + `.lightbox__image[data-lqip]` 选择器，
+ * 但样式里**只设了 `background-size/position`，从来没设 `background-image`**
+ * —— 于是 LQIP 那层占位实际上一次都没显示过，“先看到色彩再变清晰”的
+ * 设计意图完全落空，读者只看到黑底等图。
+ *
+ * 地址是逐张变化的 `data:` URI，本就必须从数据里来，写内联是唯一正确的做法
+ * （同理见 `thumbStyle`）。
+ *
+ * 只在**还在加载**时铺：图到位后背景被不透明的图片盖住，留着只是白占内存。
+ */
+const lqipStyle = computed<Record<string, string>>(() => {
+  const style: Record<string, string> = {}
+  // 没有 LQIP，或图片已经到位（背景会被不透明图片盖住）—— 都不铺
+  if (!lqipSrc.value || !loading.value) return style
+  style.backgroundImage = `url("${lqipSrc.value}")`
+  style.backgroundSize = 'cover'
+  style.backgroundPosition = 'center'
+  return style
+})
+
 /* ------------------------------------------------------------------ *
  * 生命周期：锁滚动 + 焦点陷阱 + 焦点归还
  * ------------------------------------------------------------------ */
@@ -256,8 +304,16 @@ watch(isOpen, async (open) => {
     releaseTrap = trapFocus(() => frameEl.value)
     document.addEventListener('keydown', onGlobalKeydown, true)
     await nextTick()
-    closeEl.value?.focus()
+    /*
+     * 顺序不能换：**先量舞台，再让加载挑档**。
+     *
+     * `neededWidth` 依赖 `stage`，而 `stage` 只有量过才有值 —— 见
+     * `useImageViewer.neededWidth` 里那段「未测量时退回视口宽」的推导。
+     * 先 `measureStage()` 能让第一次挑档就用真实舞台宽，省掉一轮
+     * "先挑错再升级"的请求。
+     */
     measureStage()
+    closeEl.value?.focus()
   } else {
     releaseTrap?.()
     releaseTrap = null
@@ -581,10 +637,47 @@ function distanceOf(a: PointerRecord, b: PointerRecord): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
+/**
+ * 事件起点是否落在舞台里的**可交互控件**上。
+ *
+ * ---------- 这是"点按钮没反应"的根因 ----------
+ *
+ * 旧实现在 `pointerdown` 里**无条件** `setPointerCapture` 到舞台元素。
+ * 指针捕获一旦生效，后续所有 pointer 事件（以及**由它派生的 click**）
+ * 都会重定向到捕获元素 —— 于是点在 `.lightbox__nav--next` 上的点击变成了
+ * 点舞台，`@click="goNext"` 永远收不到。
+ *
+ * 实测证据（headless Chrome，捕获阶段监听 document 的 click）：
+ *   点 next 按钮 → `click` 的 target 是 `lightbox__stage`，counter 仍是 `2 / 4`；
+ *   `pointerdown` 的 target 本来是按钮里的 `<svg>`，捕获后立刻变成 stage。
+ *
+ * 反过来，缩略图条在 `.lightbox__stage` **之外**，不受捕获影响 ——
+ * 正好解释了"点底部小图可以翻页"这个不对称现象。
+ *
+ * 修法：起点在控件上就不接管这次指针（不记触点、不捕获），
+ * 让浏览器按原生语义把 click 派给按钮。
+ */
+function isFromControl(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  return target.closest('button, a[href]') !== null
+}
+
 function onPointerDown(event: PointerEvent): void {
   const element = event.currentTarget as HTMLElement | null
   // 只处理主键 / 触摸 / 笔
   if (event.button !== 0 && event.pointerType === 'mouse') return
+
+  /*
+   * 起点在按钮 / 链接上：**完全不接管**。
+   *
+   * 不记触点、不 setPointerCapture、不置 gesturing —— 三件事任何一个做了
+   * 都会把 click 从按钮身上抢走（见 `isFromControl` 的推导）。
+   * 代价是"从按钮上开始拖拽"不会翻页，但那本来就不是读者的意图。
+   */
+  if (isFromControl(event.target)) {
+    gestureStart = null
+    return
+  }
 
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
   element?.setPointerCapture?.(event.pointerId)
@@ -665,7 +758,6 @@ function onPointerUp(event: PointerEvent): void {
   gesturing.value = false
   gestureStart = null
 
-  const elapsed = performance.now() - start.time
   const dx = event.clientX - start.x
   const dy = event.clientY - start.y
 
@@ -698,16 +790,22 @@ function onPointerUp(event: PointerEvent): void {
   if (start.scale > 1.01 || scale.value > 1.01) return
 
   /*
-   * 翻页判定（仅在 fit 状态）：
-   * - 位移 ≥ max(48px, 12% 视口宽)
-   * - 横向占优（1.5 倍）
-   * - 够快（600ms 内）；慢速拖动需要更长的位移才算
+   * 翻页判定（仅在 fit 状态）。
+   *
+   * ---------- 为什么不再看耗时 ----------
+   *
+   * 旧实现多一条 `elapsed < 600ms`（"够快才算翻页"）。它把"慢慢拖过去"
+   * 排除在外，但读者判断的是**位移**，不是自己拖了多久：在触控板上慢慢
+   * 横拖 300px 却毫无反应，只能理解成"滑屏坏了"。
+   * 位移阈值本身已经足够区分「想翻页」和「手抖」，耗时这一条只带来误判。
+   *
+   * 横向占优仍要求 1.5 倍：斜向拖动多半是想平移或误触，不该翻页。
    */
-  const threshold = Math.max(48, window.innerWidth * 0.12)
+  const stageWidth = stage.value.width || window.innerWidth
+  const threshold = Math.min(SWIPE_MAX_PX, Math.max(SWIPE_MIN_PX, stageWidth * SWIPE_RATIO))
   const horizontal = Math.abs(dx) > Math.abs(dy) * 1.5
-  const fast = elapsed < SWIPE_MAX_MS || Math.abs(dx) > threshold * 2.5
 
-  if (!horizontal || Math.abs(dx) < threshold || !fast) return
+  if (!horizontal || Math.abs(dx) < threshold) return
 
   if (dx < 0) {
     goNext()
@@ -723,76 +821,130 @@ function onPointerCancel(): void {
 }
 
 /* ------------------------------------------------------------------ *
- * 图片加载（渐进式：先展示图，再原图）
+ * 图片加载（分级：先按舞台挑档，再在放大后升到更清晰的档）
  * ------------------------------------------------------------------ */
 
-/** 当前解码出来的原图对象。换图/关闭时中断。 */
-let originProbe: HTMLImageElement | null = null
+/** 当前这一轮加载的令牌：换图 / 关闭时自增，让旧回调失效。 */
+let loadToken = 0
 
-/** 中断原图预载（换图、关闭、卸载都要调，避免回调打在过期对象上）。 */
-function abortOriginProbe(): void {
-  if (!originProbe) return
-  // 用一个必定不会触发的 src 结束未完成的请求（清空引用即可让回调里的守卫生效）
-  originProbe = null
+/**
+ * 中断进行中的加载（换图、关闭、卸载都要调）。
+ *
+ * 只自增令牌，不碰 DOM：所有 `load` 回调都会先比对令牌，
+ * 对不上的直接退出 —— 这比维护一堆 `HTMLImageElement` 引用更不容易漏。
+ */
+function abortLoad(): void {
+  loadToken += 1
 }
 
 /**
- * 先用已缓存的展示图瞬间填满舞台，再在后台把**原图**换上来。
+ * 当前应当请求的地址。
  *
- * 需求里的"放大应当是完整原图"必须真的加载原图，否则 1:1 就是插值糊。
- * 但直接请求原图（实测 1.87 MB）会白屏等好几百毫秒，
- * 所以分两步：展示图先到，原图后到并静默替换。
+ * 优先级：
+ * 1. 按舞台像素挑中的档位（`bestVariant`，通常是 2016 档）；
+ * 2. 没有多档时退回 `thumb`（正文那张，单档图 / 矢量）；
+ * 3. 输入框外的兜底：`src`。
+ *
+ * 返回的地址**可能等于原图**（放大超过最大档时），也可能等于 `thumb`。
  */
-function loadOrigin(): void {
-  // 中断上一次未完成的原图加载（快速翻页时会有）
-  abortOriginProbe()
+function desiredSrc(): string {
+  return bestVariant.value || thumbSrc.value || originSrc.value
+}
 
-  displaySrc.value = thumbSrc.value
-  originLoaded.value = false
+/**
+ * 按需加载：先请求 `desiredSrc()`，到位后再视情况升级。
+ *
+ * ---------- 为什么要"升级"而不是一次到位 ----------
+ *
+ * 打开查看器的瞬间读者是 fit 状态，需要的像素就是 `fitted.width × dpr`；
+ * 此时去拉 5.4 MB 的原图是纯浪费（而且慢，白屏更久）。
+ * 等读者真的放大到超出当前档位时再换——那时才有额外信息量。
+ * 这条升级链由 `watch(neededWidth)` 驱动。
+ *
+ * ---------- 骨架与 LQIP 的分工 ----------
+ *
+ * - 第一张图**还没到位**：`.lightbox__fig.is-loading` 让 `<img>` 透明，
+ *   底色是舞台的纯色，`<img>` 自己的 LQIP 背景（见 `lqipStyle`）铺在上面 ——
+ *   读者先看到这张图的色彩，再看到它变清晰；
+ * - 第一张图**到位后**：立刻撤掉骨架，读者看到的是所选档位的图；
+ * - 之后升级更高档：**不重新进骨架态**，让旧图继续显示到新图就绪，
+ *   否则会闪一下黑（"骨架失效"那种观感的另一半原因）。
+ */
+function loadImage(): void {
+  abortLoad()
 
-  const target = originSrc.value
-  if (!target || target === thumbSrc.value) {
-    // 没有独立原图（矢量 / 单档图）：展示图即最终图
-    originLoaded.value = true
+  const target = desiredSrc()
+
+  /*
+   * 没有任何地址：直接置失败，别留一个永远转不出去的加载态。
+   */
+  if (!target) {
+    displaySrc.value = ''
+    loading.value = false
+    failed.value = true
     return
   }
 
-  const probe = new Image()
-  originProbe = probe
-
+  const element = imageEl.value
   /*
-   * 用 `addEventListener` 而不是 `onload =`：
-   * 后者只能挂一个，且清空时要把属性赋 null（lint 也不建议这么写）。
-   * 这里 `once: true` 让监听器自己退出，无需手动解绑。
+   * 地址与当前显示的一致且已经解码完：无需任何操作。
+   *
+   * 这条很重要 —— `watch([isOpen, index])` 在打开时也会跑一遍，
+   * 而那一刻 `displaySrc` 还是空的，不会命中；但翻回已经看过的图时
+   * 浏览器有缓存，`<img>` 可能已经是 complete 的。
    */
+  if (
+    element &&
+    element.getAttribute('src') === target &&
+    element.complete &&
+    element.naturalWidth > 0
+  ) {
+    displaySrc.value = target
+    loading.value = false
+    return
+  }
+
+  displaySrc.value = target
+  /*
+   * 只有"当前没有可用图"时才进骨架态。
+   *
+   * 旧实现每次换图都无条件 `loading = true`，于是连"上一张图还在屏幕上"
+   * 的情况下也会铺一层骨架 —— 表现为读者点了缩略图，画面先被骨架盖掉
+   * 再出现图，观感是"骨架乱闪"。真正该显示骨架的只有首帧。
+   */
+  if (!element || !element.complete || element.naturalWidth === 0) loading.value = true
+}
+
+/**
+ * 需要更清晰的档位时，静默升级。
+ *
+ * 与 `loadImage` 分开是因为语义完全不同：这里**不进骨架态、不动 `loading`**，
+ * 预解码成功才替换 `displaySrc`，失败就保持现状（降级不打断阅读）。
+ */
+function upgradeImage(): void {
+  const target = bestVariant.value
+  if (!target || target === displaySrc.value) return
+
+  const token = loadToken
+  const probe = new Image()
+
   probe.addEventListener(
     'load',
     () => {
-      if (originProbe !== probe) return
-      originProbe = null
-      // 原图比展示图还小的话没有意义，保持展示图（避免"放大反而更糊"）
-      const bigger =
-        probe.naturalWidth * probe.naturalHeight >=
-        (imageEl.value?.naturalWidth ?? 0) * (imageEl.value?.naturalHeight ?? 0)
-      if (!bigger) {
-        originLoaded.value = true
-        return
-      }
+      // 换图了 / 关闭了：这次结果作废
+      if (token !== loadToken) return
+      if (!probe.naturalWidth) return
       displaySrc.value = target
     },
     { once: true },
   )
 
-  probe.addEventListener(
-    'error',
-    () => {
-      // 原图取不到不影响阅读：继续用展示图（静默降级，不打断读者）
-      if (originProbe !== probe) return
-      originProbe = null
-      originLoaded.value = true
-    },
-    { once: true },
-  )
+  /*
+   * 更高档取不到不影响阅读：继续用当前这张，什么都不做。
+   * 监听器仍然要挂 —— 否则失败时 `onerror` 会冒到控制台，
+   * 而"某档缺失"是本管线里可以静默降级的情况。
+   */
+  probe.addEventListener('error', () => {}, { once: true })
 
   probe.src = target
 }
@@ -802,8 +954,6 @@ function onImageLoad(event: Event): void {
   natural.value = { width: image.naturalWidth, height: image.naturalHeight }
   loading.value = false
   measureStage()
-  // 展示图到位后立刻可以操作；原图仍在后台加载
-  originLoaded.value = true
   /*
    * FLIP 进入必须在**这里**播，不能挂在 `watch(present)` 上：
    * 那一刻 `<img>` 还没有尺寸（`offsetWidth === 0`），算不出终点。
@@ -815,6 +965,20 @@ function onImageLoad(event: Event): void {
     flipPlayed = true
     playFlipIn()
   }
+
+  /*
+   * 补一次档位检查 —— 这是"加载中放大"的收尾。
+   *
+   * `watch(neededWidth)` 在加载期间会 `return`（它刻意不打断进行中的
+   * 首帧加载）。于是出现一个真实漏洞：读者在图还没到时就连按放大，
+   * 图到了之后**没有人再回头挑一次档**，画面停在 1.96× 的 2016 图上
+   * （`neededWidth` 已经 2676 > 2016，本该升级到原图）。
+   *
+   * 这里在"加载完成"这个时间点上补挑一次：`upgradeImage()` 会读到
+   * 此刻真实的 `neededWidth`（含读者已经施加的缩放），需要就静默升级。
+   * 它不动 `loading`，所以不会让骨架重新出现。
+   */
+  upgradeImage()
 }
 
 /** FLIP 进入是否已经播过（每打开一次只播一次）。 */
@@ -822,15 +986,12 @@ let flipPlayed = false
 
 function onImageError(): void {
   /*
-   * 展示图（672 档）失败才算真失败。
+   * 第一次失位：降级到 `thumb` 再试一次（档位文件缺失、CDN 抽风）。
    *
-   * 原图单独失败由 `loadOrigin` 里的 `probe.onerror` 处理：
-   * 那时页面上已经有展示图，不该弹"加载失败"。
+   * 只降一次：`displaySrc` 已经是 `thumb` 还失败，才是真的失败。
    */
-  if (displaySrc.value && displaySrc.value !== thumbSrc.value) {
-    // 是原图替换失败 → 退回展示图重来一次，不打断读者
+  if (displaySrc.value && thumbSrc.value && displaySrc.value !== thumbSrc.value) {
     displaySrc.value = thumbSrc.value
-    originLoaded.value = true
     return
   }
 
@@ -845,7 +1006,7 @@ function retry(): void {
   failed.value = false
   loading.value = true
   retryToken.value += 1
-  loadOrigin()
+  loadImage()
 }
 
 /** 翻页（带方向，用于播放对应方向的动画）。 */
@@ -887,10 +1048,50 @@ function onResize(): void {
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
+  window.addEventListener('popstate', onPopState)
+  registerCloser()
 })
 
+/* ------------------------------------------------------------------ *
+ * 浏览器前进 / 后退时关闭
+ * ------------------------------------------------------------------ *
+ *
+ * 读者在查看器里按浏览器「后退」，期望的是「退出这个浮层」，
+ * 但旧实现让浮层**留在屏幕上**：页面已经换成上一页（或什么都没换），
+ * 而黑底全屏图和滚动锁都还在，读者只能再按 Esc 才能脱身。
+ *
+ * 三层防护，各管一个入口：
+ *
+ * 1. `registerOverlayCloser` —— 站内导航前统一关（主路径，见 route-transition.ts）；
+ * 2. `popstate` —— 浏览器前进/后退**不走** `onBeforeRouteChange`，
+ *    必须单独听。而查看器打开时并不 pushState（它是纯粹的浮层，不改地址），
+ *    所以后退那一下会把地址退到**打开查看器之前**的位置，内容页也跟着换 ——
+ *    这正是"浮层还占着屏幕"的现场；
+ * 3. `watch(route.path)` —— 兜底，覆盖其它会改地址的路径。
+ *
+ * 关闭用 `close()`（置 false）而不是销毁 DOM：退出动画与滚动锁释放
+ * 都由 `usePresence` 的时序负责，强关时观感与手点关闭按钮完全一致。
+ */
+let unregisterCloser: (() => void) | null = null
+
+function registerCloser(): void {
+  unregisterCloser = registerOverlayCloser(() => {
+    if (isOpen.value) close()
+  })
+}
+
+function onPopState(): void {
+  if (!isOpen.value) return
+  close()
+}
+
 onBeforeUnmount(() => {
+  // 卸载时作废进行中的加载：令牌自增后旧回调的守卫会全部失效
+  abortLoad()
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('popstate', onPopState)
+  unregisterCloser?.()
+  unregisterCloser = null
   // 卸载时无条件释放：路由切换销毁组件时锁会残留
   releaseScrollLock()
   releaseTrap?.()
@@ -899,7 +1100,7 @@ onBeforeUnmount(() => {
 })
 
 /**
- * 换图（打开 / 翻页）后重新走一遍渐进加载。
+ * 换图（打开 / 翻页）后重新走一遍分级加载。
  *
  * `immediate: true` 让"打开查看器"这一刻也触发 —— 组件的 `v-if` 在
  * `isOpen` 变 true 时挂载，`index` 的初始变化不会再次触发 watch。
@@ -911,15 +1112,53 @@ watch(
     loading.value = !failed.value
     // 提示在翻过一页后淡出：读者已经知道有翻页了
     hintVisible.value = false
-    loadOrigin()
+    loadImage()
   },
   { immediate: true },
 )
 
-onBeforeUnmount(() => {
-  // 卸载时中断原图加载：回调里的 `originProbe !== probe` 守卫会因此失效退出
-  abortOriginProbe()
+/**
+ * 放大到超出当前档位的像素时，静默升级到更清晰的档。
+ *
+ * 这是"放大应当是完整原图"的落点：fit 状态用 2016 档（快），
+ * 读者放到 2× 以上时 `neededWidth` 超过 2016，才换更大的档（最终是原图）。
+ *
+ * 只在 `isOpen` 时工作，且升级不进骨架态（旧图一直显示到新图就绪）。
+ */
+watch(neededWidth, () => {
+  if (!isOpen.value || loading.value || failed.value) return
+  upgradeImage()
 })
+
+/**
+ * 舞台尺寸变化后重新挑档（首次测量 / 窗口缩放 / 横竖屏切换）。
+ *
+ * ---------- 为什么必须覆盖「首次测量」 ----------
+ *
+ * 打开查看器的那一刻舞台可能还没量到（`stage.width === 0`），
+ * `neededWidth` 退回视口宽兜底 —— 挑出来的档可能偏小。`measureStage()`
+ * 在挂载与 `load` 之后把真实尺寸写进 `stage`，这个 watch 就用正确的
+ * 舞台宽重挑一次。
+ *
+ * 两个分支语义不同，不能混：
+ * - 首帧仍在加载（`loading === true`）→ `loadImage()` 重新请求，
+ *   它负责撤掉 / 保留骨架态；
+ * - 已经在显示图 → `upgradeImage()` 静默升级，绝不能重进骨架态
+ *   （那正是"骨架乱闪"的来源）。
+ *
+ * `failed` 状态不动：让读者自己点重试，别在后台反复重试失败地址。
+ */
+watch(
+  () => fitted.value.width,
+  () => {
+    if (!isOpen.value || failed.value) return
+    if (loading.value) {
+      loadImage()
+      return
+    }
+    upgradeImage()
+  },
+)
 </script>
 
 <template>
@@ -1008,10 +1247,9 @@ onBeforeUnmount(() => {
               ref="imageEl"
               class="lightbox__image"
               :class="{ 'is-gesturing': gesturing }"
-              :style="{ ...imageTransform, ...imageSize }"
+              :style="{ ...imageTransform, ...imageSize, ...lqipStyle }"
               :src="imageSrc"
               :alt="current?.alt ?? ''"
-              :data-lqip="lqipSrc || undefined"
               draggable="false"
               @load="onImageLoad"
               @error="onImageError" />

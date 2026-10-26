@@ -660,6 +660,46 @@ support/markdown/
 □ 点开图片                      查看器应能翻页/缩放/下载原图
 ```
 
+### 改图片查看器时的检查清单
+
+查看器的交互全部挂在 `ImageViewer.vue` 的指针手势上，有几处**极易改坏**
+且「PC 上不一定测得出来」的地方，改完逐条过：
+
+```text
+□ 点左右按钮            必须翻页（不是只有底部缩略图能翻）
+□ 鼠标横拖 > 100px      必须翻页；微抖 < 30px 不许翻
+□ 手机双指捏合          图片 scale 变化，visualViewport.scale 保持 1
+□ 手机上单指横滑        必须翻页（不能被 pointercancel 吞掉）
+□ 打开时首屏            不应是"糊图"——请求的应是 2016 档，不是 336/672
+□ 放大到 > 2×           应升级到 /assets/media/orig/*.png
+□ 浏览器后退            浮层必须关闭，且 html.overflow 复原
+```
+
+**四条已踩过的坑（都做过 headless Chrome 实测）**：
+
+1. **`setPointerCapture` 会抢走 click。**
+   无条件在 `pointerdown` 里捕获指针后，点在按钮上的 `click` 会被重定向到
+   捕获元素 —— 左右翻页按钮从此永远点不动。而**缩略图条在捕获区之外**，
+   所以它还能用。症状就是「点按钮和滑屏都不行，点底部小图可以」。
+   → 起点落在 `button, a[href]` 上时**不要接管**这次指针。
+
+2. **`touch-action` 必须写在 `.lightbox__stage` 上，不能放在 `.lightbox` 根上。**
+   不写 → 双指捏合被浏览器当成**页面级缩放**（缩放整个网站），
+   而且 `pointercancel` 会掐断手势。写错位置 → 缩略图条的横向滚动失效
+   （它不是继承属性，浏览器取「命中元素 → 祖先」的交集，根上写 `none`
+   会把子元素的 `pan-x` 也交成 `none`）。
+
+3. **LQIP 必须由 JS 内联写 `background-image`。**
+   旧 CSS 只有 `.lightbox__image[data-lqip] { background-size/position }`，
+   从没设 `background-image` —— 那层占位**一次都没显示过**。
+
+4. **挑档要按舞台像素，不能固定 672 档。**
+   `neededWidth = fitted.width × scale × dpr`。桌面舞台 1365px 上铺 672 档
+   = 放大 2 倍插值 = 读者说的"糊"；直接拉原图 = 5 MB 白屏。
+   所以按档位挑，放大到超过最大档才退原图。
+   注意舞台**首次测量前** `fitted` 是 1px，必须用视口宽兜底，
+   否则会选中最小的 336 档。
+
 ---
 
 ## 四、改样式

@@ -34,12 +34,28 @@ export interface LightboxItem {
   /**
    * LQIP 占位图（`data:` URI，来自正文 `<img data-lqip>`）。
    *
-   * 查看器是渐进加载的：先放 672 缩略图、再换原图。缩略图**通常**有缓存
-   * （正文已经显示过），但「图片还没 lazy 加载完就被点击」时它也要等网络 ——
-   * 这时 LQIP 能先给舞台铺上这张图的色彩，与正文的加载态视觉一致。
+   * 查看器加载的是**按舞台像素挑选的档位**（见 `variants`），那张图通常
+   * 还没被正文请求过（正文按 672 档显示）。等它到位的这段时间里，
+   * LQIP 先给舞台铺上这张图的色彩，避免"黑屏等图"。
    * 没有则为空串。
    */
   lqip: string
+  /**
+   * 可用于舞台的图片档位（从正文 `<img srcset>` 解析，按宽度升序）。
+   *
+   * ---------- 为什么不能只用 `thumb` ----------
+   *
+   * `thumb` 是正文那张 **672 档**。实测桌面舞台宽 1365px，把 672 的图
+   * 铺到 1365px 上是**放大 2 倍插值**——读者看到的就是"糊图"，
+   * 要等原图（实测 5.4 MB 的 PNG）下载完才清晰。这正是需求里
+   * "显示的图片会很糊，过一会清晰的图片才拉到"的根因。
+   *
+   * 所以查看着按**舞台实际需要的像素**在档位里挑：fit 用就近的大档
+   * （2016 档约 190 KB），放大到超过最大档时才落到原图。
+   *
+   * 空数组 = 这张图没有多档（矢量 / 单档 / public 资源），直接用 `src`。
+   */
+  variants: { url: string; width: number }[]
   /** 触发元素，关闭后焦点要还给它。 */
   trigger: HTMLElement | null
   /**
@@ -119,6 +135,19 @@ const origin = ref<{ x: number; y: number; width: number; height: number } | nul
 const current = computed(() => items.value[index.value] ?? null)
 
 /**
+ * 当前设备的像素密度（1 = 普通屏，2/3 = 高分屏）。
+ *
+ * 挑档位必须乘上它：CSS 里 1365px 宽的舞台在 2× 屏上要 2730 个物理像素，
+ * 只按 CSS 宽挑档会得到一张被放大两倍的糊图。
+ * `devicePixelRatio` 可能不是整数（125% 缩放的 Windows 上是 1.25），
+ * 这里取不小于它的整数，宁可多要一点像素也不要糊。
+ */
+function devicePixelRatioOf(): number {
+  if (typeof window === 'undefined') return 1
+  return Math.max(1, Math.ceil(window.devicePixelRatio || 1))
+}
+
+/**
  * 舞台内"适应窗口"时图片的显示尺寸。
  *
  * `natural` 在图片 `load` 之后才有值；在那之前按 1×1 兜底，
@@ -160,6 +189,56 @@ const maxScale = computed(() => {
 /** 是否值得提供「实际大小」入口：原图比适应窗口明显更大时才有意义。 */
 const canActualSize = computed(() => fitted.value.ratio > 0 && 1 / fitted.value.ratio > 1.02)
 
+/**
+ * 当前视野真正需要的图片宽度（物理像素）。
+ *
+ * = `fit 显示宽 × 当前缩放 × 设备像素密度`。
+ * 在 fit 状态、1× 屏上是 `fitted.width`；放大到 2× 或换到 2× 屏就翻倍。
+ *
+ * 这个值决定「该请求哪一档」，是修掉"糊图"的关键：
+ * 旧实现永远请求 672 档，桌面舞台 1365px 把它放大 2 倍插值，必然糊。
+ *
+ * ---------- 舞台还没量到时为什么退回视口宽 ----------
+ *
+ * `fitted` 依赖 `stage`，而 `stage` 要等组件挂载 + `measureStage()` 之后
+ * 才有值。查看器"打开"那一刻（`watch` 的 immediate 分支）舞台还是
+ * `{0, 0}`，`fitted` 于是退化成 1px —— 用这个值挑档会选中**最小的 336 档**，
+ * 然后放大 4 倍铺满舞台（这正是实测到的"一打开就是糊图"）。
+ *
+ * 所以未测量时用视口宽兜底：它是舞台宽的上界，宁可挑大一档也不要挑小。
+ * 舞台量到之后 `fitted` 变化会触发一次重新挑档（见 ImageViewer 的 watch），
+ * 那条路径同时覆盖窗口缩放与横竖屏切换。
+ */
+const neededWidth = computed(() => {
+  const dpr = devicePixelRatioOf()
+  const measured = stage.value.width > 0
+  const shown = measured
+    ? fitted.value.width
+    : typeof window === 'undefined'
+      ? 0
+      : window.innerWidth
+  return Math.ceil(Math.max(shown, 1) * scale.value * dpr)
+})
+
+/**
+ * 按需选档：满足 `neededWidth` 的最小档；都不够时退到最大档。
+ *
+ * ---------- 为什么不直接请求原图 ----------
+ *
+ * 原图实测可达 1.8–5.4 MB，打开就要白屏等。档位是构建期压好的 webp
+ * （2016 档约 190 KB），到得早得多，而且在这个尺寸下**肉眼无差**
+ * ——原图只在放大到超过最大档之后才有信息量。
+ *
+ * 返回空串表示这张图没有可用档位，调用方退到 `src`（原图 / 单档图）。
+ */
+const bestVariant = computed(() => {
+  const list = current.value?.variants ?? []
+  if (list.length === 0) return ''
+  const need = neededWidth.value
+  const hit = list.find((variant) => variant.width >= need)
+  return (hit ?? list[list.length - 1]).url
+})
+
 /* ------------------------------------------------------------------ *
  * 平移边界
  * ------------------------------------------------------------------ */
@@ -191,6 +270,64 @@ function clampTranslate(next: { x: number; y: number }): { x: number; y: number 
  * 动作
  * ------------------------------------------------------------------ */
 
+/**
+ * 解析可用的图片档位，按宽度升序。
+ *
+ * 三个来源合并：
+ * 1. `<img srcset>` —— 构建期产出的展示档（336 / 672 / 1008 / 2016）；
+ * 2. `<img src>` —— 正文当前显示的那张（`srcset` 缺失时是唯一来源）；
+ * 3. `<a href>` 指向的**原图** —— 用固有宽度登记，作为最高一档。
+ *
+ * ---------- 为什么原图也要进候选 ----------
+ *
+ * 读者放大到超过最大 webp 档（2016）时，那一档已经没有更多信息量了，
+ * 继续放大只是插值 —— 需求里"放大应当是完整原图"必须真的给原图。
+ * 把原图按它的固有宽度排进候选，`bestVariant` 就会在需要时自然选中它，
+ * 不需要写「放大超过 2× 就切原图」这种脆弱的倍率判断。
+ *
+ * 反过来，只要需求像素还在展示档覆盖范围内就永远不会选到原图 ——
+ * 这正是"不为了 fit 状态去拉几 MB"的保证。
+ */
+function parseVariants(
+  img: HTMLImageElement | null,
+  src: string,
+  originUrl: string,
+  intrinsicWidth: number,
+): { url: string; width: number }[] {
+  const seen = new Map<string, number>()
+
+  const add = (url: string, width: number): void => {
+    const clean = url.trim()
+    if (!clean) return
+    const previous = seen.get(clean)
+    // 同一地址登记两次时保留更大的宽度
+    if (previous === undefined || width > previous) seen.set(clean, width)
+  }
+
+  const srcset = img?.getAttribute('srcset') ?? ''
+  for (const part of srcset.split(',')) {
+    const match = part.trim().match(/^(\S+?)\s+(\d+)w$/)
+    if (match) add(match[1], Number(match[2]))
+  }
+
+  // 正文那张：没有 srcset 时它可能是唯一可用的地址，宽度未知按 0 兜底
+  if (src && !seen.has(src)) add(src, 0)
+
+  /*
+   * 原图作为最高一档。
+   *
+   * 固有宽度未知时给 `Infinity`：保证它永远排在最后（兜底档），
+   * 而不是因为 0 被排到最前、让 fit 状态直接去拉原图。
+   */
+  if (originUrl && originUrl !== src) {
+    add(originUrl, intrinsicWidth > 0 ? intrinsicWidth : Number.POSITIVE_INFINITY)
+  }
+
+  return [...seen.entries()]
+    .map(([url, width]) => ({ url, width }))
+    .toSorted((a, b) => a.width - b.width)
+}
+
 /** 从 DOM 收集当前页面的画廊。 */
 function collectGallery(): LightboxItem[] {
   if (typeof document === 'undefined') return []
@@ -206,27 +343,33 @@ function collectGallery(): LightboxItem[] {
     if (key && seen.has(key)) continue
     if (key) seen.add(key)
 
+    const thumb = img?.getAttribute('src') ?? anchor.getAttribute('href') ?? ''
+    const originUrl = anchor.getAttribute('href') ?? ''
+
+    /*
+     * 原图固有尺寸：正文 `<img>` 上的 `width`/`height` 属性。
+     *
+     * 构建期的图片管线写的是**原图**尺寸（`media/render.ts` 用 probe
+     * 读到的真实像素），不是 webp 档位尺寸 —— 所以这里拿到的就是
+     * 查看器最终要展示的尺寸，与之后加载哪一张无关。
+     *
+     * 缺失时退回 0，由 `fitted` 再退到 `natural`。
+     */
+    const intrinsic = {
+      width: Number(img?.getAttribute('width')) || 0,
+      height: Number(img?.getAttribute('height')) || 0,
+    }
+
     list.push({
-      src: anchor.getAttribute('href') ?? '',
-      thumb: img?.getAttribute('src') ?? anchor.getAttribute('href') ?? '',
+      src: originUrl,
+      thumb,
       alt: img?.getAttribute('alt') ?? '',
       name: anchor.dataset.originName ?? '',
       key,
       lqip: img?.dataset.lqip ?? '',
       trigger: anchor,
-      /*
-       * 原图固有尺寸：正文 `<img>` 上的 `width`/`height` 属性。
-       *
-       * 构建期的图片管线写的是**原图**尺寸（`media/render.ts` 用 probe
-       * 读到的真实像素），不是 webp 档位尺寸 —— 所以这里拿到的就是
-       * 查看器最终要展示的尺寸，与之后加载哪一张无关。
-       *
-       * 缺失时退回 0，由 `fitted` 再退到 `natural`。
-       */
-      intrinsic: {
-        width: Number(img?.getAttribute('width')) || 0,
-        height: Number(img?.getAttribute('height')) || 0,
-      },
+      variants: parseVariants(img, thumb, originUrl, intrinsic.width),
+      intrinsic,
     })
   }
 
@@ -397,6 +540,10 @@ export function useImageViewer() {
     fitted,
     maxScale,
     canActualSize,
+    /** 当前视野需要的物理像素宽度（挑档依据）。 */
+    neededWidth,
+    /** 按需选中的档位地址；空串表示没有多档，调用方退到 `thumb` / `src`。 */
+    bestVariant,
     total: computed(() => items.value.length),
     /** 打开时被点击图片的屏幕位置（FLIP 起点）；退出动画结束后由组件清空。 */
     origin,

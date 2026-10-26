@@ -39,6 +39,16 @@
     env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
   animation: lb-fade-in var(--duration-enter) var(--ease-out);
+  /*
+   * 阻止 iOS 的"双击缩放"与长按弹出选择菜单：查看器里双击是缩放图片。
+   * `-webkit-touch-callout` 只管 iOS，其余浏览器直接忽略。
+   *
+   * ⚠️ `touch-action` 放在**各子元素**上，不放在这里。
+   * 它不是继承属性，而且浏览器用的是「从命中元素向上取交集」——
+   * 若在根上写 `none`，缩略图条的 `pan-x` 与它取交集还是 `none`，
+   * 那条横向滚动就废了。各自的规则见下方对应小节。
+   */
+  -webkit-touch-callout: none;
 }
 
 /*
@@ -216,6 +226,29 @@ a.lightbox__action {
   justify-content: center;
   overflow: hidden;
   pointer-events: none;
+  /*
+   * ---------- 触摸手势全部自己接管 ----------
+   *
+   * 这是"手机上双指缩放缩放的是整个网站"的根因：
+   * 查看器里**没有一处**声明 `touch-action`（实测舞台的计算值是 `auto`），
+   * 于是双指捏合被浏览器当成**页面级缩放**（pinch-zoom 视觉视口），
+   * 而不是图片的缩放。读者的手指按在图上，缩放的却是整个网页。
+   *
+   * `none` 关掉浏览器对这块区域的一切默认触摸行为（滚动、双指缩放、
+   * 双击缩放），把 pointer 事件原样交给我们：
+   * - 单指横滑 → 翻页（见 `onPointerUp`）
+   * - 单指拖动 → 平移（`scale > 1` 时）
+   * - 双指捏合 → 图片缩放（见 `onPointerMove`）
+   *
+   * 写在舞台上而不是 `.lightbox` 根上：`touch-action` 不继承，浏览器取
+   * 「命中元素 → 祖先」的交集，根上写 `none` 会把缩略图条的 `pan-x` 也
+   * 交成 `none`，那条横向滚动就废了。舞台之外的部分（顶栏、缩略图条）
+   * 本来也不该被捏合缩放，但那里没有图片需要缩放，交给浏览器无妨。
+   */
+  touch-action: none;
+  /* 舞台内部禁掉长按选择：拖图时不该选中东西 */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /*
@@ -264,58 +297,42 @@ a.lightbox__action {
 }
 
 /*
- * 加载态：与正文图片同一套三层占位（见 content.css 的 prose-media 骨架）。
+ * 加载态：LQIP 铺在 `<img>` 自身的背景上（见 ImageViewer.vue 的 `lqipStyle`）。
  *
- * `.is-loading` 期间：
- * ① 翻页层给 shimmer 骨架底；② `<img>` 铺 LQIP 背景（data URI，秒出）；
- * 图片本体透明。`loading` 变 false 后（缩略图或原图就位）三层让位给真图。
+ * ---------- 没有骨架 shimmer，也没有淡入动画 ----------
+ *
+ * 旧实现有三层：`.lightbox__fig.is-loading` 的流动渐变骨架、
+ * `<img>` 上的 LQIP 背景、就位后的 `lb-reveal` 淡入。
+ *
+ * 实测两个问题：
+ *
+ * 1. **LQIP 从来没显示过**：CSS 里只写了 `background-size/position`，
+ *    没写 `background-image`，于是那层占位是空的 —— 读者只看到黑底。
+ *    现在地址由 JS 内联写进 style（见 `lqipStyle`）。
+ * 2. **骨架每翻一页都闪一下**：`loading` 曾在每次换图时无条件置 true，
+ *    连"上一张图还在屏幕上"时也铺骨架。现在只有在没有任何可用图的首帧
+ *    才进加载态，骨架自然只在真正需要时出现。
+ *
+ * 淡入也去掉了：图片是**渐变到位的**（先 2016 档、放大再升级），
+ * 新图就绪时替换 `src` 会出现一次瞬间重绘，再叠一个 200ms 淡入只会让
+ * "从糊到清"的过程看起来更晃。直接替换更干净。
  */
 .lightbox__fig.is-loading {
   background-color: var(--overlay-surface);
-  background-image: linear-gradient(
-    100deg,
-    transparent 30%,
-    color-mix(in srgb, var(--overlay-border) 80%, transparent) 50%,
-    transparent 70%
-  );
-  background-size: 200% 100%;
-  animation: lb-shimmer 1.4s linear infinite;
   border-radius: var(--radius-sm);
-}
-
-@keyframes lb-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
-
-.lightbox__image[data-lqip] {
-  background-size: cover;
-  background-position: center;
 }
 
 .lightbox__fig.is-loading .lightbox__image {
   opacity: 0;
 }
 
-/* 就位后的淡入：只在有 LQIP 时需要（无 LQIP 的图本就瞬间出现，淡入反而拖沓） */
-.lightbox__fig:not(.is-loading) .lightbox__image[data-lqip] {
-  animation: lb-reveal var(--duration-normal) var(--ease-out);
-}
-
-@keyframes lb-reveal {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* 翻页动效：只用 opacity + 8px 横移，绝不用 scale（倍率是手势的连续状态） */
+/*
+ * 翻页动效：只用 opacity + 8px 横移，绝不用 scale（倍率是手势的连续状态）。
+ *
+ * 动 `transform` 是安全的，因为作用在 `.lightbox__fig` 这个**翻页层**上，
+ * 而缩放 / 平移在它内部的 `.lightbox__image` 上 —— 两层分开正是为了避免
+ * "翻页后缩放被重置"或"缩放时整张图横滑"（见上方那节说明）。
+ */
 .lightbox__fig.is-turning-next {
   animation: lb-turn-next var(--duration-fast) var(--ease-out);
 }
@@ -451,9 +468,21 @@ a.lightbox__action {
   overflow-x: auto;
   overflow-y: hidden;
   pointer-events: auto;
+  /*
+   * 缩略图条要能横向滚动。
+   *
+   * `touch-action` 不是继承属性，但它**在中间的祖先上会参与交集**：
+   * 命中元素到根之间的 `touch-action` 取「最严格的那个」。缩略图条的
+   * 祖先链里没有写 `none` 的元素（`none` 只在 `.lightbox__stage` 上，
+   * 而缩略图条不在舞台里），所以这里写 `pan-x` 就是它自己的最终值 ——
+   * 横向滚动正常，双指缩放页面仍然被禁止。
+   */
+  touch-action: pan-x;
   /* 缩略图条不需要自绘滚动条：它是局部小容器，原生细条恰好合适 */
   scrollbar-width: thin;
   scrollbar-color: var(--overlay-fg-muted) transparent;
+  /* 横向滚到底时不把滚动传给页面（页面此时本来也锁着，双保险） */
+  overscroll-behavior-x: contain;
 }
 
 .lightbox__thumb {
