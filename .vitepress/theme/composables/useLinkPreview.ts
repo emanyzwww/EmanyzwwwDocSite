@@ -26,6 +26,7 @@ import { readonly, ref } from 'vue'
 
 import type { LinkPreview } from '../support/link-preview/core'
 import {
+  fallbackPreview,
   isCacheFresh,
   PREVIEW_STORAGE_PREFIX,
   PREVIEW_TTL_MS,
@@ -33,7 +34,7 @@ import {
   type LinkProvider,
   type PreviewCacheEntry,
 } from '../support/link-preview/core'
-import { matchProvider, createProviders } from '../support/link-preview/providers'
+import { matchProvider } from '../support/link-preview/providers'
 
 /* ------------------------------------------------------------------ *
  * 单例状态
@@ -52,12 +53,14 @@ const anchor = ref<{ x: number; y: number; width: number; height: number } | nul
 let enterTimer: ReturnType<typeof setTimeout> | null = null
 let leaveTimer: ReturnType<typeof setTimeout> | null = null
 
-/** provider 列表（懒建：首次悬浮才创建，其中 usePosts 需要 app 上下文）。 */
+/**
+ * provider 列表。
+ *
+ * 必须由 `PageShell` 在 **setup 期间**调用 `setLinkPreviewProviders`
+ * 注入（内部要捕获 `usePosts` / `useI18n` 的响应式引用，见 providers.ts
+ * 「依赖注入」）。注入前悬浮直接忽略 —— 不会报错，只是没卡片。
+ */
 let providers: LinkProvider[] | null = null
-function providersOf(): LinkProvider[] {
-  providers ??= createProviders()
-  return providers
-}
 
 /** 本会话内的内存缓存（localStorage 之上的一层，命中零解析）。 */
 const memoryCache = new Map<string, PreviewCacheEntry>()
@@ -145,12 +148,18 @@ export function hoverLink(link: HTMLAnchorElement, delayMs = 300): void {
   const href = link.getAttribute('href')
   if (!href) return
 
-  const provider = matchProvider(providersOf(), href)
+  const provider = matchProvider(providers ?? [], href)
   if (!provider) return
 
   clearTimers()
   anchor.value = link.getBoundingClientRect()
   enterTimer = setTimeout(() => {
+    /*
+     * 定时器已触发：必须清掉句柄再打开。否则 enterTimer 永远非空，
+     * openFor 里的「过期守卫」会把每个 fetch 结果都当成过期丢弃 ——
+     * 卡片就会永远停在骨架屏（本文件历史上真实发生过这个 bug）。
+     */
+    enterTimer = null
     void openFor(provider, href)
   }, delayMs)
 }
@@ -169,7 +178,18 @@ async function openFor(provider: LinkProvider, href: string): Promise<void> {
   // 悬浮目标已经换了 / 卡片已经收起：丢弃过期结果
   if (enterTimer !== null || !visible.value) return
   pending.value = false
-  preview.value = data
+  if (data) {
+    preview.value = data
+    return
+  }
+  /*
+   * 专用 provider 拿不到数据（限流 / CORS / 接口变更）：
+   * 用 provider 声明的 fallbackSite 降级成域名兜底卡，而不是让卡片
+   * 两个渲染分支都不命中、停在一张什么都看不见的空盒子上。
+   * 连域名卡都构造不出来（非 http(s)）就直接收起。
+   */
+  preview.value = fallbackPreview(href, provider.fallbackSite ?? '')
+  if (preview.value === null) visible.value = false
 }
 
 /** 链接移出（mouseout 委托调用）。 */

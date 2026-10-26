@@ -323,10 +323,28 @@ export interface Messages {
   imageViewerHint: string
 
   // ---------- 链接悬浮预览卡 ----------
-  /** bilibili 元信息：播放量（`{count}` 已缩写成 1.2k）。 */
-  linkPreviewViews: string
-  /** bilibili 元信息：点赞数。 */
-  linkPreviewLikes: string
+  /** GitHub 元信息：今天有推送。 */
+  linkPreviewUpdatedToday: string
+  /** GitHub 元信息：昨天有推送。 */
+  linkPreviewUpdatedYesterday: string
+  /** GitHub 元信息：N 天前有推送（`{count}` = 天数）。 */
+  linkPreviewUpdatedDays: string
+  /** GitHub 元信息：N 个月前有推送（`{count}` = 月数）。 */
+  linkPreviewUpdatedMonths: string
+  /** GitHub 元信息：N 年前有推送（`{count}` = 年数）。 */
+  linkPreviewUpdatedYears: string
+
+  // ---------- 构建期嵌入块（:::github 等）的运行期增强 ----------
+  /** 仓库卡元信息：今天有推送。 */
+  embedUpdatedToday: string
+  /** 仓库卡元信息：昨天有推送。 */
+  embedUpdatedYesterday: string
+  /** 仓库卡元信息：N 天前推送（`{count}` = 天数）。 */
+  embedUpdatedDays: string
+  /** 仓库卡元信息：N 个月前推送（`{count}` = 月数）。 */
+  embedUpdatedMonths: string
+  /** 仓库卡元信息：N 年前推送（`{count}` = 年数）。 */
+  embedUpdatedYears: string
 }
 
 /** 语言元信息。 */

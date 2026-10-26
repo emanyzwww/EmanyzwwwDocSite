@@ -13,7 +13,7 @@ import { defineConfig } from 'vitepress'
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
 import { buildTagIndex, readPageUrls, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
-import { extendMarkdown } from './support/markdown-plugins'
+import { applySiteMarkdown } from './support/markdown'
 import { mediaMarkdown } from './support/media/render'
 import { mediaPlugin } from './support/media/vite'
 import { writeNotFoundFallback } from './support/not-found'
@@ -28,7 +28,9 @@ import type { LocaleCode, TagRef } from './types'
 /** 部署根路径。GitHub Pages 项目站点会通过环境变量覆盖成 `/<repo>/`。 */
 const BASE = process.env.VP_BASE ?? '/'
 
-/** 站点根地址（sitemap 与 RSS 的绝对链接用）。 */
+/**
+ * 站点根地址（sitemap 与 RSS 的绝对链接用）。
+ */
 const SITE_URL = (process.env.VP_SITE_URL ?? SITE.url).replace(/\/$/, '')
 
 /**
@@ -55,7 +57,9 @@ function localeOfPage(relativePath: string): LocaleCode {
   return LOCALE_CODES.includes(first as LocaleCode) ? (first as LocaleCode) : DEFAULT_LOCALE
 }
 
-/** 标签索引缓存：每种语言建一次，避免每个标签页都遍历全部文章。 */
+/**
+ * 标签索引缓存：每种语言建一次，避免每个标签页都遍历全部文章。
+ */
 const tagIndexCache = new Map<LocaleCode, Map<string, TagRef>>()
 
 function tagIndexOf(locale: LocaleCode): Map<string, TagRef> {
@@ -320,24 +324,24 @@ export default defineConfig({
     headers: { level: [2, 3] },
     // 复制按钮的悬停提示；逐页本地化在运行时完成（见 theme/index.ts）
     codeCopyButtonTitle: 'Copy code',
-    // 本站额外的两条语法：`==高亮==` 与 `- [x] 任务列表`。
-    // 这里是 VitePress 留给用户挂 markdown-it 插件的唯一入口，
-    // 在它自带的插件（attrs / emoji / 容器 / 锚点 / 图片）之后执行，互不覆盖。
+    /*
+     * 本站的 Markdown 扩展全部从 `support/markdown/` 装配：
+     *
+     * - 行内：`==高亮==`、GFM 任务列表
+     * - 块级：`:::github` / `:::link` / `:::figure` / `:::quote`
+     * - 图片：`<figure>` + 多档 srcset + 点开放大
+     *
+     * 这里是 VitePress 留给用户挂 markdown-it 插件的唯一入口，在它自带的
+     * 插件（attrs / emoji / 内置容器 / 锚点 / 图片）之后执行，互不覆盖。
+     *
+     * ## 为什么装饰器式地传一个 `media` 而不是在这里逐个调用
+     *
+     * 同一套扩展还要用于「非页面」的 Markdown（个人简介、纯文本侧栏卡片），
+     * 那些场景**没有** Vite 的资产清单，不能装媒体管线。把"装什么"收敛到
+     * `applySiteMarkdown()`，两条路径就不会再次漂移成两套语法。
+     */
     config: (md) => {
-      extendMarkdown(md)
-      /*
-       * 媒体升级（图片 → `<figure>` + 多档 srcset + 可点开放大）。
-       *
-       * **必须排在 extendMarkdown 之后**：顺序本身不影响功能，但两个插件都
-       * 会往 `core.ruler` / `renderer.rules` 上挂东西，先挂"语法"再挂"渲染"
-       * 能保证 `mediaMarkdown` 拿到的上游规则里已经包含所有语法级改动。
-       *
-       * 为什么只挂这里、不挂 `support/markdown.ts`（RSS / bio / 卡片）：
-       * 那边没有 Vite 的资产管线，也没有产物清单可查，图片走的仍是原路径；
-       * 但 `<figure>` 化本身对两边都是好事——只是 RSS 里我们要把链接剥掉
-       * （见 `support/rss.ts` 的说明），所以分开控制。
-       */
-      mediaMarkdown(md)
+      applySiteMarkdown(md, { media: mediaMarkdown })
     },
   },
 
@@ -415,14 +419,18 @@ export default defineConfig({
           "img-src 'self' data:",
           "font-src 'self'",
           /*
-           * connect-src 的两个额外域名给「链接悬浮预览」用：
-           * - api.github.com：仓库卡（stars / 语言 / 更新时间）
-           * - api.bilibili.com：视频卡（播放 / 点赞）
-           * 两者都支持 CORS；请求由用户悬浮触发、带 24h 本地缓存去重。
+           * connect-src 的额外域名给「链接悬浮预览」用：
+           * - api.github.com：仓库卡（stars / 语言 / 更新时间），
+           *   该接口返回 Access-Control-Allow-Origin: *，浏览器可直接调；
+           * - bilibili 的 web 接口拒绝第三方站点的跨域请求（带 Origin 即
+           *   403 且无 CORS 头），纯静态站无法实时拉取，已降级为不发请求的
+           *   域名卡（见 providers.ts），故不需要出现在白名单里；
+           *   将来若加同源代理（如 Pages Functions），代理是同源请求，
+           *   'self' 已覆盖，同样不用加。
            * 新增链接 provider 时，其 API 域名必须同步加进这里，
            * 否则 fetch 会被 CSP 静默拦截（表现为永远降级成通用卡）。
            */
-          "connect-src 'self' https://api.github.com https://api.bilibili.com",
+          "connect-src 'self' https://api.github.com",
           "media-src 'self'",
           "manifest-src 'self'",
           "object-src 'none'",
@@ -515,7 +523,24 @@ export default defineConfig({
     ]
   },
 
-  // ---------- 构建结束：写 RSS、robots、404 兜底 ----------
+  /*
+   * ---------- 构建结束：写 RSS、robots、404 兜底 ----------
+   *
+   * 这里**不做任何网络请求、也不再改写已写盘的产物**。
+   *
+   * 改造前这里有一段 `resolveRepoCards()` + `rewriteRepoCardsInDist()`：
+   * 构建期去 GitHub 抓仓库数据，然后对 `dist` 下所有 HTML 做正则替换。
+   * 它带来三个结构性问题（详见 `AUDIT-markdown-2026-10-26.md`）：
+   *
+   * 1. **构建依赖网络**：缓存过期就要联网，断网/限流时构建结果不可复现；
+   * 2. **改写不完整**：只覆盖 `.html`，覆盖不到客户端路由用的 `.js` chunk，
+   *    于是首屏和站内跳转渲染出两种卡片；
+   * 3. **替换只命中首处**：同一仓库在页面上出现多次时，第 2 张起不会被改写，
+   *    还会把 `data-repo-card` 标记泄漏进页面源码。
+   *
+   * 现在数据由浏览器补（`theme/embeds/`），构建只产出「一条可点的链接」。
+   * 构建因此是**纯函数**：同样的输入永远得到同样的产物。
+   */
   buildEnd(siteConfig) {
     writeFeeds(siteConfig.outDir)
     writeRobots(siteConfig.outDir, `${SITEMAP_HOSTNAME}sitemap.xml`)

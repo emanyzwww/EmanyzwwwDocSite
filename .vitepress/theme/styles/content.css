@@ -232,6 +232,158 @@
   color: var(--fg-muted);
 }
 
+/*
+ * ---------- 嵌入块（`:::github` / `:::link` / `:::figure` / `:::quote`） ----------
+ *
+ * 由 `support/markdown/directives/` 在**构建期**生成，运行期由
+ * `theme/embeds/` 只往容器内部追加节点（不改结构）。
+ *
+ * ## DOM 契约（改动要同步两个文件）
+ *
+ *   <div class="embed embed--github" data-embed="github" data-target="owner/repo">
+ *     <a class="embed__link" href="https://github.com/owner/repo">
+ *       <span class="embed__repo"><strong>owner</strong>/repo</span>   ← 构建期
+ *       <span class="embed__site">GitHub</span>                        ← 构建期
+ *       <span class="embed__desc">描述</span>                          ← 运行期追加
+ *       <span class="embed__meta">★ 1.2k · TS · 3 天前推送</span>      ← 运行期追加
+ *     </a>
+ *   </div>
+ *
+ * ## 为什么全部用 <span>
+ *
+ * 容器在 `<p>` 里、链接是 `<a>`。**`<a>` 里不能放 `<p>`**——HTML 规范规定
+ * `<p>` 会关闭 `<a>`，浏览器解析时会把一张卡拆成三个并列的链接
+ * （真实事故：Vue 报 hydration mismatch，卡片高度只剩一半）。
+ * 所以卡内所有文字容器一律用 `<span>` + `display: block`。
+ *
+ * ## 两套视觉纪律
+ *
+ * - **嵌入块是内容不是浮层**：不用阴影（DESIGN.md 6.2 只给浮层），
+ *   靠表面色 + 边框与正文区分，与 VitePress 容器同族；
+ * - **悬浮态只做最轻的反馈**（边框加深），不做位移/阴影——它不是按钮。
+ */
+.embed {
+  margin-block: var(--space-4);
+}
+
+/*
+ * 头行：仓库名 / 标题在左，站点名在右。
+ *
+ * 这个结构在增强前后**不变**（增强只往 `<a>` 里 head 之后追加节点），
+ * 所以样式也不需要按状态分叉。
+ */
+.embed__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.embed__repo,
+.embed__title {
+  font-size: var(--text-sm);
+  color: var(--fg-default);
+  /* 长仓库名截断，不让卡片撑破布局 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.embed__repo strong {
+  font-weight: var(--weight-semibold);
+}
+
+.embed__site {
+  flex: none;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.embed__link {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-alt);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.embed__link:hover {
+  border-color: var(--border-control);
+}
+
+.embed__desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-muted);
+}
+
+.embed__meta {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-2xs);
+  color: var(--fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- `:::figure`：图注 ---------- */
+
+.embed--figure {
+  margin-block: var(--space-5);
+}
+
+/* 内层可能已经是 `figure.prose-media`（媒体管线升的），把它的外边距吃掉 */
+.embed--figure .embed__media > * {
+  margin-block: 0;
+}
+
+.embed__caption {
+  /* 8px < 块间距 20/24px：图注属于上面那张图，不是下一段的开头 */
+  margin-top: var(--space-2);
+  color: var(--fg-subtle);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* ---------- `:::quote`：引用 + 出处 ---------- */
+
+.embed--quote {
+  margin-block: var(--space-5);
+}
+
+/*
+ * 容器内的 blockquote 不再叠加左内边距之外的东西：
+ * 引用样式（左边框、颜色）继续由下方 `.prose blockquote` 统一提供，
+ * 这里只保证它贴着 `<figure>` 的边。
+ */
+.embed--quote blockquote {
+  margin: 0;
+}
+
+.embed__source {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-subtle);
+  text-align: right;
+}
+
+/*
+ * `PROSE` 的段落节奏规则会给 `<figure>` 之后的元素加外边距，
+ * 上面几个容器已经自带 `margin-block`，这里避免叠加成双倍间距。
+ */
+.prose .embed + * {
+  margin-top: var(--space-4);
+}
+
 .prose blockquote {
   /*
    * 上下外边距必须显式清零。

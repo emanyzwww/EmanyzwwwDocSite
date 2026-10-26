@@ -76,6 +76,16 @@ export const en: Messages = {
   imageViewerHint: '← → to navigate, + − to zoom, 0 to fit, 1 for actual size, Esc to close',
 
   // ---------- Link preview card ----------
-  linkPreviewViews: '{count} views',
-  linkPreviewLikes: '{count} likes',
+  linkPreviewUpdatedToday: 'Updated today',
+  linkPreviewUpdatedYesterday: 'Updated yesterday',
+  linkPreviewUpdatedDays: 'Updated {count}d ago',
+  linkPreviewUpdatedMonths: 'Updated {count}mo ago',
+  linkPreviewUpdatedYears: 'Updated {count}y ago',
+
+  // ---------- Repo card (runtime enhancement of :::github) ----------
+  embedUpdatedToday: 'Pushed today',
+  embedUpdatedYesterday: 'Pushed yesterday',
+  embedUpdatedDays: 'Pushed {count}d ago',
+  embedUpdatedMonths: 'Pushed {count}mo ago',
+  embedUpdatedYears: 'Pushed {count}y ago',
 }

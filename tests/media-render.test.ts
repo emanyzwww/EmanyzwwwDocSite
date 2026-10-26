@@ -196,3 +196,85 @@ describe('data-plain（作者关掉放大）', () => {
     expect(html).toContain('prose-media__link')
   })
 })
+
+/**
+ * 与 `markdown-it-attrs` 的**顺序契约**。
+ *
+ * ## 为什么需要这组用例
+ *
+ * `markdown-it-attrs` 不是本仓库的直接依赖（它被打包进 `vitepress/dist`，
+ * pnpm 的严格布局下不可从项目根解析），所以这里用一个小替身复现它**唯一的
+ * 关键行为**：作为名为 `curly_attributes` 的 core 规则、在 `inline` 之后运行，
+ * 把 `{width=100}` 从 inline children 里摘掉并写进 token 属性。
+ *
+ * 这组用例守的是一个真实事故：`media_figure` 原先挂在 `after('inline')`，
+ * 排在了 attrs **之前**——那时 children 里还留着 `{width=200}` 文本节点，
+ * `soleImageOf()` 看到 2 个 child 就判定"不是单图段落"，于是
+ * **图片加了 width 就失去 `<figure>` 和点开放大**。
+ *
+ * 替身必须真的改变 children（而不只是设置属性），否则复现不出这个 bug。
+ */
+function installAttrsStandIn(md: MarkdownIt): void {
+  md.core.ruler.after('inline', 'curly_attributes', (state) => {
+    for (const token of state.tokens) {
+      if (token.type !== 'inline' || !token.children) continue
+
+      // 找出 `{width=100}` / `{data-plain}` 这类文本节点
+      const braces = token.children.findIndex(
+        (child) => child.type === 'text' && /^\s*\{[^}]*\}\s*$/.test(child.content),
+      )
+      if (braces === -1) continue
+
+      const raw = token.children[braces]?.content ?? ''
+      token.children.splice(braces, 1)
+
+      // `{width=100}` → width 属性；`{data-plain}` → 空值属性
+      const image = token.children.find((child) => child.type === 'image')
+      for (const item of raw.trim().replace(/^\{|\}$/g, '').split(/\s+/)) {
+        const [key, value] = item.split('=')
+        if (key && image) image.attrSet(key, value ?? '')
+      }
+    }
+  })
+}
+
+describe('与 attrs 插件的顺序契约（真实事故回归）', () => {
+  /** 装替身 + 媒体管线，模拟 VitePress 的插件顺序。 */
+  function createMdWithAttrs(): MarkdownIt {
+    const md = new MarkdownIt({ html: true, linkify: true })
+    installAttrsStandIn(md)
+    mediaMarkdown(md)
+    return md
+  }
+
+  function renderWithAttrs(source: string): string {
+    return createMdWithAttrs().render(source, {
+      path: `${process.cwd()}/tests/media-render.test.ts`,
+    })
+  }
+
+  it('{width=200} 的图仍然是 figure 且可放大（修复前会退化成裸 <img>）', () => {
+    const html = renderWithAttrs(`![alt](${EXISTING}){width=200}`)
+
+    expect(html).toContain('<figure')
+    expect(html).toContain('data-lightbox="true"')
+    // 作者的宽度仍然生效
+    expect(html).toContain('width="200"')
+    // 大括号不能泄漏进正文
+    expect(html).not.toContain('{width=200}')
+  })
+
+  it('{data-plain} 的图是 figure 但不可放大（作者显式关掉放大）', () => {
+    const html = renderWithAttrs(`![alt](${EXISTING}){data-plain}`)
+
+    expect(html).toContain('<figure')
+    expect(html).not.toContain('data-lightbox')
+    expect(html).not.toContain('{data-plain}')
+  })
+
+  it('无属性的图行为不变（防止修顺序时改坏基线）', () => {
+    const html = renderWithAttrs(`![alt](${EXISTING})`)
+    expect(html).toContain('<figure')
+    expect(html).toContain('data-lightbox="true"')
+  })
+})

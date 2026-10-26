@@ -90,8 +90,10 @@ Vue 组件  ──►  HTML（图片已是 <figure>，点击由 useImageViewer �
 ├─ support/               构建期 Node 工具（不能在浏览器里跑）
 │  ├─ content.ts          ★ 扫描/解析 Markdown，文章的唯一定义处
 │  ├─ format.ts           日期/字数/截断（纯函数，两端通用）
-│  ├─ markdown.ts         Markdown → HTML（bio / widgets / RSS 正文）
-│  ├─ markdown-plugins.ts 自写扩展语法：`==高亮==`、GFM 任务列表
+│  ├─ markdown/           ★ Markdown 装配点（见「块级指令」专节）
+│  │  ├─ index.ts         applySiteMarkdown()：页面正文与非页面共用同一套插件
+│  │  ├─ directives/      块级指令 `:::github` 等（注册表 / 解析 / 规则 / 实现）
+│  ├─ markdown-plugins.ts 自写行内语法：`==高亮==`、GFM 任务列表
 │  ├─ media/              ★ 图片管线（见下方专节）
 │  │  ├─ planner.ts       纯函数：格式裁决、档位、命名、base 拼接（可单测）
 │  │  ├─ probe.ts         同步读图片头部尺寸（零依赖，可单测）
@@ -452,17 +454,31 @@ vue: {
 （`theme/support/link-preview/`）：
 
 ```text
-core.ts        纯函数：URL 解析（GitHub repo / bilibili BV号）、缓存键、TTL
+core.ts        纯函数：URL 解析（GitHub repo / bilibili BV号）、缓存键、TTL、域名兜底卡
 providers.ts   provider 注册表：站内 → GitHub → bilibili → 通用外链（顺序即优先级）
 ```
+
+**依赖注入是硬约束**：`createProviders({ posts, messages })` 由 `PageShell`
+在 **setup 期间**调用（posts / messages 内部走 `inject()`，离开 setup 会抛错），
+响应式引用被闭包捕获进 provider，悬浮回调里只读 `.value`。
+不要在 provider 的 fetch 里直接调 `usePosts()` / `useI18n()`。
+
+**跨域是硬约束**：provider 要在浏览器里 fetch 第三方 API，对方必须返回
+CORS 头（`Access-Control-Allow-Origin`）。没有 CORS 的接口（如 bilibili 的
+web 接口，带 `Origin` 即 403）在纯静态站上无解——JSONP 会被 CSP
+`script-src` 拦截——只能走同源代理（如 Cloudflare Pages Functions，代理是
+同源请求，CSP 不用改）或降级成不发请求的域名卡（bilibili 现状，
+`fallbackSite: 'bilibili'`）。判断方法：F12 → Network → 看响应有没有 CORS 头。
 
 **新增一种链接类型**（以知乎为例）：
 
 1. `core.ts` 加一个 `parseZhihuAnswer(url)` 之类的纯解析函数（可单测）；
-2. `providers.ts` 写一个 `LinkProvider`（`id` / `match` / `fetch`），
-   插进 `createProviders()` 的合适位置；fetch 必须带超时、拿不到返回 `null`；
-3. `config.ts` 的 CSP `connect-src` 加上 API 域名——**漏了这步 fetch 会被
-   静默拦截**，表现为永远降级成通用域名卡；
+2. `providers.ts` 写一个 `LinkProvider`（`id` / `match` / `fetch`，
+   可选 `fallbackSite`），插进 `createProviders()` 的合适位置；
+   fetch 必须带超时、拿不到返回 `null`（调用方会自动降级成 `fallbackSite`
+   域名卡，卡片永不空白）；
+3. 确认 API 有 CORS 后，`config.ts` 的 CSP `connect-src` 加上 API 域名——
+   **漏了这步 fetch 会被静默拦截**，表现为永远降级成通用域名卡；
 4. 需要站点图标就在 `icons.ts` + `types.ts` 的 `IconName` 里加一个，
    并把名字加进 `LinkPreviewCard.vue` 的 `PREVIEW_ICONS` 白名单。
 
@@ -470,6 +486,123 @@ providers.ts   provider 注册表：站内 → GitHub → bilibili → 通用外
 TTL 24 小时（`PREVIEW_TTL_MS`）。同一链接重复悬浮零请求；拿不到的结果
 （`data: null`）同样进缓存，TTL 内不反复重试。用户悬浮触发请求只会
 把「读者在看哪个链接」发给对应平台——TTL 去重就是隐私上的克制手段。
+
+**没有通用外链兜底**（作者拍板）：普通外链悬浮不弹卡。域名卡信息量为零
+且观感差，不认识的链接保持安静比弹出「example.com」更得体。
+
+### 块级指令（`:::github` 等）
+
+**这是本站唯一的块级扩展入口**，实现在 `support/markdown/`：
+
+```text
+support/markdown/
+├─ index.ts              applySiteMarkdown()：装配点（页面正文与非页面共用）
+├─ directives/
+│  ├─ registry.ts        类型、注册表、未知指令的报错（含拼写纠错）
+│  ├─ parse.ts           :::name 参数行的纯字符串解析
+│  ├─ block.ts           markdown-it block 规则（找配对围栏、递归内部 Markdown）
+│  ├─ builtins.ts        四个指令的实现（github / link / figure / quote）
+│  └─ index.ts           installDirectives()
+└─ markdown-plugins.ts   （在上一级）行内语法：==高亮== 与任务列表
+```
+
+**四条不可协商的纪律**（写在 `registry.ts` 顶部，改动前先读）：
+
+1. **构建期禁止任何网络请求**。指令的 `open()` / `close()` 必须同步、纯函数。
+   有测试守着：`tests/offline-build.test.ts` 会把 `fetch` 换成抛错并真的跑一次构建。
+2. **禁止「先占位、稍后改写」**。指令一旦渲染就是终态，没有任何后续阶段再动产物。
+3. **基线必须可用**。断网 / 禁 JS / 接口失败时，读者看到的仍是一条真链接。
+4. **未注册的指令必须报错**，并列出可用类型——静默降级成本文会让作者以为语法生效了。
+
+#### GitHub 仓库卡：构建期只出链接，数据在浏览器补
+
+这是与改造前**最大**的差别，值得完整理解：
+
+```text
+构建期（同步、零网络）
+  :::github vuejs/core
+  → <div class="embed embed--github" data-embed="github" data-target="vuejs/core">
+      <a class="embed__link" href="https://github.com/vuejs/core">
+        <span class="embed__head">
+          <span class="embed__repo"><strong>vuejs</strong>/core</span>
+          <span class="embed__site">GitHub</span>
+        </span>
+      </a>
+    </div>
+
+运行期（theme/embeds/enhance.ts）
+  IntersectionObserver 进入视口 200px 内 → fetch api.github.com/repos/vuejs/core
+  → 成功：往 <a> 里 head 之后追加 .embed__desc 与 .embed__meta
+  → 失败：什么都不做（基线链接本来就能用）
+```
+
+**为什么必须这样**（这是旧实现踩过的四个坑，逐条对应）：
+
+| 旧实现                                                                  | 后果                                                                          |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 渲染期同步拿不到数据 → `buildEnd` 异步抓取后用正则改写 `dist/**/*.html` | 构建依赖网络，断网/限流时产物不可复现                                         |
+| 改写只覆盖 `.html`，覆盖不到客户端路由用的 `.js` chunk                  | 首屏卡片是新的、站内跳转是旧的，同一页两种渲染                                |
+| `String.replace` 只替换首处                                             | 同一仓库在页面上出现多次时，第 2 张起不被改写，且 `data-repo-card` 泄漏进源码 |
+| 抓取失败输出 `github-card--pending`（无对应 CSS）                       | 读者看到半张空卡，而不是普通链接                                              |
+
+运行期增强的三条实现纪律（`theme/embeds/enhance.ts` 顶部有详细说明）：
+
+- **只加不改结构**：只往 `.embed` 容器内部追加节点，容器本身与它所在的位置永不动。
+  这避免了又一次 hydration mismatch（旧卡片把 `<p>` 放进 `<a>` 里，浏览器把一张卡
+  拆成三个链接，Vue 直接报 `Hydration completed but contains mismatches`）。
+- **懒加载**：滚动接近才请求，一屏十张卡不会发十次。
+- **去重 + 缓存**：同 URL 并发共用一个 Promise；结果进 `localStorage`（TTL 24h）。
+
+卡内**所有文字容器必须是 `<span>`**，不能用 `<p>`：`<a>` 里放 `<p>` 会被浏览器
+按规范拆开。这条由 `tests/directives.test.ts` 的「产出不含 `<p>`」用例守着。
+
+#### 新增一个指令
+
+1. 在 `directives/builtins.ts` 写一个 `Directive`（`name` / `summary` / `example` /
+   `body` / `open()` / `close()`），加进 `DIRECTIVES`；
+2. `body: 'none'` 表示不吃内部内容（渲染成整块 HTML）；`'markdown'` 表示内部
+   照常解析，产物夹在 `open()` 与 `close()` 之间；
+3. 需要运行期数据就在 `theme/embeds/` 加一个增强器，并在 `open()` 里输出
+   `data-embed="你的名字"` 作为钩子；
+4. 样式加到 `content.css` 的「嵌入块」一节，DOM 契约写在该节注释里；
+5. 补 `tests/directives.test.ts` 用例（正常形态 + 缺参数 + 未知参数）。
+
+**不要**在指令里读文件系统或网络——那会让 `tests/offline-build.test.ts` 直接失败。
+
+#### 已知限制：指令不能直接放进 VitePress 内置容器
+
+```markdown
+::: tip 这样会失败
+:::github vuejs/core
+:::
+
+:::
+```
+
+**原因**：内置容器（`tip` / `info` / `warning` / `danger` / `details` / `code-group`）
+和本站指令**共用 `:::` 围栏**。内置容器由 VitePress 自己的插件处理（在我们的规则之前），
+它把遇到的第一个 `:::` 当成自己的闭合行——于是内层指令永远等不到收尾行。
+
+**为什么不在指令层修**：`markdown.config` 是 VitePress 留给用户的**最后**一道钩子，
+内置容器的块级规则已经先于我们注册，它先吃掉围栏，我们看不到它内部发生了什么。
+
+**当前处理**：构建会失败，并在报错里明确写出「这个指令位于 VitePress 内置容器（tip）内部」
+和「把指令移到容器外面」。作者不会对着"明明写了 :::"发愣。
+
+**绕过办法**：**让外层的围栏比内层长**。外层容器写 4 个冒号，内层指令保持 3 个。实测可用：
+
+```markdown
+:::: tip 容器
+:::github vuejs/core
+:::
+::::
+```
+
+规律：`:::` 的**数量决定配对**，内层必须比外层短。VitePress 的容器规则只认
+「整行只有冒号、且长度 ≥ 自己」的行做闭合，所以外层 `::::` 不会被内层的 `:::` 提前关掉。
+
+> 早期版本的说明写反了（说内层要写 `::::`）——那是错的，实测会报"没有闭合"。
+> 正确的做法是**加长外层**。
 
 ### 改图片管线时的检查清单
 
@@ -1458,23 +1591,27 @@ pnpm build         # 构建（也会暴露类型问题）
 
 `tests/` 下只测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
 
-| 文件                       | 覆盖                                                                          |
-| -------------------------- | ----------------------------------------------------------------------------- |
-| `urls.test.ts`             | 相对路径 → URL、中文编码、与 `decodePath` 互逆                                |
-| `paths.test.ts`            | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性                    |
-| `translation.test.ts`      | 跨语言配对键推导（显式 > 目录编号）、配对索引与回退                           |
-| `pagination.test.ts`       | 分页边界（空列表、越界、非法 perPage）                                        |
-| `format.test.ts`           | 日期格式化、RFC 822、字数统计、纯文本化                                       |
-| `dev-redirect.test.ts`     | `Accept-Language` 解析                                                        |
-| `markdown-plugins.test.ts` | `==高亮==` 与任务列表的渲染、嵌套、不误伤比较运算                             |
-| `media-planner.test.ts`    | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名            |
-| `media-probe.test.ts`      | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                   |
-| `media-render.test.ts`     | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关、`data-lqip` 内联       |
-| `link-preview.test.ts`     | 链接预览纯函数：GitHub/bilibili URL 解析、缓存键归一化、TTL、数字缩写         |
-| `anchor-scroll.test.ts`    | 锚点留白（读 `scroll-padding-top`）、滚动扣减、**滚动锁排队**（iOS 真机 bug） |
-| `presence.test.ts`         | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约                             |
-| `overlay-registry.test.ts` | 浮层强制关闭登记表：注册、注销、幂等                                          |
-| `scripts.test.ts`          | 命令行内核：北京时间换算、序号分配、frontmatter 序列化                        |
+| 文件                        | 覆盖                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `urls.test.ts`              | 相对路径 → URL、中文编码、与 `decodePath` 互逆                                                   |
+| `paths.test.ts`             | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性                                       |
+| `translation.test.ts`       | 跨语言配对键推导（显式 > 目录编号）、配对索引与回退                                              |
+| `pagination.test.ts`        | 分页边界（空列表、越界、非法 perPage）                                                           |
+| `format.test.ts`            | 日期格式化、RFC 822、字数统计、纯文本化                                                          |
+| `dev-redirect.test.ts`      | `Accept-Language` 解析                                                                           |
+| `markdown-plugins.test.ts`  | `==高亮==` 与任务列表的渲染、嵌套、**不误伤比较运算**（含双比较）                                |
+| `markdown-pipeline.test.ts` | 两条渲染路径（页面正文 / 简介卡片）对同一段 Markdown 产出一致                                    |
+| `directives.test.ts`        | 块级指令：参数解析、四个指令、嵌套、代码块内的 `:::`、错误文案、`shared/github`                  |
+| `offline-build.test.ts`     | **构建期零网络**：把 `fetch` 换掉再真跑一次 `pnpm build`（守核心契约）                           |
+| `shared-github.test.ts`     | URL 解析与仓库名归一化、数字缩写、相对天数                                                       |
+| `media-planner.test.ts`     | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名                               |
+| `media-probe.test.ts`       | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                                      |
+| `media-render.test.ts`      | `<figure>` 提升边界、alt/图注/宽高、`data-plain` 开关、`data-lqip` 内联、**与 attrs 的顺序契约** |
+| `link-preview.test.ts`      | 链接预览纯函数：GitHub/bilibili URL 解析、缓存键归一化、TTL、数字缩写、域名兜底卡                |
+| `anchor-scroll.test.ts`     | 锚点留白（读 `scroll-padding-top`）、滚动扣减、**滚动锁排队**（iOS 真机 bug）                    |
+| `presence.test.ts`          | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约                                                |
+| `overlay-registry.test.ts`  | 浮层强制关闭登记表：注册、注销、幂等                                                             |
+| `scripts.test.ts`           | 命令行内核：北京时间换算、序号分配、frontmatter 序列化                                           |
 
 `scripts.test.ts` 覆盖的是「建错会静默写坏内容」的那批函数：
 `nextSequence`（序号会不会撞号）、`stringifyFrontmatter`（会不会写坏 YAML）、

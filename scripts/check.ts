@@ -236,11 +236,51 @@ function checkPost(post: PostFile, findings: Finding[]): void {
   }
   // 正文里的 H1 会与 frontmatter 的 title 重复（WRITING.md 明确禁止）
   // 必须剔除代码块后再找：代码注释里的 `#` 不是 Markdown 标题
-  if (/^#\s+\S/m.test(stripCodeBlocks(post.body))) {
+  const prose = stripCodeBlocks(post.body)
+  if (/^#\s+\S/m.test(prose)) {
     findings.push({
       level: 'warn',
       file,
       message: '正文里有 H1 标题（会与 frontmatter 的 title 重复）',
+    })
+  }
+
+  // ---------- 自定义语法 ----------
+  checkCustomSyntax(prose, file, findings)
+}
+
+/**
+ * 检查本站自定义语法的用法。
+ *
+ * ## 为什么需要这一项
+ *
+ * 块级指令（`:::github` 等）是**显式**语法：写对才生效，写错就报错。
+ * 但有两种笔误是"能构建、看起来也正常"的，必须在这里抓：
+ *
+ * 1. **裸仓库链接**——旧版本会自动升级成卡片，现在不会了。作者沿用旧习惯
+ *    直接粘 URL，得到的是一条普通链接，往往不会意识到需要写成 `:::github`。
+ * 2. **指令名拼错**——`:::gihub` 会立刻报错（构建期就炸），所以这里只提示
+ *    "看起来像指令但不是指令行"的情况，例如缩进出错导致的 `::: github`
+ *    （`:::` 与名字之间有空格仍能解析，真正的问题是前缀有文字）。
+ */
+function checkCustomSyntax(prose: string, file: string, findings: Finding[]): void {
+  // 独占一段的裸 GitHub 仓库链接：不会再自动变卡
+  const lines = prose.split('\n')
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = (lines[index] ?? '').trim()
+    if (!/^<?https?:\/\/github\.com\/[^/\s]+\/[^/\s]+>?\/?$/.test(line)) continue
+
+    // 独段判定：前后都必须是空行或文件边界
+    const prev = (lines[index - 1] ?? '').trim()
+    const next = (lines[index + 1] ?? '').trim()
+    if (prev !== '' || next !== '') continue
+
+    findings.push({
+      level: 'warn',
+      file,
+      message:
+        `第 ${index + 1} 行是独占一段的裸 GitHub 链接，现在是普通链接（不会自动变卡）。` +
+        '要卡片请写成：:::github owner/repo',
     })
   }
 }

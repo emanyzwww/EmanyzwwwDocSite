@@ -329,8 +329,15 @@ function lqipDataUriOf(entry: MediaEntry): string {
 /** `public/` 下的绝对路径 → 站内路径。 */
 function publicPathOf(sourcePath: string): string {
   const { publicDir } = getMediaRuntime()
-  const relative = resolve(sourcePath).slice(resolve(publicDir).length)
-  return relative.startsWith('/') || relative.startsWith('\\') ? relative : `/${relative}`
+  /*
+   * slice 出来的分隔符跟随平台（Windows 上是 `\`），必须统一成正斜杠 ——
+   * 这段字符串会直接拼进 `<img src>`，浏览器把 `/\placeholder.svg`
+   * 当成非法路径（真实事故：public 图在 Windows 构建下 404）。
+   */
+  const relative = resolve(sourcePath)
+    .slice(resolve(publicDir).length)
+    .replaceAll('\\', '/')
+  return relative.startsWith('/') ? relative : `/${relative}`
 }
 
 /* ------------------------------------------------------------------ *

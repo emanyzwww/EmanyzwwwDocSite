@@ -230,35 +230,71 @@ function fallback(token: TokenLike, env: unknown, self: RendererLike, owner: obj
  * 规则安装
  * ------------------------------------------------------------------ */
 
-/** 把「独占一段的图」提升为 `<figure class="prose-media">`。 */
+/**
+ * 把「独占一段的图」提升为 `<figure class="prose-media">` 的 core 规则。
+ *
+ * 放在模块作用域而不是 `installFigureRule` 内部：它不捕获任何外部变量，
+ * 每次装插件都重建一遍闭包纯属浪费（lint 也会提示）。
+ */
+const promoteSoleImages: (state: CoreState) => void = (state) => {
+  const tokens = state.tokens
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index].type !== 'paragraph_open') continue
+    if (tokens[index + 1]?.type !== 'inline') continue
+    if (tokens[index + 2]?.type !== 'paragraph_close') continue
+
+    const image = soleImageOf(tokens[index + 1])
+    if (!image) continue
+
+    image.meta = { ...image.meta, figure: true }
+
+    const open = tokens[index]
+    open.type = 'figure_open'
+    open.tag = 'figure'
+    open.nesting = 1
+    open.attrJoin('class', 'prose-media')
+
+    const close = tokens[index + 2]
+    close.type = 'figure_close'
+    close.tag = 'figure'
+    close.nesting = -1
+
+    index += 2
+  }
+}
+
+/**
+ * 安装 `<figure>` 提升规则。
+ *
+ * ## 挂载位置：必须排在 `curly_attributes` **之后**
+ *
+ * `markdown-it-attrs` 的规则（VitePress 内联，规则名 `curly_attributes`）负责把
+ * `{width=100}` 这类写法从正文里**摘掉**并写进 token 的属性。它在 `inline` 之后运行。
+ *
+ * 我们这条规则要判断「这个段落里是不是只有一张图」，判据是 inline 的 children
+ * 只剩一个 `image`。**在 attrs 之前**看，children 里还带着未消费的
+ * `{width=100}` 文本节点，于是：
+ *
+ * - `![x](./a.png)` → 1 个 child → 提升 ✅
+ * - `![x](./a.png){width=200}` → 2 个 child（image + 文本）→ **不提升** ❌
+ *
+ * 表现就是「作者按文档加了个 width，图就失去点开放大」——真实事故，
+ * 由 `tests/media-render.test.ts` 里那组装了 attrs 替身的用例守着。
+ *
+ * ## 为什么要 try/catch
+ *
+ * 裸 markdown-it（单测、`support/markdown/` 的非页面渲染）**没有** attrs 插件，
+ * `ruler.after()` 找不到规则名会直接抛 `Parser rule not found`。
+ * 那种环境下 attrs 不存在，也就没有「先于 attrs」的问题，退回 `inline` 即可。
+ */
 function installFigureRule(md: MarkdownItLike): void {
-  md.core.ruler.after('inline', 'media_figure', (state: CoreState) => {
-    const tokens = state.tokens
-
-    for (let index = 0; index < tokens.length; index += 1) {
-      if (tokens[index].type !== 'paragraph_open') continue
-      if (tokens[index + 1]?.type !== 'inline') continue
-      if (tokens[index + 2]?.type !== 'paragraph_close') continue
-
-      const image = soleImageOf(tokens[index + 1])
-      if (!image) continue
-
-      image.meta = { ...image.meta, figure: true }
-
-      const open = tokens[index]
-      open.type = 'figure_open'
-      open.tag = 'figure'
-      open.nesting = 1
-      open.attrJoin('class', 'prose-media')
-
-      const close = tokens[index + 2]
-      close.type = 'figure_close'
-      close.tag = 'figure'
-      close.nesting = -1
-
-      index += 2
-    }
-  })
+  try {
+    md.core.ruler.after('curly_attributes', 'media_figure', promoteSoleImages)
+  } catch {
+    // 没有 attrs 插件（裸 markdown-it）：退回 inline 之后，行为等价
+    md.core.ruler.after('inline', 'media_figure', promoteSoleImages)
+  }
 }
 
 /**

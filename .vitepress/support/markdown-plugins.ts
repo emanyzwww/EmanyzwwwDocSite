@@ -137,6 +137,53 @@ interface MarkdownItLike {
  */
 
 /**
+ * ASCII「词字符」（字母、数字、下划线）。
+ *
+ * 用途见 `looksLikeComparison`：判断一对 `==` 是不是夹在两个 ASCII 词字符之间。
+ */
+function isAsciiWordCode(code: number): boolean {
+  return (
+    (code >= 0x30 && code <= 0x39) || // 0-9
+    (code >= 0x41 && code <= 0x5a) || // A-Z
+    (code >= 0x61 && code <= 0x7a) || // a-z
+    code === 0x5f // _
+  )
+}
+
+/**
+ * 这一对 `==` 是否更像**比较运算符**而不是高亮标记。
+ *
+ * ## 为什么需要这条判断
+ *
+ * `scanDelims(pos, true)` 允许标记紧贴文字（否则 `中文==强调==中文` 用不了）。
+ * 代价是纯 ASCII 的比较式会被当成高亮，实测（改造前）：
+ *
+ * ```text
+ * x==1 且 y==2              →  x<mark>1 且 y</mark>2
+ * if (a==b) print(a==b)     →  if (a<mark>b) print(a</mark>b)
+ * ```
+ *
+ * 文档只承诺过「单个比较安全」，一行里出现两个比较就破——这不是边角情况，
+ * 写代码笔记时非常常见。
+ *
+ * ## 判据
+ *
+ * 只看 ASCII 词字符：一侧是 ASCII 词字符、另一侧也是 ASCII 词字符，就认为
+ * 这是 `a==b` 形态的代码，不参与高亮。CJK 不受影响（汉字不是 ASCII 词字符），
+ * 所以「中文==强调==中文」照旧可用；纯英文高亮写成 `这是 ==important== 的`
+ * （标记前留空格）也照旧可用。
+ *
+ * 这是**有意的取舍**：ASCII 下 `==` 表示比较的概率远高于表示高亮，
+ * 误判成高亮的代价（内容错误）比误判成比较的代价（少一次高亮）大得多。
+ */
+function looksLikeComparison(state: InlineState, pos: number, length: number): boolean {
+  const before = pos > 0 ? state.src.charCodeAt(pos - 1) : 0
+  const after = pos + length < state.src.length ? state.src.charCodeAt(pos + length) : 0
+
+  return isAsciiWordCode(before) && isAsciiWordCode(after)
+}
+
+/**
  * 扫描：把等号串切成 `==` 配对，逐个登记为分隔符。
  *
  * `silent` 为真表示只做「这里能不能开始」的试探，此时必须返回 `false`
@@ -155,6 +202,15 @@ const tokenizeMark: InlineRule = (state, silent) => {
 
   // 单个 `=` 不是标记，直接放行给 text 规则
   if (length < 2) return false
+
+  /*
+   * `a==b` 形态：整串都不当标记，原样留给 text 规则。
+   *
+   * 必须在这里整串放行、而不是只关掉 can_open/can_close：
+   * 否则等号会被 push 成 text token 消耗掉 `state.pos`，原文里的 `==`
+   * 虽然内容一样，但 delimiters 里留下无配对项，后续嵌套规则会读到半成品。
+   */
+  if (looksLikeComparison(state, state.pos, length)) return false
 
   // 奇数个等号（如 `===`）先吐出一个落单的 `=`，剩下的按 `==` 配对，
   // 这样 `a === b` 能原样输出，而不是被吃掉一个字符

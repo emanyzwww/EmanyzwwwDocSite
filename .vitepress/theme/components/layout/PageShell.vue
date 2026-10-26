@@ -2,8 +2,16 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { useImageViewer } from '../../composables/useImageViewer'
-import { dismiss, focusLink, hoverLink, unhoverLink } from '../../composables/useLinkPreview'
+import {
+  dismiss,
+  focusLink,
+  hoverLink,
+  setLinkPreviewProviders,
+  unhoverLink,
+} from '../../composables/useLinkPreview'
+import { usePosts } from '../../composables/usePosts'
 import { useI18n } from '../../i18n'
+import { createProviders } from '../../support/link-preview/providers'
 import ImageViewer from '../common/ImageViewer.vue'
 import LinkPreviewCard from '../common/LinkPreviewCard.vue'
 import ScrollBar from '../common/ScrollBar.vue'
@@ -43,6 +51,15 @@ const { m } = useI18n()
 const { open: openLightbox } = useImageViewer()
 
 const searchOpen = ref(false)
+
+/*
+ * 链接预览的 provider 注入。
+ *
+ * createProviders 需要 posts / messages 这两个**只能在 setup 期间创建**
+ * 的响应式引用（内部走 inject），所以在组件 setup 里建好、闭包捕获进
+ * provider，再交给单例 composable。悬浮回调运行时只读 .value，永远合法。
+ */
+setLinkPreviewProviders(createProviders({ posts: usePosts().posts, messages: m }))
 
 /**
  * 点击委托：正文图片 → 打开查看器。
@@ -97,6 +114,8 @@ function onDocumentKeydown(event: KeyboardEvent): void {
  */
 function isPreviewableLink(element: Element | null | undefined): element is HTMLAnchorElement {
   if (!(element instanceof HTMLAnchorElement)) return false
+  // 嵌入块（`:::github` 卡片）本身就是完整信息，卡内链接再弹悬浮卡是噪声
+  if (element.closest('.embed')) return false
   const href = element.getAttribute('href')
   if (!href) return false
   // 锚点、js:、mailto: 等不弹卡

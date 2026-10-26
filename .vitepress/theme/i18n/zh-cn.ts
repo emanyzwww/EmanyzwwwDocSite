@@ -76,6 +76,16 @@ export const zhCN: Messages = {
   imageViewerHint: '← → 翻页，+ − 缩放，0 适应窗口，1 实际大小，Esc 关闭',
 
   // ---------- 链接悬浮预览卡 ----------
-  linkPreviewViews: '{count} 播放',
-  linkPreviewLikes: '{count} 点赞',
+  linkPreviewUpdatedToday: '今天更新',
+  linkPreviewUpdatedYesterday: '昨天更新',
+  linkPreviewUpdatedDays: '{count} 天前更新',
+  linkPreviewUpdatedMonths: '{count} 个月前更新',
+  linkPreviewUpdatedYears: '{count} 年前更新',
+
+  // ---------- 仓库卡（:::github 的运行期增强） ----------
+  embedUpdatedToday: '今天有推送',
+  embedUpdatedYesterday: '昨天有推送',
+  embedUpdatedDays: '{count} 天前推送',
+  embedUpdatedMonths: '{count} 个月前推送',
+  embedUpdatedYears: '{count} 年前推送',
 }

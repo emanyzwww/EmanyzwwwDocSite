@@ -1,12 +1,13 @@
 /**
  * 主题入口。
  *
- * 只做四件事：
+ * 只做五件事：
  * 1. 注册主题样式（入口文件负责按顺序串起各分层样式）；
  * 2. 装页面切换过渡（View Transitions，见 support/route-transition.ts）；
  * 3. 给代码块复制按钮补上本地化文案（VitePress 已接管点击行为，
  *    但按钮的 `title` 与「已复制」提示来自配置，无法逐页区分语言）；
- * 4. 路由切换后重新标记，保证客户端跳转的页面文案也正确。
+ * 4. 路由切换后重新标记，保证客户端跳转的页面文案也正确；
+ * 5. 构建期嵌入块（`:::github`）的运行期增强 —— 见 `embeds/enhance.ts`。
  *
  * 其余逻辑都在组件与组合式函数里，这里不做业务处理。
  */
@@ -15,6 +16,7 @@ import { onContentUpdated } from 'vitepress'
 import type { Theme } from 'vitepress'
 
 import type { Messages } from '../types'
+import { EmbedEnhancer } from './embeds/enhance'
 import { MESSAGES } from './i18n'
 import Layout from './Layout.vue'
 import { installAnchorScroll, markHeaderAnchorsRaw } from './support/anchor-scroll'
@@ -106,17 +108,32 @@ export default {
      */
     installAnchorScroll()
 
+    /*
+     * 构建期嵌入块（`:::github`）的运行期增强。
+     *
+     * 与上面几个挂载点同样的理由：它要对**每一页**的正文章节生效，且必须
+     * 只有一份实例（内部持有 IntersectionObserver 与请求去重表）。
+     * 挂进某个页面组件会在每次路由切换时重建，缓存与观察器全部重来。
+     *
+     * 文案按当前路径取：`enhanceApp` 执行时页面尚未渲染，所以传的是
+     * **取值函数**而不是值——真正用到时（异步请求回来）再读。
+     */
+    const enhancer = new EmbedEnhancer(() => messagesOf(location.pathname))
+
     onContentUpdated(() => {
       localizeCopyButtons()
       markLoadedImages()
       // 每次内容更新后，给新生成的标题锚补打豁免类
       markHeaderAnchorsRaw()
+      // 路由切换后正文是新节点，必须重新扫一遍
+      enhancer.scan(document)
     })
     // 首屏内容在挂载后才渲染完成，等一帧再标记
     window.requestAnimationFrame(() => {
       localizeCopyButtons()
       markLoadedImages()
       markHeaderAnchorsRaw()
+      enhancer.scan(document)
     })
   },
 } satisfies Theme

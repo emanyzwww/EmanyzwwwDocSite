@@ -45,6 +45,11 @@ export interface LinkProvider {
    * 实现方自带超时；失败抛错也行，调用方会兜底。
    */
   fetch(href: string): Promise<LinkPreview | null>
+  /**
+   * 降级域名卡上显示的站点名（如 `GitHub`）。缺省 = 只显示域名。
+   * provider fetch 失败时，调用方用它让降级卡至少标明「这是哪类站」。
+   */
+  fallbackSite?: string
 }
 
 /**
@@ -192,4 +197,30 @@ export function compactNumber(value: number): string {
   }
   const m = value / 1_000_000
   return `${m >= 100 ? Math.round(m) : Math.round(m * 10) / 10}M`
+}
+
+/**
+ * 由 URL 构造域名兜底卡。
+ *
+ * 专用 provider（GitHub / bilibili…）拿不到数据时（限流、CORS、接口变更），
+ * 调用方用它兜底 —— 保证悬浮卡**永不空白**。纯函数，单测直接覆盖。
+ *
+ * `site` 可传专用 provider 的站点名（如 `GitHub`），让降级卡至少标明
+ * 「这是哪类站」；传空则只显示域名。非 http(s) 或解析失败返回 `null`
+ * （调用方此时应直接收起卡片，而不是显示一张空卡）。
+ */
+export function fallbackPreview(url: string, site = ''): LinkPreview | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return {
+      title: parsed.hostname.replace(/^www\./, ''),
+      description: '',
+      site,
+      icon: 'globe',
+      url,
+    }
+  } catch {
+    return null
+  }
 }

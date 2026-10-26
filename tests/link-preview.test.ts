@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   compactNumber,
+  fallbackPreview,
   isCacheFresh,
   normalizeForCache,
   parseBilibiliVideo,
@@ -159,5 +160,36 @@ describe('compactNumber', () => {
   it('非法输入安全返回 0', () => {
     expect(compactNumber(Number.NaN)).toBe('0')
     expect(compactNumber(-5)).toBe('0')
+  })
+})
+
+describe('fallbackPreview', () => {
+  it('http(s) URL 生成域名兜底卡', () => {
+    expect(fallbackPreview('https://www.example.com/path?x=1')).toEqual({
+      title: 'example.com',
+      description: '',
+      site: '',
+      icon: 'globe',
+      url: 'https://www.example.com/path?x=1',
+    })
+  })
+
+  it('带 site 时降级卡标明来源站', () => {
+    const card = fallbackPreview('https://www.bilibili.com/video/BV1xx411c7mD', 'bilibili')
+    expect(card?.site).toBe('bilibili')
+    expect(card?.title).toBe('bilibili.com')
+  })
+
+  it('www. 前缀剥掉但其它子域名保留', () => {
+    expect(fallbackPreview('https://docs.example.org/a')?.title).toBe('docs.example.org')
+  })
+
+  it('非 http(s) 协议返回 null（调用方收起卡片）', () => {
+    expect(fallbackPreview('mailto:someone@example.com')).toBeNull()
+    expect(fallbackPreview('javascript:alert(1)')).toBeNull()
+  })
+
+  it('非法 URL 返回 null 而不是抛错', () => {
+    expect(fallbackPreview('not a url')).toBeNull()
   })
 })

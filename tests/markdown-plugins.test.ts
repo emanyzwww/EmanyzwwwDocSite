@@ -49,6 +49,29 @@ describe('markPlugin（==高亮==）', () => {
     expect(render('1 == 1')).toBe('<p>1 == 1</p>')
   })
 
+  /*
+   * 下面几条是「一行两个比较」的回归用例。
+   *
+   * 修复前：`x==1 且 y==2` 会渲染成 `x<mark>1 且 y</mark>2`。当时的判据只看
+   * "能不能紧贴文字"（`scanDelims(pos, true)`），而文档只承诺过**单个**比较安全，
+   * 于是写代码笔记时非常常见的双比较就破了。
+   *
+   * 现在的判据在 `looksLikeComparison`：`==` 两侧都是 ASCII 词字符时按比较处理。
+   */
+  it('一行里两个无空格比较不被当成高亮', () => {
+    expect(render('x==1 且 y==2')).toBe('<p>x==1 且 y==2</p>')
+    expect(render('if (a==b) print(a==b)')).toBe('<p>if (a==b) print(a==b)</p>')
+  })
+
+  it('版本号与等式形态原样输出', () => {
+    expect(render('版本 v1.2==v1.3 之间')).toBe('<p>版本 v1.2==v1.3 之间</p>')
+    expect(render('E=mc==2')).toBe('<p>E=mc==2</p>')
+  })
+
+  it('ASCII 高亮仍然可用（标记前留空格）', () => {
+    expect(render('这是 ==important== 的')).toBe('<p>这是 <mark>important</mark> 的</p>')
+  })
+
   it('三个等号原样输出（不吞掉字符）', () => {
     expect(render('a === b')).toBe('<p>a === b</p>')
   })
