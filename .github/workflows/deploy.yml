@@ -137,6 +137,13 @@ jobs:
       # 导致部署明明成功、工作流却红叉。
       # 用官方输出还有个额外好处：将来绑自定义域名（vars.SITE_URL）时，
       # 冒烟会自动跟着变，不会和实际部署地址漂移。
+      #
+      # 页面清单**以 sitemap 为准**，不在 workflow 里硬编码栏目地址：
+      # 2026-10 重构（`posts/` → `pages/posts/`）时，这里刚好写死了
+      # `zh-cn/posts/`，部署成功却因为冒烟清单过期而红叉——内容结构一变
+      # 就得记得改 workflow，这本身就是漏洞。sitemap 是构建产物自己生成的
+      # 页面清单，与真实路由同源；逐条请求它，既能自动跟上内容结构，
+      # 也能抓到 base / 站点地址拼错导致的整站 404。
       - name: Smoke test
         env:
           SITE: ${{ steps.deployment.outputs.page_url }}
@@ -148,7 +155,23 @@ jobs:
           echo "冒烟目标：${ROOT}"
 
           fail=0
-          for path in "" "zh-cn/" "en/" "zh-cn/posts/" "sitemap.xml" "robots.txt" "zh-cn/index.xml" "en/index.xml"; do
+
+          # ① 稳定入口：站点根、语言首页、栏目首页、sitemap / robots / RSS。
+          #    这些地址不随文章增删变化，值得在 sitemap 之外单独断言一次
+          #    （sitemap 只覆盖「页面」，不覆盖 robots.txt 与 feed）。
+          for path in \
+            "" \
+            "zh-cn/" \
+            "en/" \
+            "zh-cn/pages/posts/" \
+            "en/pages/posts/" \
+            "zh-cn/pages/about/" \
+            "en/pages/about/" \
+            "zh-cn/pages/tags/" \
+            "sitemap.xml" \
+            "robots.txt" \
+            "zh-cn/index.xml" \
+            "en/index.xml"; do
             code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-delay 2 "${ROOT}${path}")
             echo "  ${path:-/} -> ${code}"
             if [ "${code}" != "200" ]; then
@@ -157,7 +180,29 @@ jobs:
             fi
           done
 
-          # 关键内容探针：确认拿到的是真实页面而不是空壳/兜底页
+          # ② 以 sitemap 为准，把每一个页面都真的请求一遍。
+          #    URL 里可能有中文（百分号编码），按空白切分即可，不会有空格。
+          locs=$(curl -sS --max-time 20 "${ROOT}sitemap.xml" \
+            | grep -o '<loc>[^<]*</loc>' \
+            | sed -e 's|<loc>||' -e 's|</loc>||' || true)
+
+          if [ -z "${locs}" ]; then
+            echo "::error::冒烟失败：sitemap.xml 里没有 <loc>"
+            fail=1
+          else
+            count=0
+            for url in ${locs}; do
+              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-delay 2 "${url}")
+              count=$((count + 1))
+              if [ "${code}" != "200" ]; then
+                echo "::error::冒烟失败：sitemap 页面 ${url} 返回 ${code}"
+                fail=1
+              fi
+            done
+            echo "  sitemap 页面 ${count} 条：全部 200"
+          fi
+
+          # ③ 关键内容探针：确认拿到的是真实页面而不是空壳/兜底页
           if ! curl -sS --max-time 20 "${ROOT}hashmap.json" | grep -q 'zh-cn_index'; then
             echo "::error::冒烟失败：hashmap.json 缺 zh-cn_index"
             fail=1
