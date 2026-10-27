@@ -120,53 +120,13 @@ export const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000
 export const PREVIEW_STORAGE_PREFIX = 'emanyzwww-link-preview'
 
 /**
- * 提取 GitHub 仓库信息（owner/repo）。
+ * 提取 GitHub 仓库信息（owner/repo）与数字缩写。
  *
- * 接受的形态：
- * - `https://github.com/owner/repo`（仓库主页）
- * - 带任意子路径（issues、blob、pull…）——仍按 owner/repo 取仓库卡
- * - 忽略 `gist.github.com`、`github.com/owner`（个人主页不是仓库）
- *
- * 返回 `null` 表示不是仓库链接。
+ * 实现已经收敛到 `shared/github.ts`（构建期与运行期共用的纯函数层），
+ * 这里只再导出一次：本模块的调用方（`providers.ts` 与单测）不需要改 import 路径，
+ * 也保证仓库卡与悬浮卡用的是**同一套**解析与数字格式，不会各显示一个数。
  */
-export function parseGitHubRepo(url: string): { owner: string; repo: string } | null {
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname !== 'github.com' && parsed.hostname !== 'www.github.com') return null
-    const segments = parsed.pathname.split('/').filter(Boolean)
-    // 至少 owner/repo 两段才是仓库；单段是个人主页，三段可能是 in/ 组织页等
-    if (segments.length < 2) return null
-    const [owner, repo] = segments as [string, string]
-    // 保留页 / features 页等一级特殊路径不是仓库
-    if (RESERVED_GITHUB_FIRST_SEGMENTS.has(owner.toLowerCase())) return null
-    if (!owner || !repo) return null
-    // repo 带 .git 后缀时归一化掉（clone 链接）
-    return { owner, repo: repo.replace(/\.git$/, '') }
-  } catch {
-    return null
-  }
-}
-
-/** github.com 下一级非仓库路径（`/features` 这类营销页与 `/orgs/` 等功能页）。 */
-const RESERVED_GITHUB_FIRST_SEGMENTS = new Set([
-  'features',
-  'security',
-  'pricing',
-  'marketplace',
-  'topics',
-  'collections',
-  'trending',
-  'sponsors',
-  'settings',
-  'notifications',
-  'explore',
-  'about',
-  'contact',
-  'search',
-  'orgs',
-  'enterprises',
-  'account',
-])
+export { compactNumber, parseGitHubRepo } from '../../../shared/github'
 
 /**
  * 提取 bilibili 视频信息（BV 号）。
@@ -183,20 +143,6 @@ export function parseBilibiliVideo(url: string): { bvid: string } | null {
   } catch {
     return null
   }
-}
-
-/**
- * 数字缩写（1234 → 1.2k），GitHub stars / bilibili 播放量共用。
- */
-export function compactNumber(value: number): string {
-  if (!Number.isFinite(value) || value < 0) return '0'
-  if (value < 1000) return String(Math.round(value))
-  if (value < 1_000_000) {
-    const k = value / 1000
-    return `${k >= 100 ? Math.round(k) : Math.round(k * 10) / 10}k`
-  }
-  const m = value / 1_000_000
-  return `${m >= 100 ? Math.round(m) : Math.round(m * 10) / 10}M`
 }
 
 /**

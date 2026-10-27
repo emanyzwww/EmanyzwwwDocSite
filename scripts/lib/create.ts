@@ -15,12 +15,12 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { FRONTMATTER_FIELDS } from '../../.vitepress/data/frontmatter'
 import { articleDirOf, articleUrlPath } from '../../.vitepress/support/article-path'
 import { isUsableSlug, slugify } from '../../.vitepress/support/slug'
 import type { LocaleCode } from '../../.vitepress/types'
 import { formatZonedIso } from './dates'
 import { stringifyFrontmatter } from './frontmatter'
+import { FRONTMATTER_FIELDS } from './frontmatter-schema'
 import { usedSequences } from './posts'
 import { DOCS_DIR, SITE_TIME_ZONE } from './site'
 

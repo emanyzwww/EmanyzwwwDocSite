@@ -13,7 +13,7 @@ import { join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, NAV, SITE } from '../../.vitepress/data/site'
-import type { LocaleCode, LocaleMeta } from '../../.vitepress/types'
+import type { LocaleCode } from '../../.vitepress/types'
 
 /** 仓库根目录（`scripts/lib/site.ts` 往上两级）。 */
 export const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
@@ -35,27 +35,6 @@ export const SITE_TIME_ZONE = SITE.timeZone
 /** 某语言的内容目录：`docs/zh-cn`。 */
 export function localeDir(locale: LocaleCode): string {
   return join(DOCS_DIR, locale)
-}
-
-/**
- * 某语言的文章根目录：`docs/zh-cn`。
- *
- * 文章**直接挂在语言目录下**（`<YYYYMM>/<DDNN>/index.md`），不再有 `posts/` 分区。
- * 仍然保留这个函数而不是让调用方自己拼 `localeDir`：文章根与语言根相同是当前布局的
- * 约定，集中在这里以后换布局才不会漏掉某个脚本。
- */
-export function articleRootDir(locale: LocaleCode): string {
-  return localeDir(locale)
-}
-
-/** 某语言的其它页面目录：`docs/zh-cn/pages`（about、文章列表、标签页）。 */
-export function pagesDir(locale: LocaleCode): string {
-  return join(localeDir(locale), 'pages')
-}
-
-/** 语言元信息。 */
-export function localeMeta(locale: LocaleCode): LocaleMeta {
-  return LOCALES[locale]
 }
 
 /** 判断一个字符串是否是合法语言代码。 */

@@ -2,7 +2,7 @@
  * 指令系统的安装入口。
  *
  * 一个函数做完三件事：把内置指令注册进表、挂块级扫描规则、挂图片拆段的 core 规则。
- * 页面正文与非页面渲染（bio / 侧栏卡片）都调它，因此**两边行为一致**。
+ * 页面正文与非页面渲染（bio 等）都调它，因此**两边行为一致**。
  */
 
 import { installDirectiveRule, type DirectiveMarkdownIt } from './block'

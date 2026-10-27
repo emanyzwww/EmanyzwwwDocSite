@@ -38,12 +38,8 @@ export interface PostSummary {
   tags: TagRef[]
   /** 正文字数（汉字按字、拉丁按词）。 */
   wordCount: number
-  /** 是否为草稿（草稿不出现在任何列表中）。 */
-  draft: boolean
   /** 所属语言。 */
   locale: LocaleCode
-  /** 源文件相对 `docs/` 的路径，便于排查。 */
-  filePath: string
   /**
    * 跨语言配对键（同一篇文章各语言版本共享；详见 `support/translation.ts`）。
    *
@@ -83,7 +79,7 @@ export interface OutlineItem {
   children: OutlineItem[]
 }
 
-/** 图标名。新增图标需同时改 `theme/support/icons.ts`。 */
+/** 图标名。新增图标需同时改 `shared/icons.ts`。 */
 export type IconName =
   | 'sun'
   | 'moon'
@@ -152,41 +148,15 @@ export interface RenderedProfile extends Omit<Profile, 'bio'> {
   bioHtml: string
 }
 
-/** 自定义侧栏卡片定义（数据源：`data/widgets.ts`）。 */
-export interface WidgetDef {
-  /** 锚点 id（可选）。 */
-  id?: string
-  title?: string
-  /** 支持 Markdown / HTML。 */
-  content: string
-  /** 设为 `false` 可临时停用。 */
-  enabled?: boolean
-}
-
-/** 渲染后的自定义卡片（content 已转为 HTML）。 */
-export interface RenderedWidget {
-  id?: string
-  title?: string
-  html: string
-}
-
-/** 侧栏组件名。`custom` 渲染 `data/widgets.ts` 的全部卡片。 */
-export type WidgetName = 'profile' | 'tags' | 'links' | 'custom'
+/** 侧栏组件名。 */
+export type WidgetName = 'profile' | 'tags'
 
 /** 页脚配置。 */
 export interface FooterConfig {
   /** 完整版权文本；留空则用 `© 起始年–今年 站点名`。 */
   copyright: string
-  /** 附加说明，支持 Markdown。 */
-  text: string
   /** 链接列表。 */
   links: { name: string; url: string }[]
-}
-
-/** 导航项。 */
-export interface NavItem {
-  text: string
-  link: string
 }
 
 /** 站点级配置（数据源：`data/site.ts`）。 */
@@ -228,8 +198,6 @@ export interface Messages {
   switchLanguageCurrent: string
   onThisPage: string
   tags: string
-  links: string
-  draft: string
   wordCount: string
   backToPosts: string
   allPosts: string
@@ -307,8 +275,6 @@ export interface Messages {
   imageViewerZoomIn: string
   /** 缩小。 */
   imageViewerZoomOut: string
-  /** 适应窗口（`0` 键）。 */
-  imageViewerFit: string
   /** 实际大小 1:1（`1` 键）。 */
   imageViewerActualSize: string
   /** 下载原图。 */
@@ -362,8 +328,6 @@ export interface Messages {
 export interface LocaleMeta {
   /** 浏览器 `<html lang>`。 */
   lang: string
-  /** 界面文案语言。 */
-  code: LocaleCode
   /** 下拉菜单里的显示名。 */
   label: string
   /** 站点标题。 */

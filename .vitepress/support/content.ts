@@ -24,7 +24,7 @@ import { join, relative, resolve, sep } from 'node:path'
 
 import matter from 'gray-matter'
 
-import { asLocale, DEFAULT_LOCALE, LOCALE_CODES, LOCALES } from '../data/site'
+import { asLocale, DEFAULT_LOCALE, LOCALES } from '../data/site'
 import { TAG_LABELS, TAG_SLUGS } from '../data/taxonomy'
 import type { LocaleCode, PostSummary, TagRef } from '../types'
 import { articleRoutePath, isArticlePath } from './article-path'
@@ -81,12 +81,6 @@ export interface RawDoc {
 /** 判断文件属于哪种语言：第一段目录名就是语言。 */
 function toLocale(filePath: string): LocaleCode {
   return asLocale(filePath.split('/')[0])
-}
-
-/** 去掉语言前缀：`zh-cn/202610/1901/index.md` → `202610/1901/index.md`。 */
-export function stripLocalePrefix(filePath: string): string {
-  const first = filePath.split('/')[0]
-  return LOCALE_CODES.includes(first as LocaleCode) ? filePath.slice(first.length + 1) : filePath
 }
 
 /** 递归收集 `docs/` 下所有 Markdown 文件（相对路径，`/` 分隔）。 */
@@ -162,11 +156,6 @@ export function readDocs(): RawDoc[] {
   const docs = files.map(readDoc)
   docsCache = { key, docs }
   return docs
-}
-
-/** 清空缓存（仅供测试使用）。 */
-export function clearContentCache(): void {
-  docsCache = null
 }
 
 /** 是否为一篇文章：路径符合 `<locale>/<YYYYMM>/<DDNN>/index.md`，且声明了日期。 */
@@ -263,9 +252,7 @@ export function toPostSummary(doc: RawDoc): PostSummary {
     year: formatYear(date, meta.timeZone),
     tags,
     wordCount: countWords(doc.body),
-    draft: doc.data.draft === true,
     locale: doc.locale,
-    filePath: doc.filePath,
     translationKey: translationKeyOf(doc.data, doc.filePath),
   }
 }
@@ -277,8 +264,8 @@ export function toPostSummary(doc: RawDoc): PostSummary {
 export function readPosts(locale?: LocaleCode): PostSummary[] {
   return readDocs()
     .filter(isPost)
+    .filter((doc) => doc.data.draft !== true)
     .map(toPostSummary)
-    .filter((post) => !post.draft)
     .filter((post) => (locale ? post.locale === locale : true))
     .toSorted((a, b) => +new Date(b.date) - +new Date(a.date))
 }

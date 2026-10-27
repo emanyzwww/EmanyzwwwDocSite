@@ -364,18 +364,19 @@ export default defineConfig({
     // 复制按钮的悬停提示；逐页本地化在运行时完成（见 theme/index.ts）
     codeCopyButtonTitle: 'Copy code',
     /*
-     * 本站的 Markdown 扩展全部从 `support/markdown/` 装配：
+     * 本站的 Markdown 扩展分两处装配：
      *
-     * - 行内：`==高亮==`、GFM 任务列表
-     * - 块级：`:::github` / `:::link` / `:::figure` / `:::quote`
-     * - 图片：`<figure>` + 多档 srcset + 点开放大
+     * - 行内：`==高亮==`、GFM 任务列表（`support/markdown-plugins.ts`）
+     * - 块级与图片：`:::github` / `:::link` / `:::figure` / `:::quote` /
+     *   `:::columns` / `:::gallery`，`<figure>` + 多档 srcset + 点开放大
+     *   （`support/markdown/` 与 `support/media/`）
      *
      * 这里是 VitePress 留给用户挂 markdown-it 插件的唯一入口，在它自带的
      * 插件（attrs / emoji / 内置容器 / 锚点 / 图片）之后执行，互不覆盖。
      *
      * ## 为什么装饰器式地传一个 `media` 而不是在这里逐个调用
      *
-     * 同一套扩展还要用于「非页面」的 Markdown（个人简介、纯文本侧栏卡片），
+     * 同一套扩展还要用于「非页面」的 Markdown（个人简介等），
      * 那些场景**没有** Vite 的资产清单，不能装媒体管线。把"装什么"收敛到
      * `applySiteMarkdown()`，两条路径就不会再次漂移成两套语法。
      */
@@ -569,7 +570,7 @@ export default defineConfig({
    *
    * 改造前这里有一段 `resolveRepoCards()` + `rewriteRepoCardsInDist()`：
    * 构建期去 GitHub 抓仓库数据，然后对 `dist` 下所有 HTML 做正则替换。
-   * 它带来三个结构性问题（详见 `AUDIT-markdown-2026-10-26.md`）：
+   * 它带来三个结构性问题：
    *
    * 1. **构建依赖网络**：缓存过期就要联网，断网/限流时构建结果不可复现；
    * 2. **改写不完整**：只覆盖 `.html`，覆盖不到客户端路由用的 `.js` chunk，

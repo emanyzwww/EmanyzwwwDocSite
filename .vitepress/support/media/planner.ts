@@ -45,8 +45,7 @@ export const MIN_DISPLAY_WIDTH = 336
  * 写成 `min-width` 而不是 `max-width`，与 `mobile.css` 的写法方向相反，
  * 是因为这里是"桌面宽屏优先"的兜底：不支持媒体查询的浏览器取第一个值。
  */
-export const SIZES =
-  '(min-width: 704px) 672px, calc(100vw - 32px)'
+export const SIZES = '(min-width: 704px) 672px, calc(100vw - 32px)'
 
 /** WebP 默认质量。82 是实测拐点：78→82 只多 23% 字节换 +0.74dB。 */
 export const WEBP_QUALITY = 82
@@ -230,9 +229,7 @@ export function srcVariantFileName(key: string, widths: readonly number[]): stri
 }
 
 /** `srcset` 属性值。 */
-export function buildSrcset(
-  variants: readonly { width: number; fileName: string }[],
-): string {
+export function buildSrcset(variants: readonly { width: number; fileName: string }[]): string {
   return variants.map((variant) => `${variant.fileName} ${variant.width}w`).join(', ')
 }
 

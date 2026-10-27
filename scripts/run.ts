@@ -7,7 +7,7 @@
  * 为什么不做成「每个命令一个可执行文件」：
  * 1. 参数解析、错误处理、颜色开关、站点路径等逻辑每个命令都要用一份，
  *    分散成 8 个入口就是 8 份 `try/catch` 与 8 份 `process.exit`；
- * 2. 共用内核（`.vitepress/data/frontmatter.ts`、`scripts/lib/*`）需要一个
+ * 2. 共用内核（`scripts/lib/frontmatter-schema.ts`、`scripts/lib/*`）需要一个
  *    稳定位置做「加载 → 校验 → 执行」的夹层，单入口天然提供这个位置。
  *
  * 用 `tsx` 执行而不是 `node --experimental-strip-types`：

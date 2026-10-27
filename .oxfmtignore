@@ -1,15 +1,20 @@
 # 依赖与产物
-node_modules/
-.pnpm-store/
-.npm-cache/
-.vitepress/dist/
-.vitepress/cache/
-.vitepress/.temp/
+/node_modules/
+/.pnpm-store/
+/.npm-cache/
+/.vitepress/dist/
+/.vitepress/cache/
+/.vitepress/.temp/
 
 # 原样输出的静态资源（不参与格式化）
-public/
-media/
+#
+# 必须带前导 `/` 锚定仓库根：`media/` 这条裸模式会被 gitignore 语义当成
+# 「任意层级的 media 目录」，把 `.vitepress/support/media/`（图片管线的**源码**）
+# 一起排除在格式化之外 —— 结果是源码长期没被 oxfmt 整理，而 `pnpm format:check`
+# 却显示通过。资源目录只有根下的这两个。
+/public/
+/media/
 
 # 锁文件与工具配置
-pnpm-lock.yaml
-.idea/
+/pnpm-lock.yaml
+/.idea/

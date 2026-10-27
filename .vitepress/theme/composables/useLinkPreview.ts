@@ -218,17 +218,6 @@ export function dismiss(): void {
   anchor.value = null
 }
 
-/** 供单测：重置全部状态与缓存。 */
-export function resetLinkPreviewState(): void {
-  clearTimers()
-  preview.value = null
-  visible.value = false
-  pending.value = false
-  anchor.value = null
-  memoryCache.clear()
-  inflight.clear()
-}
-
 /** 供单测：注入 provider 列表（避免依赖 app 上下文）。 */
 export function setLinkPreviewProviders(list: LinkProvider[]): void {
   providers = list

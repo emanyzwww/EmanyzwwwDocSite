@@ -177,7 +177,6 @@ describe('LOCALES 配置', () => {
       expect(meta.lang).toBeTruthy()
       expect(meta.label).toBeTruthy()
       expect(meta.title).toBeTruthy()
-      expect(meta.code).toBe(code)
     }
   })
 

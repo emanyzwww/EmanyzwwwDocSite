@@ -103,7 +103,7 @@ git rev-parse --verify HEAD
 | 改动内容 | type |
 |---|---|
 | 写文章、改正文、补页面文字 | `docs` |
-| 新增页面类型、组件、功能（如新的侧栏卡片） | `feat` |
+| 新增页面类型、组件、功能（如新的右栏卡片） | `feat` |
 | 修复渲染报错、样式错位、链接失效 | `fix` |
 | 只改配色、间距、字号，行为不变 | `style` |
 | 重构组件、拆分 composable、CSS 变量化 | `refactor` |
@@ -122,7 +122,7 @@ git rev-parse --verify HEAD
 |---|---|
 | `docs/`（文章、页面、`*.paths.ts`） | `content` |
 | `.vitepress/theme/`（组件、样式、文案） | `theme` |
-| `.vitepress/data/`（站点信息、个人资料、侧栏卡片） | `data` |
+| `.vitepress/data/`（站点信息、个人资料、搜索索引） | `data` |
 | `.vitepress/support/`（内容扫描、RSS、robots、dev 跳转） | `support` |
 | `.vitepress/config.ts`、`tsconfig.json`、`package.json` | `config` |
 | `public/`、`media/`（静态资源与图片） | `assets` |

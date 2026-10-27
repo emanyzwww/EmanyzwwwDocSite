@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import { getIcon, STROKE_WIDTH } from '../../../shared/icons'
 import type { IconName } from '../../../types'
-import { getIcon, STROKE_WIDTH } from '../../support/icons'
 
 /**
  * 图标组件。

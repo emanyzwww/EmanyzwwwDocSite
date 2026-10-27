@@ -116,11 +116,7 @@ export function setMediaCacheDir(dir: string): void {
  * 同一份源图编出来的字节可能不一致。少了这两项，本地产物会被 CI 的缓存
  * 悄悄冒充，出现「本地对、线上不对」这种最难查的故障。
  */
-function cacheKey(input: {
-  hash: string
-  width: number
-  kind: MediaKind
-}): string {
+function cacheKey(input: { hash: string; width: number; kind: MediaKind }): string {
   return createHash('sha256')
     .update(
       [
@@ -175,7 +171,11 @@ export async function encodeVariant(input: {
   hash: string
   animated: boolean
 }): Promise<Buffer> {
-  const key = cacheKey({ hash: input.hash, width: input.width, kind: input.animated ? 'animated' : 'raster' })
+  const key = cacheKey({
+    hash: input.hash,
+    width: input.width,
+    kind: input.animated ? 'animated' : 'raster',
+  })
   const cached = readCache(key)
   if (cached) return cached
 

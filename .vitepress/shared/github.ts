@@ -116,11 +116,6 @@ export function repoPageUrl(fullName: string): string {
   return `https://github.com/${fullName}`
 }
 
-/** 仓库名下的人读标题：`vuejs/core` 原样。 */
-export function repoDisplayTitle(fullName: string): string {
-  return fullName
-}
-
 /** 仓库名拆成 owner / repo 两段。无法拆分时 owner 为整串、repo 为空。 */
 export function splitRepo(fullName: string): { owner: string; repo: string } {
   const index = fullName.indexOf('/')

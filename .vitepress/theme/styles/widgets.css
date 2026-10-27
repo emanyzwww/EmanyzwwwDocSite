@@ -86,66 +86,6 @@
   height: 1.05rem;
 }
 
-/* ---------- 自定义卡片（data/widgets.ts） ---------- */
-
-.widget__body {
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-}
-
-.widget__body > * + * {
-  margin-top: var(--space-3);
-}
-
-.widget__body a {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
-/* 纯列表（如 links 卡片）去掉项目符号 */
-.widget__body > ul {
-  list-style: none;
-}
-
-.widget__body > ul > li {
-  margin-top: var(--space-2);
-}
-
-.widget__body > ul > li:first-child {
-  margin-top: 0;
-}
-
-/* 由 Markdown 渲染的富文本保留项目符号 */
-.widget__prose ul {
-  padding-left: var(--space-5);
-  list-style: disc;
-}
-
-.widget__prose ol {
-  padding-left: var(--space-5);
-  list-style: decimal;
-}
-
-.widget__prose li {
-  margin-top: var(--space-1);
-}
-
-.widget__prose h2,
-.widget__prose h3 {
-  margin-top: var(--space-4);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--fg-default);
-}
-
-.widget__prose :not(pre) > code {
-  padding: 0.1em 0.35em;
-  border-radius: var(--radius-sm);
-  background: var(--bg-inset);
-  font-family: var(--font-mono);
-  font-size: 0.92em;
-}
-
 /* ---------- 标签云（/tags/ 总览） ---------- */
 
 .cloud__hint {

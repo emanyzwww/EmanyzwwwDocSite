@@ -64,9 +64,7 @@ function post(url: string, locale: 'zh-cn' | 'en', translationKey: string | null
     year: '2026',
     tags: [],
     wordCount: 0,
-    draft: false,
     locale,
-    filePath: `${locale}/202610/1901/index.md`,
     translationKey,
   }
 }

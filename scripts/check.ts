@@ -14,7 +14,6 @@
  * 退出码：有 error 时为 1（可直接接进 CI 门禁），只有 warn 时为 0。
  */
 
-import { REQUIRED_FRONTMATTER_KEYS } from '../.vitepress/data/frontmatter'
 import { isUsableSlug } from '../.vitepress/support/slug'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
 import { isoDateInZone } from './lib/dates'
@@ -25,6 +24,7 @@ import {
   rawScalarValue,
   typeOfValue,
 } from './lib/frontmatter'
+import { REQUIRED_FRONTMATTER_KEYS } from './lib/frontmatter-schema'
 import { collectMisplacedDatedFiles, collectPostFiles, postDate } from './lib/posts'
 import type { PostFile } from './lib/posts'
 import { parseLocale, SITE_TIME_ZONE } from './lib/site'

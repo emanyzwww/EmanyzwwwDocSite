@@ -18,7 +18,6 @@ export {
   localeOfPath,
   postListPath,
   stripLocale,
-  tagIndexPath,
   withLocale,
 } from '../../support/locale-paths'
 export { decodePath, toPageUrl } from '../../support/urls'

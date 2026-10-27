@@ -6,14 +6,15 @@
  * 改造前，同一段 Markdown 有两套渲染：
  *
  * - 页面正文：VitePress 的实例（attrs / emoji / 内置容器 / 图片 / 高亮 / 任务列表 全有）
- * - 个人简介、纯文本侧栏卡片：这里一个裸 markdown-it
+ * - 个人简介等非页面 Markdown：这里一个裸 markdown-it
  *   （只有高亮 + 任务列表）
  *
- * 于是 `:::tip` 在正文是提示框、在侧栏是字面量 `:::tip`；`{width=100}` 在正文生效、
- * 在侧栏残留；图片在正文是 webp + srcset、在侧栏是部署后 404 的相对路径。
+ * 于是 `:::tip` 在正文是提示框、在简介里是字面量 `:::tip`；`{width=100}` 在正文生效、
+ * 在简介里残留；图片在正文是 webp + srcset、在简介里是部署后 404 的相对路径。
  *
  * 现在两处都调 `applySiteMarkdown()`，差异只剩「有没有媒体管线」
- * 这一项真实存在的区别（侧栏没有 Vite 资产清单可用），并且由调用方显式声明。
+ * 这一项真实存在的区别（非页面 Markdown 没有 Vite 资产清单可用），
+ * 并且由调用方显式声明。
  *
  * ## 装配顺序是有语义的，不要随手调换
  *
@@ -74,7 +75,7 @@ export function applySiteMarkdown(md: unknown, options: SiteMarkdownOptions = {}
 }
 
 /**
- * 创建一个装好站点扩展的独立实例（非页面场景：简介、侧栏卡片、单测）。
+ * 创建一个装好站点扩展的独立实例（非页面场景：简介、单测）。
  *
  * 单例复用：这些内容每次构建只渲染几次，但实例创建不便宜（要注册整条规则链）。
  */
@@ -100,7 +101,7 @@ export function createSiteMarkdown(): MarkdownIt {
 /**
  * 渲染一段 Markdown 为 HTML 片段。
  *
- * 仅用于构建期的「非页面」场景：个人简介、自定义侧栏卡片。
+ * 仅用于构建期的「非页面」场景：个人简介。
  * 页面正文由 VitePress 渲染，不经过这里。
  */
 export function renderMarkdown(source: string): string {

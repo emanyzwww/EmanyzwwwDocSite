@@ -15,11 +15,11 @@
 
 import { writeFileSync } from 'node:fs'
 
-import { FRONTMATTER_KEYS } from '../.vitepress/data/frontmatter'
 import { isUsableSlug, slugify } from '../.vitepress/support/slug'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
 import { formatZonedIso } from './lib/dates'
 import { stringifyFrontmatter, rawScalarValue } from './lib/frontmatter'
+import { FRONTMATTER_KEYS } from './lib/frontmatter-schema'
 import { collectPostFiles, postDate } from './lib/posts'
 import type { PostFile } from './lib/posts'
 import { parseLocale } from './lib/site'

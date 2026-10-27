@@ -1,17 +1,20 @@
 /**
- * 文章 frontmatter 的**唯一字段表**。
+ * 文章 frontmatter 的**唯一字段表**（命令行侧）。
  *
- * 这个文件是「有哪些字段」的唯一事实来源，三方都从这里取，谁也不许再自己列一遍：
+ * 这个文件是「有哪些字段」的唯一事实来源，`new` / `check` / `fix` 都从这里取，
+ * 谁也不许再自己列一遍：
  *
- * 1. 构建期：`support/content.ts` 读 `title` / `date` / `tags` / `description` / `draft`；
- * 2. 新建：`scripts/new.ts` 按这张表生成**完整**的头部（一个字段都不漏）；
- * 3. 校验与修复：`scripts/check.ts` / `scripts/fix.ts` 按这张表判断缺字段、排顺序、补默认值。
+ * 1. 新建：`scripts/new.ts` 按这张表生成**完整**的头部（一个字段都不漏）；
+ * 2. 校验与修复：`scripts/check.ts` / `scripts/fix.ts` 按这张表判断缺字段、排顺序、补默认值。
  *
  * 之前字段定义散落在两处：`WRITING.md` 的表格和 `content.ts` 里的 `doc.data.x`。
  * 两边一旦不同步，就会出现「文档写了这个字段、代码根本不认」或者反过来。
- * 现在加字段、改默认值只需要动下面这个数组，文档与命令会一起跟上。
+ * 现在加字段、改默认值只需要动下面这个数组。
  *
- * 注意：这里**不得**引用任何 Node 内置模块，它会被构建期与命令行共同加载。
+ * 为什么放在 `scripts/lib/` 而不是 `.vitepress/data/`：只有命令行读这张表，
+ * 构建期与运行期都不需要它；`data/` 是站点数据（导航、资料、搜索索引）的家，
+ * 混进去会让人误以为它会被下发到浏览器。本文件也不得引用 Node 内置模块，
+ * 以便测试与将来的构建期脚本直接复用。
  */
 
 /** 字段的值类型。决定命令如何生成与校验它。 */
@@ -26,6 +29,7 @@ export type FrontmatterKey =
   | 'description'
   | 'draft'
   | 'outline'
+  | 'translationKey'
 
 /** 一个字段的完整定义。 */
 export interface FrontmatterField {
@@ -111,6 +115,20 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     fallback: '跟随站点全局设置（默认开）',
     placeholder: true,
   },
+  {
+    /*
+     * 跨语言配对键。默认由两边 `<YYYYMM>/<DDNN>` 目录编号自动推导，
+     * 只有「目录编号没对齐」或想显式指定配对时才需要写。
+     * 它不是 `new` 会生成的字段（`create.ts` 的 switch 没有对应分支），
+     * 列进表里只是为了让 `check` 不再把它当成拼错的未知字段。
+     */
+    key: 'translationKey',
+    type: 'string',
+    required: false,
+    summary: '跨语言配对键；省略时按 <YYYYMM>/<DDNN> 目录编号推导',
+    fallback: '由目录编号推导（见 support/translation.ts）',
+    placeholder: '',
+  },
 ]
 
 /** 全部字段名，按写入顺序。 */
@@ -121,11 +139,6 @@ export const FRONTMATTER_KEYS: readonly FrontmatterKey[] = FRONTMATTER_FIELDS.ma
 /** 必填字段名。 */
 export const REQUIRED_FRONTMATTER_KEYS: readonly FrontmatterKey[] = FRONTMATTER_FIELDS.filter(
   (field) => field.required,
-).map((field) => field.key)
-
-/** 可选字段名（`fix` 会补这些）。 */
-export const OPTIONAL_FRONTMATTER_KEYS: readonly FrontmatterKey[] = FRONTMATTER_FIELDS.filter(
-  (field) => !field.required,
 ).map((field) => field.key)
 
 /**
@@ -139,16 +152,4 @@ export const DEPRECATED_FRONTMATTER_KEYS: Readonly<Record<string, string>> = {
   showWordCount: '改为全局开关（.vitepress/data/site.ts 的 wordCount）',
   categories: '已移除，只用 tags',
   summary: '仍兼容为 description，但建议直接写 description',
-}
-
-/** 判断一个键是否为本站支持的字段。 */
-export function isFrontmatterKey(key: string): key is FrontmatterKey {
-  return (FRONTMATTER_KEYS as readonly string[]).includes(key)
-}
-
-/** 取某字段的定义，不存在时抛错（拼错键名要立刻暴露，而不是静默忽略）。 */
-export function frontmatterField(key: FrontmatterKey): FrontmatterField {
-  const field = FRONTMATTER_FIELDS.find((item) => item.key === key)
-  if (!field) throw new Error(`未知的 frontmatter 字段：${key}`)
-  return field
 }

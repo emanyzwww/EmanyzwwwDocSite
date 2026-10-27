@@ -8,7 +8,7 @@ import { href } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
 /**
- * 文章元信息：日期 / 字数 / 标签 / 草稿标记。
+ * 文章元信息：日期 / 字数 / 标签。
  *
  * 文章页头部、文章卡片、时间线三处都用它，保证口径一致。
  * `variant` 只控制容器与日期格式，不复制三份模板：
@@ -66,7 +66,5 @@ const showDate = computed(() => props.variant !== 'timeline')
         <a :href="href(tag.url)">{{ tag.label }}</a>
       </template>
     </span>
-
-    <span v-if="post.draft" class="badge">{{ m.draft }}</span>
   </component>
 </template>

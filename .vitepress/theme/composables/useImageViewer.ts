@@ -567,22 +567,6 @@ export function useImageViewer() {
   }
 }
 
-/** 供单测：重置到初始状态。 */
-export function resetLightboxState(): void {
-  open.value = false
-  items.value = []
-  index.value = 0
-  scale.value = 1
-  translate.value = { x: 0, y: 0 }
-  natural.value = { width: 0, height: 0 }
-  stage.value = { width: 0, height: 0 }
-  loading.value = false
-  failed.value = false
-  gesturing.value = false
-  hintVisible.value = true
-  origin.value = null
-}
-
 /** 供组件在退出动画结束后清理 FLIP 起点。 */
 export function clearOrigin(): void {
   origin.value = null

@@ -1,113 +1,91 @@
 # EmanyzwwwDocSite
 
-个人站点。VitePress 1.6.4 + TypeScript，完全自定义主题（不 extends 默认主题）。
-中英双语（`/zh-cn/` + `/en/`），目录式 URL，明暗主题，站内搜索，RSS + sitemap。
+个人站点。VitePress 1.6.4 + TypeScript 5，完全自定义主题（不 extends 默认主题）。
+中英双语（`/zh-cn/` + `/en/`）、目录式 URL、明暗主题、站内搜索（Ctrl/⌘+K）、
+RSS + sitemap + 404 兜底；构建期零网络请求。
 
 文章源文件固定为 `docs/<lang>/<YYYYMM>/<DDNN>/index.md`，URL 的标题段由
 frontmatter 的 `slug` 决定，例如 `/zh-cn/202610/1901/你好，世界/`。
 
+## 快速开始
+
 ```powershell
 pnpm install     # 首次
 pnpm dev         # 本地预览 → http://127.0.0.1:5173/
-pnpm new         # 新建一篇文章（北京时间 + 当日序号 + 补全 frontmatter）
-pnpm posts       # 列出文章（可带 20261024 只看某天）
 pnpm build       # 构建到 .vitepress/dist
-pnpm typecheck   # 类型检查
-pnpm test        # 单测
-pnpm format      # 格式化（内容 + 主题代码 + 脚本）
+pnpm preview     # 预览构建产物
 ```
 
-内容相关的全部命令：`new` / `posts` / `check` / `fix` / `stats` / `tags` / `clean`，
-用 `pnpm help` 看总览，`pnpm <命令> --help` 看单个命令。
+内容侧命令（写文章用）：
 
-> 用 `pnpm posts` 而不是 `pnpm list`——`list` 是 pnpm 的内置命令，会先截获参数。
+```powershell
+pnpm new         # 新建文章（北京时间 + 当日序号 + 补全 frontmatter）
+pnpm posts       # 列出文章（可带 20261024 只看某天）
+pnpm check       # 检查 frontmatter / 目录约定
+pnpm fix         # 自动修正
+pnpm stats       # 统计
+pnpm tags        # 标签清单
+pnpm clean       # 清理产物与缓存
+pnpm guide       # 全部命令的总览
+```
 
-## 三份文档
+质量门禁：`pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm format:check`
+（CI 在每次推送后按同一顺序跑，然后再 build）。
 
-| 文档                             | 讲什么                                                                        |
-| -------------------------------- | ----------------------------------------------------------------------------- |
-| [DESIGN.md](./DESIGN.md)         | **设计系统**：配色、排版、圆角、阴影、间距、无障碍对比度。视觉改动的唯一准绳  |
-| [WRITING.md](./WRITING.md)       | **写文章**：目录与 slug、frontmatter 所有字段、图片、草稿、双语、标签、常见坑 |
-| [DEVELOPING.md](./DEVELOPING.md) | **改代码**：组件/样式/数据/路由怎么组织，加功能删功能改哪里                   |
+## 文档
 
-> 改任何视觉相关的东西之前先读 **DESIGN.md**。
-> `theme/styles/tokens.css` 只是它的实现，不是规范本身。
+| 文档                             | 讲什么                                                           |
+| -------------------------------- | ---------------------------------------------------------------- |
+| [DESIGN.md](./DESIGN.md)         | **设计系统**：配色、排版、圆角、阴影、动效、无障碍。视觉唯一准绳 |
+| [WRITING.md](./WRITING.md)       | **写文章**：目录与 slug、frontmatter、图片、草稿、双语、标签、坑 |
+| [DEVELOPING.md](./DEVELOPING.md) | **改代码**：目录职责、配置、图片管线、样式与组件、路由、部署     |
 
-## Markdown 语法分两层
+> 改视觉之前先读 **DESIGN.md**；`theme/styles/tokens.css` 只是它的实现。
+> 写文章只读 **WRITING.md**；两处说法冲突时以代码与 DESIGN 为准并顺手修文档。
 
-| 层            | 长相                                                  | 说明                                         |
-| ------------- | ----------------------------------------------------- | -------------------------------------------- |
-| 原生 Markdown | `**粗体**`、`[链接](url)`、`![图](x.png)`、`\|表格\|` | 原样渲染。普通链接**永远不会**被改写成卡片。 |
-| 本站扩展      | 行内 `==高亮==`；块级 `:::名称 … :::`                 | 只有这两种长相是本站独有的。                 |
+## Markdown 只有一层扩展
 
-块级指令有四个：`:::github` / `:::link` / `:::figure` / `:::quote`。
-详见 [WRITING.md](./WRITING.md) 的「本站扩展语法」一节。
+原生 CommonMark / GFM 原样渲染，普通链接**永远不会**被改写成卡片。本站独有的
+只有两种长相：行内 `==高亮==`，与块级 `:::名称 … :::`。
 
-**构建期零网络**：`:::github` 在构建时只产出一条真链接，仓库数据由浏览器在卡片
-进入视口时补充，取不到就保持那条链接。因此同样的源码永远得到同样的产物，断网也能构建。
-这条契约有测试守着（`tests/offline-build.test.ts`）。
+块级指令共六个：`:::github` / `:::link` / `:::figure` / `:::quote` /
+`:::columns` / `:::gallery`。逐条写法与参数见 WRITING.md 的「块级指令」一节。
+
+**构建期零网络**：`:::github` 构建时只产出一条真链接，仓库数据由浏览器在卡片
+进入视口时补充；取不到就保持链接。同样的源码永远得到同样的产物，断网也能构建
+（`tests/offline-build.test.ts` 守着这条契约）。
 
 ## 技术栈
 
-| 项     | 说明                                                  |
-| ------ | ----------------------------------------------------- |
-| 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL）     |
-| 语言   | TypeScript 5（strict）                                |
-| 主题   | 自定义，见 `.vitepress/theme/`                        |
-| 样式   | 三层设计令牌 + 深青强调色，见 `DESIGN.md`             |
-| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖                 |
-| 脚本   | `scripts/` + tsx，与构建期共用站点与 frontmatter 定义 |
-| 格式化 | oxfmt（含 `.vue` / `.css` / `.ts`）                   |
-| 部署   | GitHub Actions → GitHub Pages                         |
+| 项     | 说明                                                            |
+| ------ | --------------------------------------------------------------- |
+| 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL）               |
+| 语言   | TypeScript 5（strict）                                          |
+| 主题   | 自定义，见 `.vitepress/theme/`                                  |
+| 样式   | 三层设计令牌 + 深青强调色，见 DESIGN.md                         |
+| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖                           |
+| 脚本   | `scripts/` + tsx，与构建期共用站点与 frontmatter 定义           |
+| 校验   | oxlint / vue-tsc / vitest（450 用例）/ oxfmt                    |
+| 部署   | GitHub Actions → GitHub Pages（质量门禁 + 部署后 sitemap 冒烟） |
 
-## 设计系统一览
+无障碍：全部文字与控件对比度按 WCAG 公式实算，AA 以上；完整表见 DESIGN.md §9.1。
 
-| 维度     | 选择                                                        |
-| -------- | ----------------------------------------------------------- |
-| 强调色   | 深青 jade `#0f766e`（浅）/ `#4acdb4`（深）—— 全站唯一交互色 |
-| 正文     | 17px / 行高 1.75 / 测量宽度 42rem（≈39 汉字/行）            |
-| 字重     | 只用 400 / 600 / 700，刻意不用 500                          |
-| 圆角     | 6 / 10 / 14 / 20 / 28 / pill 六档                           |
-| 阴影     | 五级，但**卡片默认无阴影**——只给需要遮挡内容的浮层          |
-| 层次策略 | 靠表面色差而不是边框或投影                                  |
-| 滚动条   | 自绘（非原生）：6px 拇指、长度不低于页头、槽底与画布同色    |
-| 无障碍   | 全部对比度实测，AA 以上（文字最低 5.00:1，控件最低 3.18:1） |
-
-## 目录一览
+## 目录
 
 ```text
-.vitepress/                 配置与主题（与内容分离）
-├─ config.ts                路由 / Markdown / SEO / RSS / CSP
-├─ data/                    站点信息、个人资料、侧栏卡片、搜索索引
-├─ shared/                  构建期与运行期共用的纯函数（无 Node / Vue 依赖）
-├─ support/                 构建期工具（内容扫描、文章路径与 slug、Markdown 装配、图片管线、RSS）
-│  └─ markdown/             ★ Markdown 扩展：行内语法 + 块级指令
-└─ theme/                   运行期代码（组件、样式、文案、组合式函数、嵌入块增强）
-
-docs/                       只有内容
-├─ zh-cn/                   中文站 → /zh-cn/
-│  ├─ index.md              首页（layout: home）
-│  ├─ 202610/               文章：<YYYYMM>/<DDNN>/index.md（如 202610/1901/）
-│  ├─ _drafts/              草稿（不参与构建，可选）
-│  └─ pages/                非文章页面：about/、posts/、tags/（含动态路由）
-└─ en/                      英文站 → /en/（与 zh-cn 结构完全对应）
-
-scripts/                    内容侧命令行（不参与构建）
-├─ run.ts                   统一入口，按命令名分发
-├─ new.ts / posts.ts        建文章 / 列文章
-├─ check.ts / fix.ts        检查 / 自动修 frontmatter
-├─ stats.ts / tags.ts       统计 / 标签清单
-├─ clean.ts                 清理构建产物与缓存
-└─ lib/                     共享内核：日期、frontmatter、路径、参数、输出
-
-media/                      会替换的图片（自动指纹）
-public/                     原样拷贝：favicon、根路径语言跳转页
+.vitepress/    配置（config.ts）+ 构建期工具（support/、shared/、data/）+ 运行期主题（theme/）
+docs/          内容：<lang>/index.md（首页）、<lang>/<YYYYMM>/<DDNN>/、<lang>/pages/
+scripts/       内容侧命令行（不参与构建）：run.ts + new/posts/check/fix/stats/tags/clean
+media/         会替换的图片（按内容指纹命名）
+public/        原样拷贝：favicon、根路径语言跳转页、占位图
 ```
+
+完整目录树、每层职责与「加/删功能改哪里」见 [DEVELOPING.md](./DEVELOPING.md)。
 
 根路径 `/` 不承载内容，按浏览器语言跳到 `/zh-cn/` 或 `/en/`（匹配不上时中文）。
 
 ## 移动端
 
-手机不是「桌面的缩小版」，是另一套操作模型：页头在阅读时自动隐藏、
-导航进抽屉、高频动作放悬浮胶囊（滚动收成圆）、目录从底部弹出、
-搜索从顶部抽出。详见 `DEVELOPING.md` 的「移动端设计约定」一节。
+手机是另一套操作模型：页头在阅读时自动隐藏、导航进抽屉、高频动作放悬浮胶囊、
+目录从底部弹出、搜索从顶部抽出。实现与坑见 DEVELOPING.md 的「移动端」一节，
+视觉规范见 DESIGN.md 的动效与层级章节。

@@ -381,7 +381,7 @@ To make an image **non-zoomable** (a purely decorative little icon), add `{data-
 
 ### Inline HTML
 
-With `html: true` in the config, the body accepts raw HTML (use it sparingly):
+VitePress accepts raw HTML by default (this site never turned `markdown.html` off; use it sparingly):
 
 <div style="padding: 12px 16px; border-radius: 10px; background: var(--bg-surface-alt);">
   This block is HTML written straight into Markdown.

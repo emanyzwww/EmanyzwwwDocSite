@@ -381,7 +381,7 @@ const columns = 2
 
 ### 行内 HTML
 
-配置里 `html: true`，所以正文可以直接写 HTML（少用，需要时可用）：
+VitePress 默认允许正文直接写 HTML（本站没有关掉 `markdown.html`，少用，需要时可用）：
 
 <div style="padding: 12px 16px; border-radius: 10px; background: var(--bg-surface-alt);">
   这段是直接写在 Markdown 里的 HTML。

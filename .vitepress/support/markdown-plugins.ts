@@ -9,10 +9,10 @@
  * 3. 需求只有两条语法，自写零依赖，升级 VitePress 时不会被第三方包的
  *    peer 版本卡住。
  *
- * **接入点有两处，必须同时接**，否则「页面正文」与「RSS / 侧栏卡片」渲染不一致：
+ * **接入点有两处，必须同时接**，否则「页面正文」与「非页面 Markdown」渲染会不一致：
  *
  * - `config.ts` 的 `markdown.config`（页面正文）
- * - `support/markdown.ts` 的 `renderMarkdown`（RSS 全文、个人简介、自定义卡片）
+ * - `support/markdown/index.ts` 的 `renderMarkdown`（个人简介等非页面 Markdown）
  */
 
 /** `=` 的码点，内联规则据此判断是否是自己要处理的标记。 */
@@ -391,8 +391,8 @@ function taskListPlugin(md: MarkdownItLike): void {
 /**
  * 给 markdown-it 实例装上本站的扩展语法。
  *
- * 页面正文（`config.ts`）与非页面渲染（`support/markdown.ts`）都调这一个函数，
- * 保证同一段 Markdown 在网页、RSS 全文、侧栏卡片里的结果一致。
+ * 页面正文（`config.ts`）与非页面渲染（`support/markdown/index.ts`）都调这一个函数，
+ * 保证同一段 Markdown 在网页正文与个人简介里的结果一致。
  */
 export function extendMarkdown(md: MarkdownItLike): void {
   markPlugin(md)

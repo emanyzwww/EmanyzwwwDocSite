@@ -125,9 +125,10 @@ function svgSize(bytes: Uint8Array): ImageSize | null {
    * `stroke-width` 里 `-w` 之间也是词边界，`\bwidth` 会误命中描边宽度。
    */
   const attr = (name: string): number | null => {
-    const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']\\s*([\\d.]+)\\s*(?:px)?\\s*["']`, 'i').exec(
-      tag,
-    )
+    const match = new RegExp(
+      `(?:^|\\s)${name}\\s*=\\s*["']\\s*([\\d.]+)\\s*(?:px)?\\s*["']`,
+      'i',
+    ).exec(tag)
     return match ? Number(match[1]) : null
   }
 
@@ -135,10 +136,12 @@ function svgSize(bytes: Uint8Array): ImageSize | null {
   const height = attr('height')
   if (width && height) return { width: Math.round(width), height: Math.round(height) }
 
-  const viewBox = /(?:^|\s)viewBox\s*=\s*["']\s*([-\d.]+)[\s,]+([-\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*["']/i.exec(
-    tag,
-  )
-  if (viewBox) return { width: Math.round(Number(viewBox[3])), height: Math.round(Number(viewBox[4])) }
+  const viewBox =
+    /(?:^|\s)viewBox\s*=\s*["']\s*([-\d.]+)[\s,]+([-\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*["']/i.exec(
+      tag,
+    )
+  if (viewBox)
+    return { width: Math.round(Number(viewBox[3])), height: Math.round(Number(viewBox[4])) }
 
   return null
 }
@@ -151,7 +154,11 @@ interface Box {
   end: number
 }
 
-function readBox(bytes: Uint8Array, at: number, limit: number): (Box & { size: number; type: string }) | null {
+function readBox(
+  bytes: Uint8Array,
+  at: number,
+  limit: number,
+): (Box & { size: number; type: string }) | null {
   if (at + 8 > limit) return null
   let size = be32(bytes, at)
   const type = String.fromCharCode(bytes[at + 4], bytes[at + 5], bytes[at + 6], bytes[at + 7])
@@ -252,12 +259,7 @@ export function readImageSize(bytes: Uint8Array): ImageSize | null {
   if (head.includes('<svg')) return svgSize(bytes)
 
   // AVIF（ISO BMFF）
-  if (
-    bytes[4] === 0x66 &&
-    bytes[5] === 0x74 &&
-    bytes[6] === 0x79 &&
-    bytes[7] === 0x70
-  ) {
+  if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
     return avifSize(bytes)
   }
 

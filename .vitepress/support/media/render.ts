@@ -125,7 +125,12 @@ interface ImageMeta {
  * - 多档位图但不在 figure 内 → 裸 `<img srcset=…>`
  * - 外链 / SVG / 找不到文件 → 交回上游规则，行为与升级前**完全一致**
  */
-function renderImage(token: TokenLike, env: unknown, self: RendererLike, md: MarkdownItLike): string {
+function renderImage(
+  token: TokenLike,
+  env: unknown,
+  self: RendererLike,
+  md: MarkdownItLike,
+): string {
   const src = token.attrGet('src') ?? ''
   /*
    * alt 必须从 children 渲染，不能读 attrs。

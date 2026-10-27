@@ -28,8 +28,6 @@ const TIME_ZONE = 'Asia/Shanghai'
 const footer: FooterConfig = {
   // 留空则自动生成「© 起始年–今年 站点名」
   copyright: '',
-  // 页脚附加说明，支持 Markdown
-  text: '',
   links: [
     { name: 'GitHub', url: 'https://github.com/emanyzwww' },
     { name: 'VitePress', url: 'https://vitepress.dev/' },
@@ -46,8 +44,8 @@ export const SITE: SiteMeta = {
   homePostCount: 5,
   outline: true,
   wordCount: true,
-  // 侧栏卡片渲染顺序。可选项：profile / tags / links / custom
-  widgets: ['profile', 'tags', 'custom'] satisfies WidgetName[],
+  // 侧栏卡片渲染顺序。可选项：profile / tags
+  widgets: ['profile', 'tags'] satisfies WidgetName[],
   footer,
   // 下面三项原来散落在各组件里，集中到这里便于统一调整
   recentPostsLimit: 5,
@@ -70,7 +68,6 @@ export const SITE: SiteMeta = {
 export const LOCALES: Record<LocaleCode, LocaleMeta> = {
   'zh-cn': {
     lang: 'zh-CN',
-    code: 'zh-cn',
     label: '简体中文',
     title: SITE_NAME,
     description: '一个记录想法、笔记和折腾过程的静态站点。',
@@ -78,7 +75,6 @@ export const LOCALES: Record<LocaleCode, LocaleMeta> = {
   },
   en: {
     lang: 'en-US',
-    code: 'en',
     label: 'English',
     title: SITE_NAME,
     description: 'A static site for notes, ideas, and things I am tinkering with.',

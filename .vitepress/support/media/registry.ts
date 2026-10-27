@@ -18,7 +18,7 @@
  * 再生成一份变体只会制造两个地址。这类资源直接引用原路径。
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
 
 import {
@@ -77,11 +77,6 @@ export function clearMediaRegistry(): void {
   stamps.clear()
   referenced.clear()
   warned.clear()
-}
-
-/** 所有被引用过的源路径（构建期预扫后可见）。 */
-export function referencedSources(): string[] {
-  return [...referenced]
 }
 
 /** 所有 entry（构建期发射用）。 */
@@ -334,9 +329,7 @@ function publicPathOf(sourcePath: string): string {
    * 这段字符串会直接拼进 `<img src>`，浏览器把 `/\placeholder.svg`
    * 当成非法路径（真实事故：public 图在 Windows 构建下 404）。
    */
-  const relative = resolve(sourcePath)
-    .slice(resolve(publicDir).length)
-    .replaceAll('\\', '/')
+  const relative = resolve(sourcePath).slice(resolve(publicDir).length).replaceAll('\\', '/')
   return relative.startsWith('/') ? relative : `/${relative}`
 }
 
@@ -484,9 +477,4 @@ export function assertReady(): void {
       seen.set(variant.fileName, bytes)
     }
   }
-}
-
-/** 目录不存在时给出更好懂的报错。 */
-export function assertReadable(sourcePath: string): void {
-  if (!existsSync(sourcePath)) throw new Error(`找不到图片：${sourcePath}`)
 }

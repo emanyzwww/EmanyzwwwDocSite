@@ -283,11 +283,10 @@ function enhanceRepoCard(root: HTMLElement, data: RepoCardData, m: Messages): vo
  * 调度
  * ------------------------------------------------------------------ */
 
-/** 一个页面的增强任务（可整体销毁，用于路由切换）。 */
+/** 一个页面的增强任务。 */
 export class EmbedEnhancer {
   private readonly observer: IntersectionObserver | null
   private readonly m: () => Messages
-  private disposed = false
 
   constructor(messages: () => Messages) {
     this.m = messages
@@ -316,8 +315,6 @@ export class EmbedEnhancer {
 
   /** 扫描一份 DOM（首次挂载与路由切换后都要调）。 */
   scan(scope: ParentNode): void {
-    if (this.disposed) return
-
     const cards = scope.querySelectorAll<HTMLElement>('.embed--github[data-target]')
     for (const card of cards) {
       // 已增强过（客户端路由没换节点时会出现）就不再排队
@@ -353,14 +350,8 @@ export class EmbedEnhancer {
       delete root.dataset.loading
     }
 
-    if (this.disposed || !data) return
+    if (!data) return
 
     enhanceRepoCard(root, data, this.m())
-  }
-
-  /** 销毁（路由切换时调用）：停止观察，不再改 DOM。 */
-  dispose(): void {
-    this.disposed = true
-    this.observer?.disconnect()
   }
 }

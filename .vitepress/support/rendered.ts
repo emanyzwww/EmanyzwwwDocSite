@@ -82,8 +82,3 @@ export function collectRenderedContent(relativePath: string, html: string): void
 export function getRenderedContent(relativePath: string): string | undefined {
   return renderedContent.get(relativePath)
 }
-
-/** 清空（仅供测试使用）。 */
-export function clearRenderedContent(): void {
-  renderedContent.clear()
-}

@@ -21,14 +21,14 @@
 
 import matter from 'gray-matter'
 
+import { formatZonedIso } from './dates'
 import {
   DEPRECATED_FRONTMATTER_KEYS,
   FRONTMATTER_FIELDS,
   FRONTMATTER_KEYS,
   type FrontmatterField,
   type FrontmatterKey,
-} from '../../.vitepress/data/frontmatter'
-import { formatZonedIso } from './dates'
+} from './frontmatter-schema'
 import { SITE_TIME_ZONE } from './site'
 
 /** 项目的 frontmatter 风格。 */
