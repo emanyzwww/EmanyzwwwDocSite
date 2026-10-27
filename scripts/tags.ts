@@ -11,8 +11,9 @@
 
 import type { LocaleCode } from '../.vitepress/types'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
-import { collectPostFiles } from './lib/posts'
-import { parseLocale, LOCALE_CODES } from './lib/site'
+import { isoDateInZone } from './lib/dates'
+import { collectPostFiles, postDate } from './lib/posts'
+import { parseLocale, LOCALE_CODES, SITE_TIME_ZONE } from './lib/site'
 import { blank, c, formatTable, helpLines, info } from './lib/ui'
 
 /** 选项定义。 */
@@ -55,7 +56,10 @@ function tagsOf(locale: LocaleCode, includeDrafts: boolean): TagStat[] {
 
     const rawTags = Array.isArray(post.data.tags) ? post.data.tags : []
     const title = typeof post.data.title === 'string' ? post.data.title : post.path.filePath
-    const date = typeof post.data.date === 'string' ? post.data.date.slice(0, 10) : ''
+    // 不能直接读 data.date：gray-matter 已把它解析成 Date，typeof 不再是 string。
+    // 按站点时区取日期，避免北京时间凌晨发布的文章排到前一天。
+    const date = postDate(post)
+    const day = date ? isoDateInZone(date, SITE_TIME_ZONE) : ''
 
     for (const raw of rawTags) {
       if (typeof raw !== 'string') continue
@@ -65,9 +69,9 @@ function tagsOf(locale: LocaleCode, includeDrafts: boolean): TagStat[] {
       const existing = index.get(tag)
       if (existing) {
         existing.count += 1
-        existing.posts.push({ title, date })
+        existing.posts.push({ title, date: day })
       } else {
-        index.set(tag, { tag, count: 1, posts: [{ title, date }] })
+        index.set(tag, { tag, count: 1, posts: [{ title, date: day }] })
       }
     }
   }

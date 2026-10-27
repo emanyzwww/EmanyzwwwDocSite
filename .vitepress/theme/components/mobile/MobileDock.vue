@@ -14,7 +14,7 @@ import {
   releaseScrollLock,
   trapFocus,
 } from '../../support/overlay'
-import { href, withLocale } from '../../support/paths'
+import { href, postListPath, withLocale } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
 /**
@@ -62,7 +62,7 @@ const emit = defineEmits<{
 }>()
 
 const homeHref = computed(() => href(withLocale('/', locale.value)))
-const postsHref = computed(() => href(withLocale('/posts/', locale.value)))
+const postsHref = computed(() => href(postListPath(locale.value)))
 
 /** 是否有可展示的目录。与 `DocPage` 的 `hasOutline` 同一判断口径。 */
 const hasOutline = computed(() => {

@@ -4,6 +4,10 @@
  * 与 `urls.ts` 一样，这里刻意不 import `vitepress`：
  * 构建期（`config.ts`）与测试都直接用它，需要 `withBase` 的地方在
  * `theme/support/paths.ts` 里再包一层。
+ *
+ * 重构之后，「栏目」的地址也跟着内容树走了：
+ * 文章列表、标签总览、标签详情都在 `/<locale>/pages/` 下面。
+ * 这里只保留**唯一一份**路径拼装规则，组件与语言切换都从这里取。
  */
 
 import { asLocale, LOCALE_CODES } from '../data/site'
@@ -14,14 +18,14 @@ export function localeOfPath(path: string): LocaleCode {
   return asLocale(path.split('/').find(Boolean))
 }
 
-/** 去掉语言前缀：`/en/posts/` → `/posts/`，`/zh-cn/` → `/`。 */
+/** 去掉语言前缀：`/en/pages/posts/` → `/pages/posts/`，`/zh-cn/` → `/`。 */
 export function stripLocale(path: string): string {
   const stripped = path.replace(new RegExp(`^/(?:${LOCALE_CODES.join('|')})(?=/|$)`), '')
   return stripped || '/'
 }
 
 /**
- * 去掉部署 base：`/repo/zh-cn/about/` + `/repo/` → `/zh-cn/about/`。
+ * 去掉部署 base：`/repo/zh-cn/pages/about/` + `/repo/` → `/zh-cn/pages/about/`。
  *
  * **必须在 `stripLocale` 之前调用**，这不是可选的顺序问题：
  * VitePress 的 `route.path` 在浏览器里**含 base**
@@ -33,7 +37,7 @@ export function stripLocale(path: string): string {
  * 本地 `pnpm dev` 的 base 是 `/`，此时 `stripBase` 是恒等函数，
  * 所以本地开发永远看不出问题——这正是它长期没被发现的原因。
  *
- * @param path 可能带 base 的路径，如 `/repo/zh-cn/about/`
+ * @param path 可能带 base 的路径，如 `/repo/zh-cn/pages/about/`
  * @param base 部署 base，必须以 `/` 开头和结尾，如 `/repo/`
  */
 export function stripBase(path: string, base: string): string {
@@ -46,7 +50,7 @@ export function stripBase(path: string, base: string): string {
   return path.startsWith(`${prefix}/`) ? path.slice(prefix.length) : path
 }
 
-/** 加上语言前缀：`/posts/` + `en` → `/en/posts/`，`/` + `zh-cn` → `/zh-cn/`。 */
+/** 加上语言前缀：`/pages/posts/` + `en` → `/en/pages/posts/`，`/` + `zh-cn` → `/zh-cn/`。 */
 export function withLocale(path: string, locale: LocaleCode): string {
   return path === '/' ? `/${locale}/` : `/${locale}${path}`
 }
@@ -61,8 +65,23 @@ export function isExternal(path: string): boolean {
   return /^(https?:)?\/\//.test(path)
 }
 
-/** 文章列表页地址（不含 base）：第 1 页是 `/posts/`，其余是 `/posts/page/N/`。 */
+/**
+ * 文章列表页地址（不含 base）。
+ *
+ * 第 1 页是 `/<locale>/pages/posts/`，其余是 `/<locale>/pages/posts/page/N/`。
+ * 「文章列表」现在也是 `pages/` 下的一页——语言根目录只放首页与文章本身。
+ */
 export function postListPath(locale: LocaleCode, page = 1): string {
-  const base = page <= 1 ? '/posts/' : `/posts/page/${page}/`
+  const base = page <= 1 ? '/pages/posts/' : `/pages/posts/page/${page}/`
   return withLocale(base, locale)
+}
+
+/** 标签总览页地址（不含 base）：`/<locale>/pages/tags/`。 */
+export function tagIndexPath(locale: LocaleCode): string {
+  return withLocale('/pages/tags/', locale)
+}
+
+/** 关于页地址（不含 base）：`/<locale>/pages/about/`。 */
+export function aboutPath(locale: LocaleCode): string {
+  return withLocale('/pages/about/', locale)
 }

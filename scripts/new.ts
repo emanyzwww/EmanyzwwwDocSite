@@ -1,17 +1,22 @@
 /**
  * `pnpm new` —— 新建一篇文章。
  *
- * 默认行为：按**北京时间**算出今天的 年/月/日，在该语言的文章分区下
- * 找当天已有目录，分配下一个序号，生成
- * `docs/<lang>/posts/YYYY/MM/DD/NN/<slug>/index.md`，
- * 并把 frontmatter 的**全部字段**一次补齐。
+ * 默认行为：按**北京时间**算出今天的 年/月/日，扫当月目录分配当日序号，
+ * 生成 `docs/<lang>/<YYYYMM>/<DDNN>/index.md`，并把 frontmatter 的**全部字段**
+ * 一次补齐（含由标题推导的 `slug`）。
+ *
+ * 目录里不再有标题：URL 由「目录 + slug」拼成 `/zh-cn/202610/1901/<slug>/`，
+ * 该映射由 `.vitepress/config.ts` 的 `rewrites` 在**启动时**解析，
+ * 因此新增文章后需要重启 `pnpm dev`（线上构建每次都会重新解析，无影响）。
  */
 
 import { relative } from 'node:path'
 
+import { slugify } from '../.vitepress/support/slug'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
-import { createPost, slugify } from './lib/create'
+import { createPost } from './lib/create'
 import { nowInZone } from './lib/dates'
+import { existingMonthDirs } from './lib/posts'
 import { parseLocale, REPO_ROOT, SITE_TIME_ZONE } from './lib/site'
 import { blank, c, helpLines, info, success, warn } from './lib/ui'
 
@@ -37,8 +42,8 @@ function printHelp(): void {
     'pnpm new [选项]',
     [
       { flag: '-l, --lang <code>', description: '语言：zh-cn（默认）或 en' },
-      { flag: '-t, --title <文本>', description: '文章标题（同时用于推导目录名）' },
-      { flag: '-s, --slug <名字>', description: '指定目录名，不写则由标题推导' },
+      { flag: '-t, --title <文本>', description: '文章标题（也用于推导 slug）' },
+      { flag: '-s, --slug <段落>', description: 'URL 段落（slug），不写则由标题推导' },
       { flag: '--tags <a,b>', description: '标签，逗号分隔，如 随笔,工具' },
       { flag: '-d, --description <文本>', description: '一句话摘要' },
       { flag: '--date <YYYYMMDD>', description: '指定日期，默认取北京时间当天' },
@@ -52,6 +57,7 @@ function printHelp(): void {
       'pnpm new -l=zh-cn',
       'pnpm new --title="我的新文章" --tags=随笔,工具',
       'pnpm new -l=en -t="My New Post" --draft',
+      'pnpm new -t="重构说明" -s=refactor-notes',
     ],
   )
 }
@@ -91,6 +97,10 @@ export default function main(argv: string[]): void {
   // 「今天」必须按站点时区算，而不是运行机器的本地时区（见 lib/dates.ts）
   const today = nowInZone(SITE_TIME_ZONE)
   const dateParts = explicitDate ?? { year: today.year, month: today.month, day: today.day }
+  const month = `${dateParts.year}${dateParts.month}`
+
+  // 创建前的当月篇数，用于提示（创建后目录数会 +1，不适合反过来数）
+  const monthPostsBefore = existingMonthDirs(locale, month).length
 
   const title = optionValue(args, 'title')
   const slugOption = optionValue(args, 'slug')
@@ -138,19 +148,20 @@ export default function main(argv: string[]): void {
   info(
     `${c.dim('日期')}  ${dateParts.year}-${dateParts.month}-${dateParts.day}（${SITE_TIME_ZONE}）`,
   )
+  info(`${c.dim('目录')}  ${result.month}/${result.daySeq}`)
   info(`${c.dim('序号')}  ${result.sequence}`)
-  info(
-    `${c.dim('路径')}  /${locale}/posts/${dateParts.year}/${dateParts.month}/${dateParts.day}/${result.sequence}/${result.slug}/`,
-  )
+  info(`${c.dim('slug')}  ${result.slug}`)
+  info(`${c.dim('URL')}   ${result.url}`)
+  info(`${c.dim('本月')}  ${month} 已有 ${monthPostsBefore} 篇${dryRun ? '' : '（不含本次）'}`)
   info(`${c.dim('标题')}  ${title ?? '（未命名文章，请自行修改）'}`)
 
   if (title === undefined) {
     blank()
-    warn('没有传 --title，已写入占位标题「未命名文章」与占位目录名')
+    warn('没有传 --title，已写入占位标题「未命名文章」与占位 slug')
   }
   if (slugOption === undefined && title !== undefined && slugify(title) === '') {
     blank()
-    warn('标题无法推导出目录名（全是标点），已回退为 untitled')
+    warn('标题无法推导出 slug（全是标点），已回退为 untitled')
   }
 
   if (!dryRun) {
@@ -158,8 +169,10 @@ export default function main(argv: string[]): void {
     info(c.dim('下一步'))
     info(`  ${c.dim('1.')} 编辑上面那个 index.md，写标题与正文`)
     info(
-      `  ${c.dim('2.')} pnpm dev 预览，或 pnpm posts ${dateParts.year}${dateParts.month}${dateParts.day} 确认已收录`,
+      `  ${c.dim('2.')} pnpm posts ${dateParts.year}${dateParts.month}${dateParts.day} 确认已收录`,
     )
+    blank()
+    warn('新增文章后需要重启 pnpm dev：rewrites 在启动时解析，不重启看不到新 URL（线上构建无影响）')
   }
   blank()
 }

@@ -43,10 +43,14 @@ function escapeXml(value: string): string {
 }
 
 /**
- * 站点路径 → 源文件路径：`/zh-cn/posts/a/` → `zh-cn/posts/a/index.md`。
+ * 文章 URL（route 路径）→ 渲染内容 Map 的 key。
  *
- * `post.url` 是 `encodeURI` 之后的地址（中文标签/目录会变成 `%E9%9A%8F...`），
- * 而 map 的 key 是磁盘上的真实路径，因此这里必须解码回原文再拼。
+ * 例：`/zh-cn/202610/1901/你好，世界/` → `zh-cn/202610/1901/你好，世界/index.md`。
+ *
+ * 注意 slug 段来自 `rewrites`，磁盘上并没有这个文件——它只是
+ * `transformHtml` 阶段写进 `support/rendered.ts` 的 Map 键。
+ * `post.url` 是 `encodeURI` 之后的地址（中文 slug 会变成 `%E4%BD%A0...`），
+ * 因此这里必须解码回原文再拼。
  */
 function toSourcePath(url: string): string {
   return `${decodePath(url).replace(/^\//, '')}index.md`

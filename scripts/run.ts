@@ -45,7 +45,7 @@ function printHelp(): void {
     '用法  pnpm <命令> [参数]',
     '',
     '命令',
-    '  new [选项]              新建一篇文章（按北京时间自动分配日期与当日序号）',
+    '  new [选项]              新建一篇文章（自动分配 <YYYYMM>/<DDNN> 目录与当日序号）',
     '  posts [YYYYMMDD]        列出文章（不给日期则列全部）',
     '  check [选项]            检查内容与 frontmatter，报告不合规之处',
     '  fix [选项]              自动修复 check 能修的项（排序、补字段、规范化日期）',
@@ -66,6 +66,7 @@ function printHelp(): void {
     '',
     '注意  `pnpm list` 与 `pnpm help` 都是 pnpm 内置命令，会被它自己截获；',
     '      查看本帮助请用 `pnpm guide`，列出文章请用 `pnpm posts`。',
+    '      `pnpm new` 之后若要预览，需要重启 `pnpm dev`（rewrites 在启动时解析）。',
     '',
   ]
   console.log(lines.join('\n'))

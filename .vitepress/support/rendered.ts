@@ -66,14 +66,12 @@ function extractProse(html: string): string {
  * 首页 / 列表页 / 标签页用的是自定义布局，没有 `.prose`，
  * 它们本来也不进 RSS。
  *
- * @param relativePath 相对 `docs/` 的路径，与 `RawDoc.filePath` 同一口径
+ * @param relativePath VitePress 的 `pageData.relativePath`。文章经过 `rewrites`
+ *   之后它是 **route 路径**（`zh-cn/202610/1901/你好，世界/index.md`），
+ *   与 `RawDoc.routePath` 同一口径；RSS 由 `post.url` 反推出的也是它。
  * @param html 整页 HTML（`transformHtml` 的 `code` 参数）
  */
 export function collectRenderedContent(relativePath: string, html: string): void {
-  // VitePress 的 relativePath 是 `posts/2026/.../index.md`（不含语言前缀），
-  // 而内容索引用的是 `zh-cn/posts/.../index.md`（含前缀）。
-  // 这里不做转换：调用方会用完整相对路径（含语言前缀）作为 key，
-  // 见 `config.ts` 里对 `pageData.relativePath` 的补偿。
   if (!relativePath.endsWith('.md')) return
 
   const prose = extractProse(html)

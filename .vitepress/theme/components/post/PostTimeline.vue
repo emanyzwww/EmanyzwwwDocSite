@@ -6,7 +6,7 @@ import { href } from '../../support/paths'
 import PostMeta from './PostMeta.vue'
 
 /**
- * 时间线文章列表（`/posts/` 使用）。
+ * 时间线文章列表（`/pages/posts/` 使用）。
  *
  * 按年份分组：年份 + 数量在左，右侧用伪元素延伸一条细线（见 posts.css）。
  * 每一行是「日期 | 标题+摘要 | 字数/标签」，窄屏自动收成两行。

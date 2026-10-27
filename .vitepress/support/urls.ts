@@ -16,9 +16,14 @@
 /**
  * 源文件相对路径 → 站点路径（已 URL 编码、结尾带斜杠）。
  *
- * `zh-cn/posts/2026/10/19/01/hello-world/index.md`
- *   → `/zh-cn/posts/2026/10/19/01/hello-world/`
- * `zh-cn/tags/随笔/index.md` → `/zh-cn/tags/%E9%9A%8F%E7%AC%94/`
+ * 注意：文章的 `relativePath` 必须是 **route 路径**（带 frontmatter 的 slug），
+ * 不是磁盘上的源路径——源路径是 `<locale>/<YYYYMM>/<DDNN>/index.md`，
+ * 由 `config.ts` 的 `rewrites` 映射成 `<locale>/<YYYYMM>/<DDNN>/<slug>/index.md`
+ * 之后才是这里该收到的输入。
+ *
+ * `zh-cn/202610/1901/你好，世界/index.md`
+ *   → `/zh-cn/202610/1901/%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C/`
+ * `zh-cn/pages/tags/随笔/index.md` → `/zh-cn/pages/tags/%E9%9A%8F%E7%AC%94/`
  *
  * 用 `encodeURI` 而不是 `encodeURIComponent`：路径分隔符 `/` 必须保留。
  */

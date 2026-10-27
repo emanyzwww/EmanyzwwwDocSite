@@ -18,7 +18,14 @@
 export type FrontmatterType = 'string' | 'datetime' | 'tags' | 'boolean'
 
 /** 本站支持的全部文章字段。 */
-export type FrontmatterKey = 'title' | 'date' | 'tags' | 'description' | 'draft' | 'outline'
+export type FrontmatterKey =
+  | 'title'
+  | 'slug'
+  | 'date'
+  | 'tags'
+  | 'description'
+  | 'draft'
+  | 'outline'
 
 /** 一个字段的完整定义。 */
 export interface FrontmatterField {
@@ -55,6 +62,14 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     summary: '文章标题，显示在列表、文章页与浏览器标签',
     fallback: '构建报错',
     placeholder: '未命名文章',
+  },
+  {
+    key: 'slug',
+    type: 'string',
+    required: false,
+    summary: 'URL 段落（/…/YYYYMM/DDNN/<slug>/）；省略时由 title 推导',
+    fallback: '由 title 按 `support/slug.ts` 的规则推导',
+    placeholder: '',
   },
   {
     key: 'date',

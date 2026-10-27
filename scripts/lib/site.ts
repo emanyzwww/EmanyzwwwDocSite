@@ -21,9 +21,6 @@ export const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url))
 /** 内容根目录：`docs/`。与 `config.ts` 的 `srcDir` 一致。 */
 export const DOCS_DIR = resolve(REPO_ROOT, 'docs')
 
-/** 文章所在的分区名。与 `support/content.ts` 的 `POST_SECTION` 保持一致。 */
-export const POST_SECTION = 'posts'
-
 /** 再导出构建期的同一份定义，脚本里直接用，避免三处各写一遍。 */
 export { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE }
 
@@ -40,9 +37,20 @@ export function localeDir(locale: LocaleCode): string {
   return join(DOCS_DIR, locale)
 }
 
-/** 某语言的文章根目录：`docs/zh-cn/posts`。 */
-export function postsDir(locale: LocaleCode): string {
-  return join(localeDir(locale), POST_SECTION)
+/**
+ * 某语言的文章根目录：`docs/zh-cn`。
+ *
+ * 文章**直接挂在语言目录下**（`<YYYYMM>/<DDNN>/index.md`），不再有 `posts/` 分区。
+ * 仍然保留这个函数而不是让调用方自己拼 `localeDir`：文章根与语言根相同是当前布局的
+ * 约定，集中在这里以后换布局才不会漏掉某个脚本。
+ */
+export function articleRootDir(locale: LocaleCode): string {
+  return localeDir(locale)
+}
+
+/** 某语言的其它页面目录：`docs/zh-cn/pages`（about、文章列表、标签页）。 */
+export function pagesDir(locale: LocaleCode): string {
+  return join(localeDir(locale), 'pages')
 }
 
 /** 语言元信息。 */
@@ -75,23 +83,33 @@ export function localeLabel(locale: LocaleCode): string {
   return LOCALES[locale].label
 }
 
-/** 递归收集 `docs/` 下所有 Markdown（相对 `docs/`，`/` 分隔）。 */
-export function collectMarkdownFiles(dir: string = DOCS_DIR, acc: string[] = []): string[] {
+/**
+ * 递归收集 `dir` 下所有 Markdown，返回**相对 `rootDir`**（默认 `docs/`）的路径。
+ *
+ * `rootDir` 与 `dir` 分开是为了测试：单测会拿一个临时目录当内容根，
+ * 这里仍要返回「相对那个根」的路径，才能让上层按 `docs/` 的规则解析。
+ * 生产调用只传 `dir`。
+ */
+export function collectMarkdownFiles(
+  dir: string = DOCS_DIR,
+  rootDir: string = DOCS_DIR,
+  acc: string[] = [],
+): string[] {
   if (!existsSync(dir)) return acc
 
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) continue
     const full = join(dir, entry.name)
     if (entry.isDirectory()) {
-      collectMarkdownFiles(full, acc)
+      collectMarkdownFiles(full, rootDir, acc)
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      acc.push(relative(DOCS_DIR, full).split(sep).join('/'))
+      acc.push(relative(rootDir, full).split(sep).join('/'))
     }
   }
   return acc
 }
 
-/** 目录 mtime 排序用的工具，保持列表输出稳定。 */
+/** 判断路径是否是目录（不抛错）。 */
 export function isDirectory(path: string): boolean {
   return statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false
 }
@@ -99,8 +117,11 @@ export function isDirectory(path: string): boolean {
 /**
  * 生成站内路径（与 `support/urls.ts` 的规则一致，但在命令行做**未编码**展示用）。
  *
- * 这里刻意不复用 `toPageUrl`：命令行要打印给人看的是 `/zh-cn/posts/2026/.../`,
+ * 这里刻意不复用 `toPageUrl`：命令行要打印给人看的是 `/zh-cn/pages/about/`，
  * 中文 slug 保持原文更易读；真正参与构建的编码由 VitePress 自己完成。
+ *
+ * 注意文章的真实 URL 由「目录 + slug」拼成（`support/article-path.ts` 的
+ * `articleUrlPath`），不走这个通用换算——文章没有文件名，只有 slug。
  */
 export function relativePathToUrl(relativePath: string): string {
   const withoutExt = relativePath.replace(/\.md$/, '')
@@ -113,7 +134,15 @@ export function localeOptionsText(): string {
   return LOCALE_CODES.map((code) => `${code}（${LOCALES[code].label}）`).join('、')
 }
 
-/** 导航里该语言的文章列表入口，用于 `pnpm new` 的后续提示。 */
+/**
+ * 导航里该语言的文章列表入口，用于 `pnpm new` 的后续提示。
+ *
+ * 重构后文章列表在 `pages/posts/` 下：按新链接找，找不到时退回同一地址，
+ * 而不是悄悄给出旧 `/<lang>/posts/`（那个地址已经不存在了）。
+ */
 export function postsIndexUrl(locale: LocaleCode): string {
-  return NAV[locale].find((item) => item.link.includes(`/${POST_SECTION}/`))?.link ?? `/${locale}/`
+  return (
+    NAV[locale].find((item) => item.link.includes('/pages/posts/'))?.link ??
+    `/${locale}/pages/posts/`
+  )
 }

@@ -18,7 +18,7 @@ export type MediaFile = string
 
 /** 一篇文章的摘要数据（构建期生成，随数据加载器下发到客户端）。 */
 export interface PostSummary {
-  /** 站点内绝对路径，如 `/posts/hello-world/`。 */
+  /** 站点内绝对路径，如 `/zh-cn/202610/1901/你好，世界/`。 */
   url: string
   /** 展示标题。 */
   title: string
@@ -47,8 +47,8 @@ export interface PostSummary {
   /**
    * 跨语言配对键（同一篇文章各语言版本共享；详见 `support/translation.ts`）。
    *
-   * 来自 frontmatter 的显式声明，或由 `posts/YYYY/MM/DD/NN/` 目录编号推导。
-   * 没有稳定键的页面（about 等）为 `null`，语言切换对它们退回路径匹配。
+   * 来自 frontmatter 的显式声明，或由 `<YYYYMM>/<DDNN>/` 目录编号推导。
+   * 没有稳定键的页面（`pages/about` 等）为 `null`，语言切换对它们退回路径匹配。
    */
   translationKey: string | null
 }

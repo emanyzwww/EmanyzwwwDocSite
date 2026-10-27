@@ -138,7 +138,16 @@ function renderImage(token: TokenLike, env: unknown, self: RendererLike, md: Mar
   const title = token.attrGet('title')
   const meta = (token.meta ?? {}) as ImageMeta
 
-  const mdPath = (env as { path?: string } | undefined)?.path
+  /*
+   * 取 markdown 的**真实源文件**路径，而不是 route 路径。
+   *
+   * 文章页面经过 `rewrites` 之后，`env.path` 是带 slug 的 route 路径
+   * （`zh-cn/202610/1901/你好，世界/index.md`），磁盘上并不存在这个文件；
+   * 而配图 `./banner.png` 永远放在源文件旁边（`zh-cn/202610/1901/`）。
+   * VitePress 为此提供了 `env.realPath`（源文件），有就优先用它。
+   */
+  const envRecord = env as { path?: string; realPath?: string } | undefined
+  const mdPath = envRecord?.realPath || envRecord?.path
   const sourcePath = mdPath ? resolveSource(mdPath, src) : null
 
   // 外链 / data URI / 无源路径：不归我们管

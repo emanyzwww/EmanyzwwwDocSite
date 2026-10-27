@@ -28,19 +28,24 @@
 理解这条链路，绝大多数「该改哪儿」的问题就不用查文档了。
 
 ```text
-docs/{zh-cn,en}/**/*.md          ← 内容按语言分目录，URL 前缀即目录名
+docs/{zh-cn,en}/                 ← 内容按语言分目录，URL 前缀即目录名
+├─ <YYYYMM>/<DDNN>/index.md      ← 文章：目录只表达「年月 / 日+序号」
+└─ pages/**/index.md             ← 非文章页面（about / 文章列表 / 标签）
     │
     │  ① support/content.ts 扫描全部 .md，解析 frontmatter
-    │     算出：url / 标题 / 摘要 / 字数 / 标签 / 日期文本 / 语言
+    │     support/article-path.ts 认出文章身份、support/slug.ts 算 URL 段
+    │     算出：url / 标题 / 摘要 / 字数 / 标签 / 日期文本 / 语言 / 配对键
     ▼
 data/posts.data.ts  ──►  PostSummary[]  ──►  序列化成 JSON 内联进客户端
     │
-    │  ② 同时：docs/<locale>/{tags,posts}/**/index.paths.ts 用同一份数据
+    │  ② 同时：docs/<locale>/pages/{tags,posts}/**/index.paths.ts 用同一份数据
     │     生成动态路由（每个标签一页、每个分页一页）
     ▼
 config.ts
-    │  ③ 给每页补 title/description（transformPageData）
-    │     补 canonical / OG / RSS（transformHead）
+    │  ③ rewrites：<locale>/<YYYYMM>/<DDNN>/index.md
+    │     → <locale>/<YYYYMM>/<DDNN>/<slug>/index.md（URL 的 slug 段）
+    │     transformPageData 补 title/description
+    │     transformHead 补 canonical / OG / RSS
     │
     │  ③.5 图片管线（support/media/，Vite 插件）
     │     buildStart 预扫全部 .md 的图片引用 → sha256 → sharp 转多档 webp
@@ -89,6 +94,9 @@ Vue 组件  ──►  HTML（图片已是 <figure>，点击由 useImageViewer �
 │
 ├─ support/               构建期 Node 工具（不能在浏览器里跑）
 │  ├─ content.ts          ★ 扫描/解析 Markdown，文章的唯一定义处
+│  ├─ article-path.ts     ★ 文章路径身份（`<YYYYMM>/<DDNN>`）与 route 拼接
+│  ├─ slug.ts             ★ slug 规则（含中文保留原字 / 纯拉丁 kebab-case）
+│  ├─ translation.ts      跨语言配对（显式 translationKey > `<YYYYMM>/<DDNN>`）
 │  ├─ format.ts           日期/字数/截断（纯函数，两端通用）
 │  ├─ markdown/           ★ Markdown 装配点（见「块级指令」专节）
 │  │  ├─ index.ts         applySiteMarkdown()：页面正文与非页面共用同一套插件
@@ -129,9 +137,16 @@ Vue 组件  ──►  HTML（图片已是 <figure>，点击由 useImageViewer �
 docs/                      ← 只有内容
 ├─ zh-cn/                 中文站（URL `/zh-cn/`）
 │  ├─ index.md            首页（layout: home）
-│  ├─ about/index.md
-│  ├─ posts/              文章（含 page/[page]/ 分页动态路由）
-│  └─ tags/               标签总览 + [tag]/ 动态路由
+│  ├─ _drafts/            草稿（不参与构建，可选）
+│  ├─ 202610/             年月目录（YYYYMM）
+│  │  ├─ 1901/index.md    19 日第 01 篇（配图与 index.md 同目录）
+│  │  └─ 2601/index.md    26 日第 01 篇
+│  └─ pages/              非文章页面
+│     ├─ about/index.md            → /zh-cn/pages/about/
+│     ├─ posts/index.md            → /zh-cn/pages/posts/（列表第 1 页）
+│     ├─ posts/page/[page]/        分页动态路由（第 2 页起）
+│     ├─ tags/index.md             → /zh-cn/pages/tags/（标签总览）
+│     └─ tags/[tag]/               标签详情动态路由
 └─ en/                    英文站（URL `/en/`），结构完全对应
 
 scripts/                   ← 命令行脚本（内容侧工具，不参与构建）
@@ -147,8 +162,8 @@ scripts/                   ← 命令行脚本（内容侧工具，不参与构�
    ├─ site.ts             仓库路径、语言表、时区（从 .vitepress 再导出）
    ├─ dates.ts            北京时间的日期换算与 ISO 序列化
    ├─ frontmatter.ts      frontmatter 的解析与序列化（保持仓库写作风格）
-   ├─ posts.ts            文章路径解析与收集
-   ├─ create.ts           建目录、分配序号、生成 slug
+   ├─ posts.ts            文章路径解析与收集（`<YYYYMM>/<DDNN>/`）
+   ├─ create.ts           建目录、分配序号、写 frontmatter（含自动推导的 slug）
    ├─ args.ts             命令行参数解析
    └─ ui.ts               颜色、按显示宽度对齐、表格
 
@@ -166,6 +181,34 @@ public/                    ← 原样拷贝：favicon、根路径语言跳转页
 > `docs/public`。因此配置里用**绝对路径**指向仓库根的 `public/`
 > （`fileURLToPath(new URL('../public', import.meta.url))`），
 > 否则 favicon 与根路径跳转页都不会进产物。
+
+### 文章身份：`article-path.ts` + `slug.ts` + `rewrites`
+
+重构后「一篇文章」横跨三处，动其中一处时必须同时想到另两处：
+
+| 位置                                              | 负责什么                                                                             | 改什么会牵动它                  |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------- |
+| `docs/<lang>/<YYYYMM>/<DDNN>/index.md`            | 文章源文件的唯一形态（`202610/1901` = 2026 年 10 月 19 日第 01 篇）                  | 新增 / 删除文章、改日期目录     |
+| frontmatter 的 `slug` → `config.ts` 的 `rewrites` | URL 的标题段，拼成 `/<lang>/<YYYYMM>/<DDNN>/<slug>/`，映射在构建期生成               | 新增文章、改 slug 后 dev 需重启 |
+| `support/article-path.ts` + `support/slug.ts`     | 路径身份与 slug 规则的**唯一实现**，`content.ts` / `config.ts` / `scripts/` 都复用它 | 改命名规则、加语言              |
+
+1. **文章源文件**：`docs/<lang>/<YYYYMM>/<DDNN>/index.md`。目录里**没有标题**，标题只在
+   frontmatter 的 `title`；目录名只表达「哪个月、哪天、当天第几篇」。
+2. **URL 的 slug 段**：来自 frontmatter `slug`（省略时由 `title` 推导），由 `config.ts`
+   的 `rewrites` 在构建期映射成真实路由。因此新增文章或改 `slug` 后，运行中的
+   `pnpm dev` 不会自己发现——需要重启；`pnpm build` 每次都重新映射，不受影响。
+3. **唯一实现**：`support/article-path.ts`（解析目录身份、拼出 route 路径）与
+   `support/slug.ts`（由标题推导 slug、判断 slug 是否可用）是唯一实现。`support/content.ts`
+   （站点数据）、`config.ts`（rewrites / hreflang）与 `scripts/lib/*`（命令行）都调用它，
+   不要再各写一份正则。
+
+两个文件的分工：`article-path.ts` 只回答「这篇文章在磁盘上的身份是什么」，
+`slug.ts` 只回答「URL 的标题段是什么」；「相对路径 → 站内 URL」的通用换算仍在
+`support/urls.ts`。
+
+> **历史说明**：本次重构把文章目录从 `docs/<lang>/posts/YYYY/MM/DD/NN/<slug>/` 改为
+> `docs/<lang>/<YYYYMM>/<DDNN>/`，并把 about / 文章列表 / 标签页移入 `pages/`。
+> 旧 URL 不再兼容（本次重构不生成跳转页）。
 
 ### 三类 `support/` 与 `lib/` 的区别（容易混）
 
@@ -254,15 +297,15 @@ dev 阶段由 `.vitepress/support/dev-redirect.ts` 用 `Accept-Language` 做同�
 export const NAV = {
   'zh-cn': [
     { text: '首页', link: '/zh-cn/' },
-    { text: '文章', link: '/zh-cn/posts/' },
-    { text: '标签', link: '/zh-cn/tags/' },
-    { text: '关于', link: '/zh-cn/about/' },
+    { text: '文章', link: '/zh-cn/pages/posts/' },
+    { text: '标签', link: '/zh-cn/pages/tags/' },
+    { text: '关于', link: '/zh-cn/pages/about/' },
   ],
   en: [/* 英文版 */],
 }
 ```
 
-- `link` 用**目录式路径**（`/zh-cn/posts/`），不要写 `.html`，不要写相对路径
+- `link` 用**目录式路径**（`/zh-cn/pages/posts/`），不要写 `.html`，不要写相对路径
 - 两种语言的 link 都必须带各自的语言前缀，与 `docs/<locale>/` 目录一一对应
 - 高亮自动判断：当前路径等于该项或以该项为前缀
 - 首页特殊处理：只做精确匹配，否则所有页面都会点亮首页
@@ -285,18 +328,19 @@ export const PROFILE: Profile = {
 
 ### `config.ts` —— 构建行为
 
-| 想改           | 位置                                                                             |
-| -------------- | -------------------------------------------------------------------------------- |
-| 代码高亮主题   | `markdown.theme`（当前 `github-dark-default`）                                   |
-| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`，可加 4）                                |
-| 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）                                           |
-| 锚点跳转偏移   | `scrollOffset`（当前 80；仅影响跨页 hash 定位，页内滚动读 `scroll-padding-top`） |
-| 站点地图域名   | `SITEMAP_HOSTNAME`（自动 = 站点 origin + `VP_BASE`）                             |
-| 页头 meta      | `head` 数组                                                                      |
-| 页面标题怎么拼 | `transformPageData`                                                              |
-| OG / RSS 标签  | `transformHead`                                                                  |
-| RSS 生成逻辑   | `buildEnd` → `support/rss.ts`                                                    |
-| robots.txt     | `buildEnd` → `support/robots.ts`                                                 |
+| 想改           | 位置                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| 代码高亮主题   | `markdown.theme`（当前 `github-dark-default`）                                              |
+| 目录收几级标题 | `markdown.headers.level`（当前 `[2, 3]`，可加 4）                                           |
+| 草稿目录       | `srcExclude`（当前含 `**/_drafts/**`）                                                      |
+| 文章 URL 映射  | `rewrites`（`<YYYYMM>/<DDNN>/index.md` → 带 slug 的 route，复用 `support/article-path.ts`） |
+| 锚点跳转偏移   | `scrollOffset`（当前 80；仅影响跨页 hash 定位，页内滚动读 `scroll-padding-top`）            |
+| 站点地图域名   | `SITEMAP_HOSTNAME`（自动 = 站点 origin + `VP_BASE`）                                        |
+| 页头 meta      | `head` 数组                                                                                 |
+| 页面标题怎么拼 | `transformPageData`                                                                         |
+| OG / RSS 标签  | `transformHead`                                                                             |
+| RSS 生成逻辑   | `buildEnd` → `support/rss.ts`                                                               |
+| robots.txt     | `buildEnd` → `support/robots.ts`                                                            |
 
 ### 部署路径
 
@@ -310,7 +354,7 @@ const SITE_URL = process.env.VP_SITE_URL ?? SITE.url // 绝对地址
 CI 会自动算好这两个值传给构建（见 `.github/workflows/deploy.yml`）。本地不用管。
 
 **坑：sitemap 的 `hostname` 必须包含 `BASE`。** VitePress 用
-`new URL(page.url, hostname)` 拼绝对地址，而 `page.url` 是 `about/` 这类相对路径；
+`new URL(page.url, hostname)` 拼绝对地址，而 `page.url` 是 `zh-cn/pages/about/` 这类相对路径；
 若 `hostname` 只有 origin，`/repo/` 会被 URL 解析吃掉，项目站点的 sitemap 会全部
 指向域名根。`SITEMAP_HOSTNAME` 就是为此存在的，`robots.txt` 也复用它。
 
@@ -1240,11 +1284,11 @@ export function usePopularPosts(limit = 5) {
 **`useLocaleSwitch` 的目标地址按四级推导**（详见 `support/translation.ts` 注释）：
 
 1. **文章配对**：当前页是文章时，按配对键直达另一语言的同一篇。
-   配对键来自 frontmatter 的 `translationKey`，或由 `posts/YYYY/MM/DD/NN/`
-   目录编号推导——两语言 slug 本地化后路径不同名，纯路径匹配必然失配，
-   这是「中文文章目录改中文名后语言切换退回列表页」那个 bug 的修复；
-2. 完全同名的页面（about 等非文章页）；
-3. 同栏目索引（`/en/posts/`）；
+   配对键来自 frontmatter 的 `translationKey`，或由 `<YYYYMM>/<DDNN>` 目录推导
+   （`support/article-path.ts` 的 `key`）——两语言 slug 本地化后 URL 不同名，
+   纯路径匹配必然失配，这是「中文文章用中文 slug 后语言切换退回列表页」那个 bug 的修复；
+2. 完全同名的页面（`pages/about` 等非文章页）；
+3. 文章列表页（`/en/pages/posts/`）；
 4. 语言首页。
 
 数据源是 `posts.data.ts`（构建期已为每篇文章算好 `translationKey`）
@@ -1305,7 +1349,7 @@ return {
 
 ### 标签页是怎么来的
 
-`docs/zh-cn/tags/[tag]/index.md` 是模板，`index.paths.ts`（构建期跑）生成具体路由：
+`docs/zh-cn/pages/tags/[tag]/index.md` 是模板，`index.paths.ts`（构建期跑）生成具体路由：
 
 ```ts
 export default {
@@ -1316,25 +1360,25 @@ export default {
     for (const post of readPosts('zh-cn')) {
       for (const tag of post.tags) slugs.add(tag.slug)
     }
-    return [...slugs].sort().map((tag) => ({ params: { tag } }))
+    return [...slugs].toSorted().map((tag) => ({ params: { tag } }))
   },
 }
 ```
 
 所以：**文章加了新标签 → 自动出现标签页**，不需要写文件。
 
-同理，`docs/zh-cn/posts/page/[page]/index.paths.ts` 生成分页路由（第 2 页起）。
+同理，`docs/zh-cn/pages/posts/page/[page]/index.paths.ts` 生成分页路由（第 2 页起）。
 
 > 注意：VitePress 1.6.4 **没有** `defineRoutes` 辅助函数（2.x 才有），
 > 所以这里是裸 `export default`，别写成 `defineRoutes({...})`。
 
 ### 标签 URL 转英文
 
-默认标签名即 URL（`/zh-cn/tags/随笔/`）。想变英文，改 `data/taxonomy.ts`：
+默认标签名即 URL（`/zh-cn/pages/tags/随笔/`）。想变英文，改 `data/taxonomy.ts`：
 
 ```ts
 export const TAG_SLUGS: Record<string, string> = {
-  随笔: 'essay', // /zh-cn/tags/随笔/ → /zh-cn/tags/essay/
+  随笔: 'essay', // /zh-cn/pages/tags/随笔/ → /zh-cn/pages/tags/essay/
   工具: 'tools',
 }
 
@@ -1347,7 +1391,7 @@ export const TAG_LABELS: Record<string, string> = {
 
 ### 分页
 
-第 1 页是 `/zh-cn/posts/`，第 2 页起是 `/zh-cn/posts/page/N/`。
+第 1 页是 `/zh-cn/pages/posts/`，第 2 页起是 `/zh-cn/pages/posts/page/N/`。
 
 - 每页几篇：`site.ts` 的 `postsPerPage`
 - 分页计算：`theme/support/pagination.ts`（纯函数）
@@ -1378,12 +1422,13 @@ pnpm check  →  tsx scripts/run.ts check
 
 这是本次重构的核心判断：脚本与站点**一定**有重合部分，重合的就是「事实来源」。
 
-| 事实                  | 唯一来源                         | 谁在用                      |
-| --------------------- | -------------------------------- | --------------------------- |
-| 有哪些语言            | `.vitepress/data/site.ts`        | 构建期、主题、**命令行**    |
-| 站点时区              | `.vitepress/data/site.ts`        | RSS、日期格式化、**命令行** |
-| 文章 frontmatter 字段 | `.vitepress/data/frontmatter.ts` | 内容管线、**命令行**        |
-| 什么算一篇文章        | `.vitepress/support/content.ts`  | 列表/标签/RSS、**命令行**   |
+| 事实                  | 唯一来源                                         | 谁在用                      |
+| --------------------- | ------------------------------------------------ | --------------------------- |
+| 有哪些语言            | `.vitepress/data/site.ts`                        | 构建期、主题、**命令行**    |
+| 站点时区              | `.vitepress/data/site.ts`                        | RSS、日期格式化、**命令行** |
+| 文章 frontmatter 字段 | `.vitepress/data/frontmatter.ts`                 | 内容管线、**命令行**        |
+| 什么算一篇文章        | `.vitepress/support/content.ts`                  | 列表/标签/RSS、**命令行**   |
+| 文章目录身份与 slug   | `.vitepress/support/article-path.ts` / `slug.ts` | 构建期路由、**命令行**      |
 
 因此 `scripts/lib/` **不复制**这些定义，只做再导出。加一门语言或加一个
 frontmatter 字段时，改一处，构建与命令一起跟上。
@@ -1426,18 +1471,20 @@ npx tsx scripts/run.ts clean --help
 **`pnpm new` 的日期与序号**
 
 ```text
-docs/<lang>/posts/YYYY/MM/DD/NN/<slug>/index.md
-                   ↑ 北京时间的今天   ↑ 当天的第几篇
+docs/<lang>/<YYYYMM>/<DDNN>/index.md
+                 ↑ 年+月    ↑ 两位日 + 当日序号（北京时间的今天）
 ```
 
 - 日期取**站点时区**（`Asia/Shanghai`），不是运行机器的本地时区，
   否则 CI（UTC）与本地可能差一天；
 - 序号扫**目录名**得出（不是扫 frontmatter），`01`、`02`…自动递增，
   中间有空号时优先补空号；满 `99` 直接报错而不是变成三位；
-- frontmatter 的**全部字段**一次写全（`title` / `date` / `tags` /
+- frontmatter 的**全部字段**一次写全（`title` / `slug` / `date` / `tags` /
   `description` / `draft` / `outline`），字段表来自 `data/frontmatter.ts`；
+  其中 `slug` 由标题按 `support/slug.ts` 推导后**显式写入**；
 - `date` 写成带显式偏移的完整 ISO 串（`2026-10-24T22:49:28+08:00`），
-  不用裸日期——裸日期会被不同构建机按不同时区解读。
+  不用裸日期——裸日期会被不同构建机按不同时区解读；
+- 也支持 `--date YYYYMMDD`、`-n/--sequence NN`、`-s/--slug`、`--dry-run`。
 
 只想看看会生成什么、不落盘：
 
@@ -1448,10 +1495,18 @@ pnpm new -t="标题" --dry-run
 **`pnpm check` / `pnpm fix` 的边界**
 
 `check` 只报告、不改文件，分两级：`error`（会坏内容/构建）与 `warn`（不合规范）。
-有 `error` 时退出码为 1，可直接接进 CI；只有 `warn` 时为 0。
+有 `error` 时退出码为 1，可直接接进 CI；只有 `warn` 时为 0。检查项包括：
 
-`fix` 只做**安全**的修改：重排字段顺序、补齐可选字段、把裸日期补成带时区的格式、
-规范化标签。它**不改**标题、正文、目录名，也不删废弃字段——那些改错了没有撤销按钮。
+- 文章目录必须是 `<YYYYMM>/<DDNN>/index.md`；
+- 目录里的日期必须与 frontmatter 的 `date` 同一天；
+- `slug` 缺失或不可用（含空格、`/`、`?`、`#` 等）——都属于 warn，`fix` 只补缺失的；
+- 有 `date` 却不在文章目录里（一次汇总提示，不会进文章列表）；
+- frontmatter 字段缺失、顺序不对；
+- 正文里出现 H1（标题只由 `title` 生成）。
+
+`fix` 只做**安全**的修改：重排字段顺序、补齐可选字段（含按 `title` 推导并补上 `slug`）、
+把裸日期补成带时区格式、规范化标签。它**不会重命名/移动目录**，也不改标题与正文，
+更不删废弃字段——那些改错了没有撤销按钮。
 
 `fix` 的行为有两条硬约束，都是踩过坑之后加的：
 
@@ -1463,11 +1518,17 @@ pnpm new -t="标题" --dry-run
    仓库又没有 `.gitattributes`，所以工作区里的 Markdown 是 CRLF、
    仓库里存的是 LF；固定用 LF 拼接会把整篇正文标记成改动。
 
+**`pnpm posts` 的日期过滤**
+
+`pnpm posts 20261024` 按目录日期匹配（`202610` + `24`），而不是按 slug；
+`-l` / `--tags` / `--draft` 语义不变。`pnpm stats` / `pnpm tags` 的统计口径也不变。
+
 **加一个动态路由**
 
-比如「按年份归档」`/zh-cn/archive/2026/`：
+比如「按年份归档」`/zh-cn/pages/archive/2026/`。按新约定，非文章页面统一放 `pages/` 下，
+与文章的 `<YYYYMM>/<DDNN>/` 路径明确分开：
 
-**① 建模板** `docs/zh-cn/archive/[year]/index.md`：
+**① 建模板** `docs/zh-cn/pages/archive/[year]/index.md`：
 
 ```markdown
 ---
@@ -1476,10 +1537,10 @@ title: 归档
 ---
 ```
 
-**② 建生成器** `docs/zh-cn/archive/[year]/index.paths.ts`：
+**② 建生成器** `docs/zh-cn/pages/archive/[year]/index.paths.ts`：
 
 ```ts
-import { readPosts } from '../../../../.vitepress/support/content'
+import { readPosts } from '../../../../../.vitepress/support/content'
 
 export default {
   watch: ['../../../**/*.md'],
@@ -1503,7 +1564,7 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 **注意**：`index.paths.ts` 里引用 `.vitepress` 下的代码要用相对路径，
 因为它在 `docs/<locale>/` 内容目录里、不在 `.vitepress` 下。
 **`.vitepress` 提到仓库根之后，所有这类相对路径的层级都要比原来多一层**
-（例如 `docs/zh-cn/tags/[tag]/` 下是 `../../../../.vitepress/...`）。
+（例如 `docs/zh-cn/pages/tags/[tag]/` 下是 `../../../../../.vitepress/...`）。
 新增动态路由时数一下目录深度，别照抄旧文档。
 
 ---
@@ -1572,14 +1633,15 @@ const posts = computed(() => allPosts.filter((p) => p.year === year.value))
 
 命令之间**不要各自重写**下面这些，它们是共享内核：
 
-| 需求               | 从哪来                           |
-| ------------------ | -------------------------------- |
-| 语言校验           | `scripts/lib/site.ts`            |
-| 北京时间的日期换算 | `scripts/lib/dates.ts`           |
-| frontmatter 字段表 | `.vitepress/data/frontmatter.ts` |
-| frontmatter 读写   | `scripts/lib/frontmatter.ts`     |
-| 参数解析           | `scripts/lib/args.ts`            |
-| 颜色 / 对齐 / 表格 | `scripts/lib/ui.ts`              |
+| 需求               | 从哪来                                           |
+| ------------------ | ------------------------------------------------ |
+| 语言校验           | `scripts/lib/site.ts`                            |
+| 北京时间的日期换算 | `scripts/lib/dates.ts`                           |
+| frontmatter 字段表 | `.vitepress/data/frontmatter.ts`                 |
+| frontmatter 读写   | `scripts/lib/frontmatter.ts`                     |
+| 文章路径 / slug    | `.vitepress/support/article-path.ts` / `slug.ts` |
+| 参数解析           | `scripts/lib/args.ts`                            |
+| 颜色 / 对齐 / 表格 | `scripts/lib/ui.ts`                              |
 
 ```json
 {
@@ -1680,7 +1742,9 @@ pnpm build         # 构建（也会暴露类型问题）
 | --------------------------- | ------------------------------------------------------------------------------------------------ |
 | `urls.test.ts`              | 相对路径 → URL、中文编码、与 `decodePath` 互逆                                                   |
 | `paths.test.ts`             | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性                                       |
-| `translation.test.ts`       | 跨语言配对键推导（显式 > 目录编号）、配对索引与回退                                              |
+| `article-path.test.ts`      | 文章路径解析（`<YYYYMM>/<DDNN>`）、配对键、route 与 URL 拼接                                     |
+| `slug.test.ts`              | slug 推导（中文保留原字 / 纯拉丁 kebab-case）、可用性判断、`slugOf` 回退                         |
+| `translation.test.ts`       | 跨语言配对键推导（显式 `translationKey` > `<YYYYMM>/<DDNN>` 目录）、配对索引与回退               |
 | `pagination.test.ts`        | 分页边界（空列表、越界、非法 perPage）                                                           |
 | `format.test.ts`            | 日期格式化、RFC 822、字数统计、纯文本化                                                          |
 | `dev-redirect.test.ts`      | `Accept-Language` 解析                                                                           |
@@ -1731,9 +1795,10 @@ MobileDock），`header-anchor` 由 `theme/index.ts` 在 `onContentUpdated`
 时补打（`markHeaderAnchorsRaw`）。新增目录类 UI 时记得同样打 `vp-raw`。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在
-`.vitepress/support/urls.ts`、`.vitepress/support/locale-paths.ts`
-与 `.vitepress/support/translation.ts`，
-**不 import `vitepress`**；需要 `withBase` 的包装留在 `theme/support/paths.ts`。
+`.vitepress/support/urls.ts`、`.vitepress/support/locale-paths.ts`、
+`.vitepress/support/translation.ts`、`.vitepress/support/article-path.ts`
+与 `.vitepress/support/slug.ts`，**不 import `vitepress`**；需要 `withBase` 的包装留在
+`theme/support/paths.ts`。
 
 图片管线同理：`media/planner.ts` 与 `media/probe.ts` 是纯函数、可直接加载；
 `media/registry.ts` 会读磁盘，`media/transcode.ts` 才 import sharp ——
@@ -1871,22 +1936,23 @@ Markdown 用 120 字符宽、`proseWrap: preserve`（不重排段落）。
 
 几个「当时为什么这么做」的记录，避免以后推翻重来。
 
-| 决策                                          | 理由                                                                                                                                                  |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 完全自定义主题，不 extends 默认主题           | 默认主题 DOM 与样式高度耦合，还原三栏 + 卡片侧栏要大量覆盖，反而更难维护                                                                              |
-| 目录式 URL（`cleanUrls: false`）              | 不依赖服务器把 `/x` 映射到 `/x.html`，任何静态托管都能跑                                                                                              |
-| Shiki 单主题 `github-dark-default`            | 原站代码块在明暗两套下都是深色；单主题省掉双主题 CSS 变量切换。用 `-default` 变体是因为旧 `github-dark` 的注释色在 `--bg-code` 上只有 3.96:1，低于 AA |
-| 字数在构建期计算                              | 汉字按字、拉丁按词；客户端零成本                                                                                                                      |
-| 日期固定 `Asia/Shanghai`                      | 避免构建机时区不同导致跨日                                                                                                                            |
-| 数据加载器返回摘要数组，标签/统计在客户端派生 | 文章量小，一份数组足够；避免多份索引不一致                                                                                                            |
-| `LocaleCode` 用联合类型                       | 改语言集合时，TS 会指出所有需要适配的位置                                                                                                             |
-| 标签页用动态路由 + `paths()`                  | 新增标签无需手写文件，是静态博客最容易腐化的地方                                                                                                      |
-| 侧栏用注册表而非约定式                        | 名字拼错在构建期报错，而不是悄悄少渲染                                                                                                                |
-| `.vitepress` 放仓库根                         | 配置/主题与内容分离；`srcDir`/`outDir`/`cacheDir` 显式声明即可                                                                                        |
-| 中文也带 `/zh-cn/` 前缀                       | 与 `docs/zh-cn/` 一一对应，两种语言完全对称，无隐式映射                                                                                               |
-| 根路径只做语言分发                            | 浏览器语言优先、手动选择记忆；比在根目录塞一份重复首页更干净                                                                                          |
-| 高亮/任务列表自写插件，不装现成包             | 两个包都无类型、`task-lists` 停更于 2018；自写零依赖，DOM 可控（详见 `support/markdown-plugins.ts` 顶部注释）                                         |
-| 占位图放 `public/`                            | 外链（`via.placeholder.com`）在部分网络下加载失败，表现为"图片语法坏了"                                                                               |
+| 决策                                                | 理由                                                                                                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 完全自定义主题，不 extends 默认主题                 | 默认主题 DOM 与样式高度耦合，还原三栏 + 卡片侧栏要大量覆盖，反而更难维护                                                                              |
+| 目录式 URL（`cleanUrls: false`）                    | 不依赖服务器把 `/x` 映射到 `/x.html`，任何静态托管都能跑                                                                                              |
+| 文章目录用 `<YYYYMM>/<DDNN>/`，标题只存 frontmatter | 目录名是机器身份（排序 / 跨语言配对 / 和 `date` 对账），URL 的标题段交给 `slug`；改标题不再牵动文件路径，也不用绕 Windows 文件名限制                  |
+| Shiki 单主题 `github-dark-default`                  | 原站代码块在明暗两套下都是深色；单主题省掉双主题 CSS 变量切换。用 `-default` 变体是因为旧 `github-dark` 的注释色在 `--bg-code` 上只有 3.96:1，低于 AA |
+| 字数在构建期计算                                    | 汉字按字、拉丁按词；客户端零成本                                                                                                                      |
+| 日期固定 `Asia/Shanghai`                            | 避免构建机时区不同导致跨日                                                                                                                            |
+| 数据加载器返回摘要数组，标签/统计在客户端派生       | 文章量小，一份数组足够；避免多份索引不一致                                                                                                            |
+| `LocaleCode` 用联合类型                             | 改语言集合时，TS 会指出所有需要适配的位置                                                                                                             |
+| 标签页用动态路由 + `paths()`                        | 新增标签无需手写文件，是静态博客最容易腐化的地方                                                                                                      |
+| 侧栏用注册表而非约定式                              | 名字拼错在构建期报错，而不是悄悄少渲染                                                                                                                |
+| `.vitepress` 放仓库根                               | 配置/主题与内容分离；`srcDir`/`outDir`/`cacheDir` 显式声明即可                                                                                        |
+| 中文也带 `/zh-cn/` 前缀                             | 与 `docs/zh-cn/` 一一对应，两种语言完全对称，无隐式映射                                                                                               |
+| 根路径只做语言分发                                  | 浏览器语言优先、手动选择记忆；比在根目录塞一份重复首页更干净                                                                                          |
+| 高亮/任务列表自写插件，不装现成包                   | 两个包都无类型、`task-lists` 停更于 2018；自写零依赖，DOM 可控（详见 `support/markdown-plugins.ts` 顶部注释）                                         |
+| 占位图放 `public/`                                  | 外链（`via.placeholder.com`）在部分网络下加载失败，表现为"图片语法坏了"                                                                               |
 
 ---
 

@@ -6,12 +6,16 @@
  * 检查项分成两级：
  * - **error**：会让内容出错或无法构建（缺 `title`、`date` 不可解析、标签不是数组）
  * - **warn**：能构建但不合规范（字段顺序乱、日期没带时区、目录日期与 frontmatter 不一致、
- *   用了废弃字段、slug 有空格或方括号）
+ *   用了废弃字段、slug 缺失或不可用、带 date 却不在文章目录）
+ *
+ * 文章位置是严格判定的：只有 `<lang>/<YYYYMM>/<DDNN>/index.md` 算文章，
+ * 因此「旧布局残留 / 放错位置」不再逐个当文章检查，而是单独提示一次。
  *
  * 退出码：有 error 时为 1（可直接接进 CI 门禁），只有 warn 时为 0。
  */
 
 import { REQUIRED_FRONTMATTER_KEYS } from '../.vitepress/data/frontmatter'
+import { isUsableSlug } from '../.vitepress/support/slug'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
 import { isoDateInZone } from './lib/dates'
 import {
@@ -21,7 +25,7 @@ import {
   rawScalarValue,
   typeOfValue,
 } from './lib/frontmatter'
-import { collectPostFiles, postDate } from './lib/posts'
+import { collectMisplacedDatedFiles, collectPostFiles, postDate } from './lib/posts'
 import type { PostFile } from './lib/posts'
 import { parseLocale, SITE_TIME_ZONE } from './lib/site'
 import { blank, c, helpLines, info, success } from './lib/ui'
@@ -198,15 +202,15 @@ function checkPost(post: PostFile, findings: Finding[]): void {
     findings.push({
       level: 'warn',
       file,
-      message: `目录不符合 年/月/日/序号/标题 约定：${post.path.deviation ?? ''}`,
+      message: `目录不符合 <YYYYMM>/<DDNN>/index.md 约定：${post.path.deviation ?? ''}`,
     })
   }
 
   // ---------- 目录日期 vs frontmatter 日期 ----------
-  if (post.path.compliant && postDate(post)) {
+  if (post.path.compliant && date) {
     // 用站点时区的日期比较，不能用 UTC（见 lib/dates.ts 的 isoDateInZone）
-    const dirDate = `${post.path.year}${post.path.month}${post.path.day}`
-    const frontDate = isoDateInZone(postDate(post)!, SITE_TIME_ZONE).replace(/-/g, '')
+    const dirDate = post.path.dateKey
+    const frontDate = isoDateInZone(date, SITE_TIME_ZONE).replace(/-/g, '')
     if (dirDate !== frontDate) {
       findings.push({
         level: 'warn',
@@ -216,18 +220,26 @@ function checkPost(post: PostFile, findings: Finding[]): void {
     }
   }
 
-  // ---------- slug 规范 ----------
-  if (post.path.slug) {
-    if (/\s/.test(post.path.slug)) {
-      findings.push({ level: 'warn', file, message: `目录名含空格：${post.path.slug}` })
-    }
-    if (/[[\]]/.test(post.path.slug)) {
-      findings.push({
-        level: 'warn',
-        file,
-        message: `目录名含方括号（会被当成动态路由）：${post.path.slug}`,
-      })
-    }
+  // ---------- slug ----------
+  /*
+   * slug 现在是**纯 frontmatter 字段**（URL 段落），不再与目录名有关。
+   * 缺失时构建期会按 title 推导，`fix` 也能补；显式写了但不可用（空格、
+   * 斜杠、方括号…）则必须提示——它最终会进 URL，坏字符会让链接对不上。
+   */
+  if (data.slug === undefined) {
+    findings.push({ level: 'warn', file, message: '未写 slug（pnpm fix 可自动按 title 补齐）' })
+  } else if (typeof data.slug !== 'string') {
+    findings.push({
+      level: 'warn',
+      file,
+      message: `slug 应为字符串，实际是 ${typeOfValue(data.slug)}`,
+    })
+  } else if (!isUsableSlug(data.slug)) {
+    findings.push({
+      level: 'warn',
+      file,
+      message: `slug 不可用：${data.slug}（不能含空格、斜杠、方括号等会破坏 URL 的字符）`,
+    })
   }
 
   // ---------- 正文 ----------
@@ -298,9 +310,23 @@ export default function main(argv: string[]): void {
   const strict = hasOption(args, 'strict')
 
   const posts = collectPostFiles(locale, { includeUndated: hasOption(args, 'all') })
+  const misplaced = collectMisplacedDatedFiles(locale)
   const findings: Finding[] = []
 
   for (const post of posts) checkPost(post, findings)
+
+  /*
+   * 「有 date 但不在文章目录」单独提示：它不会被当成文章（也不该被当成文章
+   * 检查），但作者往往以为它已经发布了。一次汇总成一条，避免刷屏。
+   */
+  for (const { filePath } of misplaced) {
+    findings.push({
+      level: 'warn',
+      file: filePath,
+      message:
+        '有 date 但不在文章目录（不会进入文章列表）：应放到 <lang>/<YYYYMM>/<DDNN>/index.md，例如 zh-cn/202610/1901/index.md',
+    })
+  }
 
   const errors = findings.filter((finding) => finding.level === 'error')
   const warnings = findings.filter((finding) => finding.level === 'warn')
@@ -335,7 +361,11 @@ export default function main(argv: string[]): void {
   if (errors.length > 0) summaryParts.push(c.red(`${errors.length} 个错误`))
   if (warnings.length > 0) summaryParts.push(c.yellow(`${warnings.length} 个警告`))
 
-  console.log(`${c.dim('检查了')} ${posts.length} ${c.dim('篇文章：')}${summaryParts.join('，')}`)
+  const scope =
+    misplaced.length > 0
+      ? `${posts.length} 篇文章、${misplaced.length} 个位置异常文件`
+      : `${posts.length} 篇文章`
+  console.log(`${c.dim('检查了')} ${scope}${c.dim('：')}${summaryParts.join('，')}`)
 
   if (warnings.length > 0 && errors.length === 0) {
     info(c.dim('可执行 pnpm fix 自动修复能修的项'))

@@ -25,7 +25,7 @@ import type { LocaleCode } from '../types'
 export interface SearchDoc {
   /** 页面标题。 */
   title: string
-  /** 站点内路径（不含 base），如 `/zh-cn/posts/hello-world/`。 */
+  /** 站点内路径（不含 base），如 `/zh-cn/202610/1901/你好，世界/`。 */
   url: string
   /** 页面描述；没有时为空串。 */
   description: string
@@ -53,7 +53,8 @@ export default defineLoader({
   watch: ['../../docs/**/*.md'],
   async load(): Promise<Data> {
     // 动态导入：本模块只在构建期执行，避免把 Node 依赖带进客户端 bundle
-    const { readDocs, stripLocalePrefix } = await import('../support/content')
+    const { readDocs } = await import('../support/content')
+    const { isArticlePath } = await import('../support/article-path')
     const { parseDate } = await import('../support/format')
 
     const docs: SearchDoc[] = []
@@ -65,8 +66,8 @@ export default defineLoader({
       // 动态路由模板（`[tag]`、`[page]`）本身不是页面，跳过
       if (doc.filePath.includes('[')) continue
 
-      const bare = stripLocalePrefix(doc.filePath)
-      const isPost = bare.startsWith('posts/') && parseDate(doc.data.date) !== null
+      // 文章判定与 `support/content.ts` 的 `isPost()` 同源：路径形态 + 有日期
+      const isPost = isArticlePath(doc.filePath) && parseDate(doc.data.date) !== null
 
       const title =
         typeof doc.data.title === 'string' && doc.data.title.trim() ? doc.data.title : doc.filePath

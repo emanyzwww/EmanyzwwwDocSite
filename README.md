@@ -3,6 +3,9 @@
 个人站点。VitePress 1.6.4 + TypeScript，完全自定义主题（不 extends 默认主题）。
 中英双语（`/zh-cn/` + `/en/`），目录式 URL，明暗主题，站内搜索，RSS + sitemap。
 
+文章源文件固定为 `docs/<lang>/<YYYYMM>/<DDNN>/index.md`，URL 的标题段由
+frontmatter 的 `slug` 决定，例如 `/zh-cn/202610/1901/你好，世界/`。
+
 ```powershell
 pnpm install     # 首次
 pnpm dev         # 本地预览 → http://127.0.0.1:5173/
@@ -21,11 +24,11 @@ pnpm format      # 格式化（内容 + 主题代码 + 脚本）
 
 ## 三份文档
 
-| 文档                             | 讲什么                                                                       |
-| -------------------------------- | ---------------------------------------------------------------------------- |
-| [DESIGN.md](./DESIGN.md)         | **设计系统**：配色、排版、圆角、阴影、间距、无障碍对比度。视觉改动的唯一准绳 |
-| [WRITING.md](./WRITING.md)       | **写文章**：目录怎么摆、frontmatter 所有字段、图片、草稿、双语、标签、常见坑 |
-| [DEVELOPING.md](./DEVELOPING.md) | **改代码**：组件/样式/数据/路由怎么组织，加功能删功能改哪里                  |
+| 文档                             | 讲什么                                                                        |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| [DESIGN.md](./DESIGN.md)         | **设计系统**：配色、排版、圆角、阴影、间距、无障碍对比度。视觉改动的唯一准绳  |
+| [WRITING.md](./WRITING.md)       | **写文章**：目录与 slug、frontmatter 所有字段、图片、草稿、双语、标签、常见坑 |
+| [DEVELOPING.md](./DEVELOPING.md) | **改代码**：组件/样式/数据/路由怎么组织，加功能删功能改哪里                   |
 
 > 改任何视觉相关的东西之前先读 **DESIGN.md**。
 > `theme/styles/tokens.css` 只是它的实现，不是规范本身。
@@ -77,16 +80,16 @@ pnpm format      # 格式化（内容 + 主题代码 + 脚本）
 ├─ config.ts                路由 / Markdown / SEO / RSS / CSP
 ├─ data/                    站点信息、个人资料、侧栏卡片、搜索索引
 ├─ shared/                  构建期与运行期共用的纯函数（无 Node / Vue 依赖）
-├─ support/                 构建期工具（内容扫描、Markdown 装配、图片管线、RSS）
+├─ support/                 构建期工具（内容扫描、文章路径与 slug、Markdown 装配、图片管线、RSS）
 │  └─ markdown/             ★ Markdown 扩展：行内语法 + 块级指令
 └─ theme/                   运行期代码（组件、样式、文案、组合式函数、嵌入块增强）
 
 docs/                       只有内容
 ├─ zh-cn/                   中文站 → /zh-cn/
-│  ├─ index.md              首页
-│  ├─ posts/                文章（每篇一个目录）
-│  ├─ tags/                 标签总览 + 标签详情模板
-│  └─ about/                关于
+│  ├─ index.md              首页（layout: home）
+│  ├─ 202610/               文章：<YYYYMM>/<DDNN>/index.md（如 202610/1901/）
+│  ├─ _drafts/              草稿（不参与构建，可选）
+│  └─ pages/                非文章页面：about/、posts/、tags/（含动态路由）
 └─ en/                      英文站 → /en/（与 zh-cn 结构完全对应）
 
 scripts/                    内容侧命令行（不参与构建）

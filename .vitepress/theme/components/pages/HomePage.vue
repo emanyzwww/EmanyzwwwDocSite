@@ -5,7 +5,7 @@ import { computed } from 'vue'
 import { SITE } from '../../../data/site'
 import { usePosts } from '../../composables/usePosts'
 import { useI18n } from '../../i18n'
-import { href, withLocale } from '../../support/paths'
+import { href, postListPath } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 import EmptyState from '../common/EmptyState.vue'
 import TwoColumn from '../layout/TwoColumn.vue'
@@ -28,7 +28,7 @@ const { posts } = usePosts()
 const heading = computed(() => page.value.title || SITE.name)
 const recent = computed(() => posts.value.slice(0, SITE.homePostCount))
 const description = computed(() => (frontmatter.value.description as string | undefined) ?? '')
-const allPostsUrl = computed(() => href(withLocale('/posts/', locale.value)))
+const allPostsUrl = computed(() => href(postListPath(locale.value)))
 </script>
 
 <template>

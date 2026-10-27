@@ -2,18 +2,21 @@
  * `pnpm fix` —— 自动修复 `check` 报告里能安全自动处理的问题。
  *
  * 「安全」的边界（宁可少修，不可改错）：
- * - ✅ 重排 frontmatter 字段顺序
- * - ✅ 补齐缺失的**可选**字段（tags / description / draft / outline）
+ * - ✅ 重排 frontmatter 字段顺序（顺序来自 `FRONTMATTER_FIELDS`）
+ * - ✅ 补齐缺失的**可选**字段（slug / tags / description / draft / outline）
  * - ✅ 把裸日期补成带时区的完整格式
  * - ✅ 规范化标签（去空白、去空项、去重，保持原顺序）
- * - ❌ 不改标题、不改正文、不改目录名、不删废弃字段
+ * - ❌ 不改标题、不改正文、不改已有的 slug、不删废弃字段
+ * - ❌ 不移动/重命名任何目录（URL 由 slug 决定，改 slug 是内容决策）
  *
- * 标题与正文是创作内容，目录名会影响 URL；这些改错了没有撤销按钮。
- * 废弃字段与未知字段同理——留给作者判断。
+ * 标题与正文是创作内容；已写好的 slug 会进 URL，改它等于让旧链接失效。
+ * 因此这里只在 slug **缺失**时按标题补一个，绝不覆盖作者的选择。
  */
 
 import { writeFileSync } from 'node:fs'
 
+import { FRONTMATTER_KEYS } from '../.vitepress/data/frontmatter'
+import { isUsableSlug, slugify } from '../.vitepress/support/slug'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
 import { formatZonedIso } from './lib/dates'
 import { stringifyFrontmatter, rawScalarValue } from './lib/frontmatter'
@@ -156,6 +159,16 @@ function planFix(post: PostFile): FixResult | null {
   }
 
   // ---------- 补齐可选字段 ----------
+  /*
+   * slug 缺失时按 title 推导：这是 `new` 早就做过的事，迁移前的文件可能没有。
+   * 只补缺失的——作者写过的 slug 哪怕看起来不漂亮也不改，它已经是线上 URL。
+   */
+  if (next.slug === undefined) {
+    const derived = slugify(typeof next.title === 'string' ? next.title : '')
+    const slug = isUsableSlug(derived) ? derived : 'untitled'
+    changes.push(`补齐 slug: ${slug}（由 title 推导）`)
+    next.slug = slug
+  }
   if (next.tags === undefined) {
     changes.push('补齐 tags: []')
     next.tags = []
@@ -190,18 +203,20 @@ function planFix(post: PostFile): FixResult | null {
 /**
  * 按规范顺序重排键。
  *
+ * 顺序直接取 `FRONTMATTER_FIELDS`（唯一字段表），不再在这里列一遍——
+ * 加字段时只需改那一处，`fix` 会自动跟上。
+ *
  * 只调整已知字段的相对位置，未知/废弃字段保持在原来的「相对位置」上被推到末尾，
  * 避免因为重排把它们插到奇怪的地方。
  */
 function reorderKeys(data: Record<string, unknown>): Record<string, unknown> {
-  const canonical = ['title', 'date', 'tags', 'description', 'draft', 'outline']
   const result: Record<string, unknown> = {}
 
-  for (const key of canonical) {
+  for (const key of FRONTMATTER_KEYS) {
     if (data[key] !== undefined) result[key] = data[key]
   }
   for (const [key, value] of Object.entries(data)) {
-    if (canonical.includes(key)) continue
+    if ((FRONTMATTER_KEYS as readonly string[]).includes(key)) continue
     result[key] = value
   }
 

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
-import { buildTagIndex, readPageUrls, readPosts } from './support/content'
+import { articleRewrites, buildTagIndex, readPageUrls, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
 import { applySiteMarkdown } from './support/markdown'
 import { mediaMarkdown } from './support/media/render'
@@ -37,7 +37,7 @@ const SITE_URL = (process.env.VP_SITE_URL ?? SITE.url).replace(/\/$/, '')
  * sitemap 的 `hostname`，**必须带部署子路径**。
  *
  * VitePress 内部用 `new URL(page.url, hostname)` 拼绝对地址，而它给出的
- * `page.url` 是 `zh-cn/about/`、`en/posts/` 这种**相对**路径。URL 解析会以
+ * `page.url` 是 `zh-cn/pages/about/`、`en/pages/posts/` 这种**相对**路径。URL 解析会以
  * hostname 的路径部分为基准，因此：
  *
  * - `hostname = https://owner.github.io` → `https://owner.github.io/zh-cn/about/`（丢掉 `/repo/`）
@@ -51,6 +51,9 @@ const SITEMAP_HOSTNAME = new URL(BASE, new URL(SITE_URL).origin).href
  * 由页面路径判断语言：第一段目录名就是语言（`zh-cn/` 或 `en/`）。
  *
  * 与 VitePress 的 `localeIndex` 判定保持一致——`locales` 的 key 就是 URL 前缀。
+ *
+ * 注意：这里拿到的是 **route 路径**（文章已经过 `rewrites` 拼上 slug），
+ * 第一段仍然是语言前缀，所以判断方式不变。
  */
 function localeOfPage(relativePath: string): LocaleCode {
   const first = relativePath.split('/')[0]
@@ -81,7 +84,7 @@ function tagIndexOf(locale: LocaleCode): Map<string, TagRef> {
  * `/en/tags/%E9%9A%8F%E7%AC%94/` —— 实测 404。
  *
  * 按 Google 的 hreflang 规范，指向 404 的互指会让**整组失效**
- * （连本可生效的 about / posts 页也可能被一起丢弃），
+ * （连本可生效的普通页面也可能被一起丢弃），
  * 因此「不输出错的互指」比「输出了但指向 404」好得多。
  *
  * 存在性判断复用 `readPageUrls()`（全站内容页的编码后地址），
@@ -93,9 +96,10 @@ function alternateLinks(
   known: Set<string>,
 ): [string, Record<string, string>][] {
   const locale = localeOfPage(relativePath)
-  const bare = path.slice(locale.length + 1) // `/zh-cn/about/` → `/about/`
+  const bare = path.slice(locale.length + 1) // `/zh-cn/pages/about/` → `/pages/about/`
 
   const links: [string, Record<string, string>][] = []
+  const translationKey = urlKeyByUrl().get(path) ?? null
 
   for (const code of LOCALE_CODES) {
     // 当前语言的这一页**一定存在**（我们正在渲染它），无条件输出。
@@ -110,14 +114,14 @@ function alternateLinks(
     /*
      * 其它语言按两级判断：
      * 1. 文章：按配对键取目标语言同键文章的真实地址——
-     *    slug 本地化后各语言路径不同名，路径替换必然失配；
+     *    两边的 slug 各自本地化（`你好，世界` vs `hello-world`），路径替换必然失配；
      * 2. 非文章：同名路径存在才输出。标签页的 URL 由 `index.paths.ts`
      *    构建期按实际标签动态生成，`readPageUrls()` 里只有模板文件
-     *    `tags/[tag]/index.md`，拿不到 `tags/随笔/`；因此宁可少输出一条，
+     *    `pages/tags/[tag]/index.md`，拿不到 `pages/tags/随笔/`；因此宁可少输出一条，
      *    也不要输出一条指向 404 的互指（那会让整组 hreflang 失效）。
      */
     const target =
-      translatedUrl(translationIndexOf(), urlKeyByUrl().get(path) ?? null, code) ??
+      translatedUrl(translationIndexOf(), translationKey, code) ??
       (known.has(`/${code}${bare}`) ? `/${code}${bare}` : null)
     if (!target) continue
 
@@ -127,16 +131,25 @@ function alternateLinks(
     ])
   }
 
-  // 只有至少存在一个有效互指时才补 x-default，否则单条 x-default 也无意义
+  /*
+   * x-default 必须指向「默认语言里真实存在的同一页」。
+   *
+   * 旧实现直接用当前页的 `bare` 拼默认语言前缀——对文章是错的：
+   * 英文页的 bare 是 `/202610/1901/hello-world/`，拼出来是
+   * `/zh-cn/202610/1901/hello-world/`，中文站根本没有这个 slug（是 `你好，世界`）。
+   * 所以这里同样先按配对键取默认语言地址，取不到才退回同名路径。
+   */
   if (links.length > 1) {
-    links.push([
-      'link',
-      {
-        rel: 'alternate',
-        hreflang: 'x-default',
-        href: `${SITE_URL}/${DEFAULT_LOCALE}${bare}`,
-      },
-    ])
+    const fallback =
+      translatedUrl(translationIndexOf(), translationKey, DEFAULT_LOCALE) ??
+      (known.has(`/${DEFAULT_LOCALE}${bare}`) ? `/${DEFAULT_LOCALE}${bare}` : null)
+
+    if (fallback) {
+      links.push([
+        'link',
+        { rel: 'alternate', hreflang: 'x-default', href: `${SITE_URL}${fallback}` },
+      ])
+    }
   }
 
   return links
@@ -207,8 +220,34 @@ export default defineConfig({
   description: LOCALES[DEFAULT_LOCALE].description,
   lang: LOCALES[DEFAULT_LOCALE].lang,
   base: BASE,
-  // 目录式 URL（/zh-cn/posts/x/），不依赖服务器对 cleanUrls 的支持
+  // 目录式 URL（/zh-cn/202610/1901/你好，世界/），不依赖服务器对 cleanUrls 的支持
   cleanUrls: false,
+  /**
+   * 文章 URL 的标题段（slug）。
+   *
+   * 源文件永远是 `docs/<locale>/<YYYYMM>/<DDNN>/index.md`（目录里只有数字），
+   * 标题只存在 frontmatter 的 `title` / `slug` 里。浏览器里想要的
+   * `/zh-cn/202610/1901/你好，世界/` 由这张映射算出来：
+   *
+   * ```text
+   * zh-cn/202610/1901/index.md → zh-cn/202610/1901/你好，世界/index.md
+   * ```
+   *
+   * 为什么用**函数**而不是静态对象：映射依赖每篇文章 frontmatter 的 slug，
+   * 只有扫完内容才知道。`articleRewrites()` 与 `support/content.ts` 共用
+   * `support/article-path.ts` / `support/slug.ts` 的规则，不会出现两套口径。
+   *
+   * 懒建 + 只建一次：VitePress 会对每个页面调一次这个函数，
+   * 每次都扫盘是 O(n²) 的 IO；一次建表后就是 O(1)。
+   *
+   * **代价**：VitePress 的 rewrites 在 dev server 启动时解析，
+   * 所以「新增文章 / 修改 slug」后需要重启 `pnpm dev` 才能看到新地址；
+   * `pnpm build` 每次都重新解析，线上没有这个问题。
+   */
+  rewrites: (() => {
+    let map: Record<string, string> | null = null
+    return (page: string) => (map ??= articleRewrites())[page] ?? page
+  })(),
   // 草稿目录不参与构建；README 是给编辑器看的，不当页面
   srcExclude: ['**/_drafts/**', '**/README.md'],
   // 锚点跳转时给粘性页头留出空隙
@@ -557,8 +596,9 @@ export default defineConfig({
      * 代码块已高亮、标题已有锚点。RSS 直接用这份 HTML，
      * 就不会再出现「feed 里的图是 ./banner.webp（部署后不存在）」的问题。
      *
-     * `pageData.relativePath` 含语言前缀（实测 `zh-cn/posts/.../index.md`），
-     * 与 `RawDoc.filePath` 同一口径，因此可以直接当 Map 的 key。
+     * `pageData.relativePath` 含语言前缀（实测 `zh-cn/202610/1901/你好，世界/index.md`），
+     * 与文章 URL 的 route 路径同一口径（`RawDoc.routePath`），因此可以直接当 Map 的 key。
+     * RSS 那边由 `post.url` 反推出的也是同一个 route 路径，两边天然对得上。
      */
     const relativePath = ctx.pageData?.relativePath
     if (relativePath) {

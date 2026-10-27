@@ -16,7 +16,9 @@ export {
   feedPath,
   isExternal,
   localeOfPath,
+  postListPath,
   stripLocale,
+  tagIndexPath,
   withLocale,
 } from '../../support/locale-paths'
 export { decodePath, toPageUrl } from '../../support/urls'
@@ -44,7 +46,7 @@ export function stripRouteBase(path: string): string {
   return stripBase(path, BASE_URL)
 }
 
-/** 文章列表页地址：第 1 页是 `/posts/`，其余是 `/posts/page/N/`（已带 base）。 */
+/** 文章列表页地址：第 1 页是 `/pages/posts/`，其余是 `/pages/posts/page/N/`（已带 base）。 */
 export function postListUrl(locale: LocaleCode, page = 1): string {
   return withBase(postListPath(locale, page))
 }

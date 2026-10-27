@@ -2,39 +2,39 @@
  * 文章跨语言配对（纯函数 + 构建期索引）。
  *
  * 背景缺陷：语言切换与 hreflang 互指原先只做「整条路径换语言前缀」的
- * 字符串匹配（`/zh-cn/posts/.../hello-world/` → `/en/posts/.../hello-world/`）。
- * 一旦某个语言的 slug 改成本地化写法（中文文章目录用「你好，世界」），
- * 路径就不再同名，匹配失败，切换只会退到目标语言的栏目索引，
+ * 字符串匹配（`/zh-cn/202610/1901/你好，世界/` → `/en/202610/1901/你好，世界/`）。
+ * 一旦某个语言的 slug 改成本地化写法（英文 `hello-world`、中文 `你好，世界`），
+ * 路径就不再同名，匹配失败，切换只会退到目标语言的列表页，
  * SEO 互指也会整段丢失——尽管两篇文章确实是同一篇。
  *
  * 解法参考 Hugo 的 `translationKey`：给同一篇文章的所有语言版本
  * 一个**与语言无关的稳定键**，按键而不是按路径配对。键的来源分两级：
  *
  * 1. **显式**：frontmatter 里写 `translationKey`，优先级最高。
- *    用于目录编号不一致、或一篇文章想特别指定配对的情况；
- * 2. **推导**：文章路径匹配 `posts/YYYY/MM/DD/NN/…` 时，
- *    取数字段 `posts/YYYY/MM/DD/NN` 作键。目录里的编号本来就是
- *    两棵语言树共享的文章身份，slug 只是展示层，换成中文不影响它。
+ *    用于编号没对齐、或一篇文章想特别指定配对的情况；
+ * 2. **推导**：文章路径符合 `<locale>/<YYYYMM>/<DDNN>/index.md` 时，
+ *    取数字段 `<YYYYMM>/<DDNN>` 作键。目录编号本来就是两棵语言树共享的
+ *    文章身份，slug 只是展示层，换成中文/英文都不影响它。
  *
- * 其余页面（about、posts 索引等）没有稳定键，维持旧的路径匹配回退。
+ * 其余页面（`pages/about`、列表页等）没有稳定键，维持路径匹配回退。
  */
 
 import type { LocaleCode, PostSummary } from '../types'
+import { parseArticlePath } from './article-path'
 
 /**
  * 从 frontmatter / 文件路径推导文章的跨语言配对键；没有稳定键时返回 `null`。
  *
  * @param data   frontmatter（读取 `translationKey`）
- * @param filePath 相对 `docs/` 的路径，如 `zh-cn/posts/2026/10/19/01/hello-world/index.md`
+ * @param filePath 相对 `docs/` 的路径，如 `zh-cn/202610/1901/index.md`
  */
 export function translationKeyOf(data: Record<string, unknown>, filePath: string): string | null {
   // 1. 显式声明优先。空串视同未声明。
   const explicit = data.translationKey
   if (typeof explicit === 'string' && explicit.trim()) return explicit.trim()
 
-  // 2. 路径推导：`<locale>/posts/YYYY/MM/DD/NN/…` → `posts/YYYY/MM/DD/NN`
-  const match = /^(?:zh-cn|en)\/(posts\/\d{4}\/\d{2}\/\d{2}\/\d{2})\//.exec(filePath)
-  return match ? match[1] : null
+  // 2. 路径推导：`<locale>/<YYYYMM>/<DDNN>/index.md` → `<YYYYMM>/<DDNN>`
+  return parseArticlePath(filePath)?.key ?? null
 }
 
 /**

@@ -62,6 +62,9 @@ export const SITE: SiteMeta = {
  * 各自一个 URL 前缀（`/zh-cn/`、`/en/`）。根路径 `/` 只放语言重定向，
  * 由浏览器语言决定落到哪边（见 `public/index.html`）。
  *
+ * 每个语言目录的形态是固定的：
+ * `index.md`（首页）+ `<YYYYMM>/<DDNN>/index.md`（文章）+ `pages/`（其它页面）。
+ *
  * 新增语言时：这里加一条、`config.ts` 的 locales 加一段、`theme/i18n/` 加一份文案。
  */
 export const LOCALES: Record<LocaleCode, LocaleMeta> = {
@@ -103,14 +106,14 @@ export function asLocale(value: unknown): LocaleCode {
 export const NAV: Record<LocaleCode, { text: string; link: string }[]> = {
   'zh-cn': [
     { text: '首页', link: '/zh-cn/' },
-    { text: '文章', link: '/zh-cn/posts/' },
-    { text: '标签', link: '/zh-cn/tags/' },
-    { text: '关于', link: '/zh-cn/about/' },
+    { text: '文章', link: '/zh-cn/pages/posts/' },
+    { text: '标签', link: '/zh-cn/pages/tags/' },
+    { text: '关于', link: '/zh-cn/pages/about/' },
   ],
   en: [
     { text: 'Home', link: '/en/' },
-    { text: 'Posts', link: '/en/posts/' },
-    { text: 'Tags', link: '/en/tags/' },
-    { text: 'About', link: '/en/about/' },
+    { text: 'Posts', link: '/en/pages/posts/' },
+    { text: 'Tags', link: '/en/pages/tags/' },
+    { text: 'About', link: '/en/pages/about/' },
   ],
 }

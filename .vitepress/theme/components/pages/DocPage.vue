@@ -5,7 +5,7 @@ import { computed } from 'vue'
 import { SITE } from '../../../data/site'
 import { useCurrentPost } from '../../composables/useCurrentPost'
 import { useI18n } from '../../i18n'
-import { feedPath, href, withLocale } from '../../support/paths'
+import { feedPath, href, postListPath } from '../../support/paths'
 import OutlineCard from '../aside/OutlineCard.vue'
 import StatsCard from '../aside/StatsCard.vue'
 import ThreeColumn from '../layout/ThreeColumn.vue'
@@ -16,8 +16,8 @@ import PostNav from '../post/PostNav.vue'
  * 文档 / 文章页（默认布局）。
  *
  * 判断「是不是文章」不靠路径判断，而是看构建期的文章数据里能否匹配到当前页，
- * 因此把任何页面加进 `posts/` 并写 `date`，就会自动获得文章的全部行为
- * （元信息、返回列表、上下篇、进度条）。
+ * 因此把一篇文章放到 `docs/<locale>/<YYYYMM>/<DDNN>/index.md` 并写 `date`，
+ * 就会自动获得文章的全部行为（元信息、返回列表、上下篇、进度条）。
  */
 
 const { frontmatter, page } = useData()
@@ -38,7 +38,7 @@ const hasOutline = computed(() => {
   return page.value.headers.some((header) => header.level === 2 || header.level === 3)
 })
 
-const backToPosts = computed(() => href(withLocale('/posts/', locale.value)))
+const backToPosts = computed(() => href(postListPath(locale.value)))
 const feedUrl = computed(() => withBase(feedPath(locale.value)))
 </script>
 

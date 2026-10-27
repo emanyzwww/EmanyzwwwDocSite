@@ -9,12 +9,13 @@
  * 数据来源是**磁盘上的真实文件**而不是构建期缓存：
  * 命令行要能看到「刚建好、还没写 date」的文章，也要能在不启动 VitePress 的
  * 情况下工作。因此这里自己读文件，但「算不算文章」的判定与
- * `.vitepress/support/content.ts` 的 `isPost()` 保持一致（posts 分区 + 有 date）。
+ * `.vitepress/support/content.ts` 的 `isPost()` 保持一致
+ * （`<lang>/<YYYYMM>/<DDNN>/index.md` + 有 date）。
  */
 
 import { countWords } from '../.vitepress/support/format'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
-import { formatReadableDate, isoDateInZone, parseCompactDate } from './lib/dates'
+import { formatReadableDate, isoDateInZone, parseCompactDate, toCompactDate } from './lib/dates'
 import { collectPostFiles, postDate } from './lib/posts'
 import type { PostFile } from './lib/posts'
 import { parseLocale, SITE_TIME_ZONE } from './lib/site'
@@ -137,8 +138,10 @@ export default function main(argv: string[]): void {
   // 位置参数：可选的 YYYYMMDD
   const dateArg = args.positionals[0]
   const dateFilter = dateArg === undefined ? null : parseCompactDate(dateArg)
+  // 与文章目录的 `<YYYYMM>/<DDNN>` 对比：20261024 → 202610 + 24
+  const dateKey = dateFilter === null ? null : toCompactDate(dateFilter)
 
-  // 只关心 posts 分区里「有 date」的，与内容管线的口径一致
+  // 只关心文章目录里「有 date」的，与内容管线的口径一致
   const includeDrafts = hasOption(args, 'draft')
   const tagFilter = optionValue(args, 'tags')
     ?.split(/[,，]/)
@@ -149,11 +152,9 @@ export default function main(argv: string[]): void {
     .map(toRow)
     .filter((row) => includeDrafts || !row.draft)
     .filter((row) => {
-      if (!dateFilter) return true
-      // 按「目录日期」还是「frontmatter 日期」过滤？
-      // 用户输入 20261024 想找的是这一天的文章，因此以 frontmatter 的 date 为准
-      // （目录只是给人看的，WRITING.md 明确写了这一点）。
-      return row.date === formatReadableDate(dateFilter)
+      if (dateKey === null) return true
+      // 按「目录日期」过滤：目录就是 <YYYYMM>/<DDNN>，8 位日期直接对得上
+      return row.post.path.dateKey === dateKey
     })
     .filter((row) => {
       if (!tagFilter || tagFilter.length === 0) return true
@@ -182,7 +183,8 @@ export default function main(argv: string[]): void {
           words: row.words,
           url: row.post.path.url,
           file: row.post.path.filePath,
-          sequence: row.post.path.sequence,
+          month: row.post.path.month,
+          daySeq: row.post.path.daySeq,
           slug: row.post.path.slug,
         })),
         null,
@@ -225,7 +227,9 @@ function printCompact(rows: Row[]): void {
   for (const row of rows) {
     const flag = row.draft ? c.dim(' [草稿]') : ''
     const tags = row.tags.length > 0 ? c.dim(` #${row.tags.join(' #')}`) : ''
-    info(`${c.dim(row.date)}  ${c.dim(row.post.path.locale.padEnd(6))} ${row.title}${tags}${flag}`)
+    info(
+      `${c.dim(row.date)}  ${c.dim(row.post.path.daySeq)}  ${c.dim(row.post.path.locale.padEnd(6))} ${row.title}${tags}${flag}`,
+    )
   }
 }
 
@@ -264,9 +268,9 @@ function printTable(rows: Row[], indented = false): void {
   )
 
   const tableRows: string[][] = [
-    ['序号', '标题', '标签', '字数', '语言'],
+    ['日序号', '标题', '标签', '字数', '语言'],
     ...rows.map((row) => [
-      row.post.path.sequence || c.dim('--'),
+      row.post.path.daySeq || c.dim('--'),
       `${truncateByWidth(row.title, titleWidth)}${row.draft ? c.dim(' [草稿]') : ''}`,
       row.tags.length > 0 ? row.tags.join('、') : c.dim('—'),
       String(row.words),

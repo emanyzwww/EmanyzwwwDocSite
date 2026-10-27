@@ -13,9 +13,9 @@ import Pagination from '../post/Pagination.vue'
 import PostTimeline from '../post/PostTimeline.vue'
 
 /**
- * 文章列表（`/posts/` 与 `/posts/page/N/`）。
+ * 文章列表（`/pages/posts/` 与 `/pages/posts/page/N/`）。
  *
- * 分页由构建期生成的路由承担（见 `docs/posts/page/[page]/index.paths.ts`），
+ * 分页由构建期生成的路由承担（见 `docs/<lang>/pages/posts/page/[page]/index.paths.ts`），
  * 因此这里没有任何客户端状态：页码来自路由参数。
  *
  * 标题取 frontmatter 里的 `title`（不含站点名），分页页码由组件拼上去，

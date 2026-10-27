@@ -280,7 +280,10 @@ function detectBuiltinContainer(state: BlockState, startLine: number): string | 
 
 /** 由行号拼出「文件:行」，构建期能直接定位。 */
 function locate(state: BlockState, line: number): string {
-  const path = typeof state.env.path === 'string' ? state.env.path : ''
+  // 文章页面经过 rewrites 后 `env.path` 是 route 路径（磁盘上不存在），
+  // 报错要指向真实的源文件，所以优先用 `env.realPath`
+  const env = state.env as { path?: string; realPath?: string }
+  const path = typeof env.realPath === 'string' ? env.realPath : (env.path ?? '')
   const file = path ? path.replace(/\\/g, '/') : '<unknown>'
   return `${file}:${line + 1}`
 }
