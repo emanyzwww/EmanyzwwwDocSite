@@ -11,6 +11,7 @@ import {
 } from '../../composables/useLinkPreview'
 import { usePosts } from '../../composables/usePosts'
 import { useI18n } from '../../i18n'
+import { shouldPreviewLink } from '../../support/link-preview/gate'
 import { createProviders } from '../../support/link-preview/providers'
 import ImageViewer from '../common/ImageViewer.vue'
 import LinkPreviewCard from '../common/LinkPreviewCard.vue'
@@ -111,20 +112,20 @@ function onDocumentKeydown(event: KeyboardEvent): void {
  * mouseover/mouseout 会因为穿过子元素而高频触发，但 useLinkPreview 里的
  * 进入/离开延迟天然把抖动吃掉了（反复 hover/unhover 只是重置定时器）。
  * focusin 走捕获：focus 不冒泡到 document 的普通监听。
+ *
+ * 「值不值得弹卡」的规则不写在这里：本组件只负责从 DOM 收集事实，
+ * 规则本身是纯函数 `shouldPreviewLink`（`support/link-preview/gate.ts`），
+ * 这样「图片链接不弹卡」这类判定能被单测直接钉住。
  */
 function isPreviewableLink(element: Element | null | undefined): element is HTMLAnchorElement {
   if (!(element instanceof HTMLAnchorElement)) return false
-  // 嵌入块（`:::github` 卡片）本身就是完整信息，卡内链接再弹悬浮卡是噪声
-  if (element.closest('.embed')) return false
-  const href = element.getAttribute('href')
-  if (!href) return false
-  // 锚点、js:、mailto: 等不弹卡
-  try {
-    if (!/^https?:/i.test(new URL(href, location.origin).protocol)) return false
-  } catch {
-    return false
-  }
-  return element.closest('.prose') !== null
+  return shouldPreviewLink({
+    href: element.href,
+    rawHref: element.getAttribute('href'),
+    inProse: element.closest('.prose') !== null,
+    inEmbed: element.closest('.embed') !== null,
+    isLightbox: element.hasAttribute('data-lightbox'),
+  })
 }
 
 function closestLink(target: Element | null): HTMLAnchorElement | null {

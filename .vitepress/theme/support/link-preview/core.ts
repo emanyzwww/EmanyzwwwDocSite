@@ -12,6 +12,7 @@
  *
  * ```text
  * matchProvider(href)  → 找到能处理这个 URL 的 provider（第一个命中的）
+ * provider.peek?(href) → 数据在客户端时同步表态：null = 确定没卡，不发请求也不亮骨架
  * provider.fetch(href) → 返回 LinkPreview 数据（运行时 fetch + 缓存）
  * ```
  *
@@ -46,10 +47,53 @@ export interface LinkProvider {
    */
   fetch(href: string): Promise<LinkPreview | null>
   /**
+   * 同步「先看一眼」：数据**本来就在客户端**的 provider 用它。
+   *
+   * 契约（三种返回值语义不同，别混）：
+   * - `null` —— **确定没有卡片**。调用方连骨架都不出，读者看到的是「什么都没发生」。
+   *   历史 bug：站内链接指向 `.png` 这类资源时先亮骨架、再收起，表现为卡片闪一下。
+   * - `undefined` —— 不知道（没实现 / 没命中）。照常走 `fetch` + 骨架。
+   * - `LinkPreview` —— 数据现成，跳过 fetch 与骨架，延迟结束直接渲染。
+   *
+   * 必须**纯同步、无网络、无副作用**：它在 300ms 进入延迟之前就被调用。
+   */
+  peek?(href: string): LinkPreview | null | undefined
+  /**
    * 降级域名卡上显示的站点名（如 `GitHub`）。缺省 = 只显示域名。
    * provider fetch 失败时，调用方用它让降级卡至少标明「这是哪类站」。
    */
   fallbackSite?: string
+}
+
+/** 由 href 找到第一个匹配的 provider；都不匹配返回 `null`。 */
+export function matchProvider(providers: LinkProvider[], href: string): LinkProvider | null {
+  for (const provider of providers) {
+    try {
+      if (provider.match(href)) return provider
+    } catch {
+      // 单个 provider 的 match 抛错不阻断遍历
+    }
+  }
+  return null
+}
+
+/**
+ * 这个 URL 值不值得弹预览卡。
+ *
+ * 传的是 `HTMLAnchorElement.href`（浏览器已经把相对路径解析成绝对 URL），
+ * 所以这里**不需要 base**，也不该收到相对路径。
+ *
+ * 只放行 http(s)：`mailto:` / `tel:` / `javascript:` 弹卡没有意义，
+ * 也没有 provider 能处理；`#锚点` 由调用方按原始属性先排掉。
+ */
+export function isPreviewableHref(href: string | null | undefined): boolean {
+  if (!href) return false
+  try {
+    const { protocol } = new URL(href)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 /**

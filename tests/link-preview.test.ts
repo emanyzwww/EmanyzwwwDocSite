@@ -4,10 +4,13 @@ import {
   compactNumber,
   fallbackPreview,
   isCacheFresh,
+  isPreviewableHref,
+  matchProvider,
   normalizeForCache,
   parseBilibiliVideo,
   parseGitHubRepo,
   previewCacheKey,
+  type LinkProvider,
   type PreviewCacheEntry,
 } from '../.vitepress/theme/support/link-preview/core'
 
@@ -86,6 +89,55 @@ describe('parseBilibiliVideo', () => {
   it('非视频路径 / 非本站域名不匹配', () => {
     expect(parseBilibiliVideo('https://www.bilibili.com/anime/123')).toBeNull()
     expect(parseBilibiliVideo('https://example.com/video/BV1xx411c7mD')).toBeNull()
+  })
+})
+
+describe('matchProvider', () => {
+  const make = (id: string, match: (href: string) => boolean): LinkProvider => ({
+    id,
+    match,
+    fetch: async () => null,
+  })
+
+  it('顺序即优先级：第一个 match 的赢', () => {
+    const first = make('first', () => true)
+    const second = make('second', () => true)
+    expect(matchProvider([first, second], 'https://example.com/a')).toBe(first)
+  })
+
+  it('都不匹配返回 null（调用方据此不弹卡）', () => {
+    expect(matchProvider([make('no', () => false)], 'https://example.com/a')).toBeNull()
+    expect(matchProvider([], 'https://example.com/a')).toBeNull()
+  })
+
+  it('某个 provider 的 match 抛错不阻断遍历', () => {
+    const broken = make('broken', () => {
+      throw new Error('boom')
+    })
+    const ok = make('ok', () => true)
+    expect(matchProvider([broken, ok], 'https://example.com/a')).toBe(ok)
+  })
+})
+
+describe('isPreviewableHref', () => {
+  it('http / https 放行', () => {
+    expect(isPreviewableHref('https://example.com/a')).toBe(true)
+    expect(isPreviewableHref('http://localhost:4173/zh-cn/')).toBe(true)
+  })
+
+  it('非 http(s) 协议一律不放行', () => {
+    expect(isPreviewableHref('mailto:someone@example.com')).toBe(false)
+    expect(isPreviewableHref('tel:+10000000000')).toBe(false)
+    expect(isPreviewableHref('javascript:alert(1)')).toBe(false)
+    expect(isPreviewableHref('data:text/plain,hi')).toBe(false)
+  })
+
+  it('空值 / 相对路径（未解析）安全返回 false，不抛错', () => {
+    expect(isPreviewableHref('')).toBe(false)
+    expect(isPreviewableHref(null)).toBe(false)
+    expect(isPreviewableHref(undefined)).toBe(false)
+    expect(isPreviewableHref('./banner.png')).toBe(false)
+    expect(isPreviewableHref('/assets/media/orig/125a7d93404b.png')).toBe(false)
   })
 })
 

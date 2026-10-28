@@ -129,7 +129,7 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
    │  └─ common/          图标、空状态、进度条、滚动条、查看器、链接预览卡
    ├─ embeds/enhance.ts   `:::github` 等嵌入块的运行期增强（EmbedEnhancer）
    ├─ support/            浏览器侧工具（见下方「三类 support 与 shared」）
-   │  └─ link-preview/    core（纯函数）+ providers（provider 注册表）
+   │  └─ link-preview/    core（纯函数）+ gate（要不要弹卡）+ providers（provider 注册表）
    └─ styles/             14 个样式文件（tokens + 12 个分层 + index 入口，见第四节）
 
 docs/                      ← 只有内容
@@ -510,9 +510,31 @@ fallback 之后，`req.url` 已被改写成 `/index.html`；函数体里 `req.ur
 （`theme/support/link-preview/`）：
 
 ```text
-core.ts        纯函数：URL 解析（GitHub repo / bilibili BV号）、缓存键、TTL、域名兜底卡
+core.ts        纯函数：URL 解析（GitHub repo / bilibili BV号）、缓存键、TTL、域名兜底卡、
+               matchProvider / isPreviewableHref
+gate.ts        纯函数：shouldPreviewLink —— 这条链接值不值得弹卡（见下）
 providers.ts   provider 注册表：站内 → GitHub → bilibili（顺序即优先级）
 ```
+
+**入口有三道筛，顺序不能颠倒**：
+
+1. **`shouldPreviewLink`（`gate.ts`，纯函数）**——`PageShell` 只负责从 DOM 收集事实
+   （`href` / `rawHref` / `inProse` / `inEmbed` / `isLightbox`），判定本身在纯函数里，
+   单测直接覆盖。**图片链接（`<a data-lightbox>`）不弹卡**：它指向 `.png` / `.webp`
+   原图，没有任何可预览的标题或摘要，它的悬浮反馈是右下角「可点开放大」角标
+   （`content.css`）——一个元素上只该有一种悬浮反馈。历史 bug：图片链接被当成普通链接，
+   悬浮时先亮骨架、拿不到数据再收起，表现为「卡片闪一下」。
+   同时不弹的还有：`#锚点`、非 http(s)、嵌入卡内部、正文之外；
+2. **`matchProvider`（`core.ts`）**——没有 provider 认识的 URL 不弹（站内 provider 认
+   所有同源 URL，所以图片链接即使漏过第 1 道也会在第 3 道被拦下）；
+3. **`provider.peek?()` 同步表态**——数据本来就在客户端的 provider（站内文章）必须实现它：
+   `null` = **确定没有卡**（连定时器都不排，不亮骨架、不闪）；`undefined` = 不知道，
+   走 fetch + 骨架；数据 = 延迟结束直接渲染。这一道是「闪一下」的根治点，
+   以前一律先开卡亮骨架、等 fetch 回来才发现没有。
+
+`hoverLink` 里传的是 `link.href`（IDL 属性，浏览器已解析成**绝对 URL**），
+不是 `getAttribute('href')`：相对路径原样传下去会让缓存键与 `fallbackPreview`
+各算各的（`new URL('./x.png')` 直接抛错，卡片立刻被收起）。
 
 **注册表里只有三个 provider**：站内文章（零网络，数据已在 `posts.data.ts` 里）、
 GitHub（`api.github.com`，CORS 可用）、bilibili（**不发请求**，直接出域名卡，因为它的
@@ -529,7 +551,8 @@ TTL 内不反复重试。fetch 必须自带超时（4000ms），拿不到返回 
 `fallbackSite` 域名卡，卡片永不空白。
 
 **新增一种链接类型**：`core.ts` 加纯解析函数 → `providers.ts` 写一个 `LinkProvider`
-（`id` / `match` / `fetch`，可选 `fallbackSite`）插进 `createProviders()` →
+（`id` / `match` / `fetch`，可选 `fallbackSite`；**数据不需要网络就实现 `peek`**，
+否则同类链接会先亮骨架再收起）插进 `createProviders()` →
 把 API 域名加进 CSP `connect-src`（漏了会被静默拦截）→ 需要图标就加进 `shared/icons.ts`、
 `IconName` 与 `LinkPreviewCard.vue` 的 `PREVIEW_ICONS` 白名单
 （当前 `github / globe / link / play`，不在白名单就不渲染图标）。
@@ -1256,7 +1279,7 @@ pnpm build         # 构建（也会暴露类型问题）
 
 ### 单测覆盖什么
 
-`tests/` 下共 **26 个文件、514 个用例**（其中 offline-build 的 1 个在默认门禁里会跑，
+`tests/` 下共 **27 个文件、534 个用例**（其中 offline-build 的 1 个在默认门禁里会跑，
 用上面的环境变量可跳过）。绝大多数测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
 
 | 文件                        | 用例 | 覆盖                                                                                                    |
@@ -1277,7 +1300,8 @@ pnpm build         # 构建（也会暴露类型问题）
 | `directives.test.ts`        |   46 | 块级指令：参数解析、六个指令、分栏、图片拆段、嵌套、代码块内的 `:::`、错误文案                          |
 | `offline-build.test.ts`     |    1 | **构建期零网络**：把 `fetch` 换掉再真跑一次完整构建（守核心契约）                                       |
 | `shared-github.test.ts`     |   20 | URL 解析与仓库名归一化、数字缩写、相对天数                                                              |
-| `link-preview.test.ts`      |   29 | 链接预览纯函数：GitHub/bilibili URL 解析、缓存键归一化、TTL、域名卡                                     |
+| `link-preview.test.ts`      |   35 | 链接预览纯函数：URL 解析、缓存键归一化、TTL、域名卡、`matchProvider`、`isPreviewableHref`               |
+| `link-preview-gate.test.ts` |   14 | 预览入口判定：图片链接 / 锚点 / 嵌入卡 / 正文外不弹；`peek` 三种返回值与「不闪」门禁                    |
 | `media-planner.test.ts`     |   34 | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名                                      |
 | `media-probe.test.ts`       |   18 | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                                             |
 | `media-render.test.ts`      |   23 | `<figure>` 提升边界、alt/图注/宽高、`data-plain`、`data-lqip`、与 attrs 的顺序契约                      |
@@ -1301,7 +1325,9 @@ chrome 有概率收起」；`scrollbar.test.ts` 守几何（拇指不越界、�
 `shouldReveal` 的强制条件优先于超时）；`code-theme.test.ts` 守代码块配色的 AA 门槛
 （每个 token 对自己主题的 `--bg-code`）；`code-blocks.test.ts` 守复制按钮的隐式 DOM 契约
 （label 必须在 button 前，否则复制到的是语言名）；`feed-code.test.ts` 守 RSS 的
-feed-safe 输出（无 CSS 的环境里不能残留任何网页专用结构）。
+feed-safe 输出（无 CSS 的环境里不能残留任何网页专用结构）；`link-preview-gate.test.ts`
+守预览卡的**入口**（图片链接不弹卡；provider 同步说「没有」时连骨架都不许亮）——
+它把 `PageShell` 里那段 DOM 委托判定抽成纯函数来测，不需要浏览器。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在 `support/urls.ts`、`locale-paths.ts`、
 `translation.ts`、`article-path.ts`、`slug.ts` 与 `theme/support/{pagination,scrollbar}.ts`，

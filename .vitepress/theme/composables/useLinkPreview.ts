@@ -10,7 +10,7 @@
  * ## 交互时序
  *
  * ```text
- * mouseover 链接 ── 300ms 延迟 ──> 显示卡片（命中缓存则立即）
+ * mouseover 链接 ── 300ms 延迟 ──> 显示卡片（peek / 缓存命中则直接出，无骨架）
  *      │                              │
  *      │ 移出（任何时刻取消）          │ fetch 未完成则先显示骨架
  *      ▼                              ▼
@@ -19,7 +19,9 @@
  *
  * - **300ms 进入延迟**：扫过链接（如沿一行文字移动鼠标）不弹卡；
  * - **200ms 离开延迟**：鼠标从链接移进卡片本身不闪烁；
- * - 键盘 `focusin` 同样触发（可访问性），延迟更短（150ms）。
+ * - 键盘 `focusin` 同样触发（可访问性），延迟更短（150ms）；
+ * - **sync peek**：数据在客户端的 provider（站内文章）会先同步表态 ——
+ *   确定没有卡就**什么都不发生**，不亮骨架不闪（见 `hoverLink` 里的说明）。
  */
 
 import { readonly, ref } from 'vue'
@@ -28,13 +30,14 @@ import type { LinkPreview } from '../support/link-preview/core'
 import {
   fallbackPreview,
   isCacheFresh,
+  isPreviewableHref,
+  matchProvider,
   PREVIEW_STORAGE_PREFIX,
   PREVIEW_TTL_MS,
   previewCacheKey,
   type LinkProvider,
   type PreviewCacheEntry,
 } from '../support/link-preview/core'
-import { matchProvider } from '../support/link-preview/providers'
 
 /* ------------------------------------------------------------------ *
  * 单例状态
@@ -145,12 +148,41 @@ function clearTimers(): void {
 
 /** 链接悬浮（mouseover 委托调用）。 */
 export function hoverLink(link: HTMLAnchorElement, delayMs = 300): void {
-  const href = link.getAttribute('href')
-  if (!href) return
+  /*
+   * 用 `.href`（浏览器的 IDL 属性）而不是 `getAttribute('href')`：
+   * 它一定是**解析好的绝对 URL**。相对路径原样传下去会让缓存键与
+   * `fallbackPreview` 各算各的（`new URL('./x.png')` 直接抛错）。
+   */
+  const href = link.href
+  if (!isPreviewableHref(href)) return // 兜底：PageShell 已先筛过一遍
 
   const provider = matchProvider(providers ?? [], href)
   if (!provider) return
 
+  /*
+   * 同步「先看一眼」。
+   *
+   * - `null` = 数据源确定没有这张卡（站内链接指向 .png、/pages/tags/ 之类）：
+   *   **直接返回，连定时器都不排**。历史 bug 就出在这里：以前一律先排定时器、
+   *   开卡、亮骨架，等 fetch 回来才发现什么都没有 —— 读者看到卡片闪一下。
+   * - `undefined` = 无法预判，照常走 fetch + 骨架。
+   * - 数据 = 延迟结束直接渲染，连骨架都省了（骨架只该属于真的要等网络的卡）。
+   */
+  let known: LinkPreview | null | undefined
+  try {
+    known = provider.peek?.(href)
+  } catch {
+    known = undefined
+  }
+  if (known === null) return
+
+  /*
+   * 到了这里才动定时器：这是一次真正的「进入」，要取消上一次的进入/离开。
+   *
+   * 反过来，上面那几处提前返回**不能**清定时器：鼠标从已出卡的链接 A 移到
+   * 「确定没有卡」的链接 B 时，`unhoverLink` 排下的 200ms 离开定时器必须活到
+   * 触发 —— 清掉它，卡片就会永远挂在屏幕上。
+   */
   clearTimers()
   anchor.value = link.getBoundingClientRect()
   enterTimer = setTimeout(() => {
@@ -160,7 +192,7 @@ export function hoverLink(link: HTMLAnchorElement, delayMs = 300): void {
      * 卡片就会永远停在骨架屏（本文件历史上真实发生过这个 bug）。
      */
     enterTimer = null
-    void openFor(provider, href)
+    void openFor(provider, href, known)
   }, delayMs)
 }
 
@@ -169,8 +201,20 @@ export function focusLink(link: HTMLAnchorElement): void {
   hoverLink(link, 150)
 }
 
-async function openFor(provider: LinkProvider, href: string): Promise<void> {
+async function openFor(
+  provider: LinkProvider,
+  href: string,
+  known?: LinkPreview | null,
+): Promise<void> {
   visible.value = true
+
+  // 数据现成（provider.peek 命中）：直接渲染，不进骨架态
+  if (known) {
+    pending.value = false
+    preview.value = known
+    return
+  }
+
   pending.value = true
   preview.value = null
 

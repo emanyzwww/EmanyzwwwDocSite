@@ -23,6 +23,9 @@
  * ## 通用约定
  *
  * - **fetch 必须自带超时**（`fetchWithTimeout`）：悬浮卡不能让人等超过 4s；
+ * - **数据本来就在客户端的 provider 必须实现 `peek`**：它能同步回答「有没有卡」，
+ *   调用方就不用先亮骨架再收起（站内 provider 的 `null` 就是这么用的，
+ *   详见 `core.ts` 里 `peek` 的三种返回值语义）；
  * - 拿不到就 `null`：调用方降级成 `fallbackSite` 域名卡，不打断阅读；
  * - 顺序即优先级：站内 → GitHub → bilibili；
  * - **没有通用外链兜底**（作者拍板）：域名卡信息量为零且观感差，
@@ -34,7 +37,7 @@ import type { ComputedRef } from 'vue'
 
 import type { Messages, PostSummary } from '../../../types'
 import { format } from '../../i18n'
-import type { LinkProvider } from './core'
+import type { LinkPreview, LinkProvider } from './core'
 import { compactNumber, fallbackPreview, parseBilibiliVideo, parseGitHubRepo } from './core'
 
 /** fetch 超时（毫秒）。悬浮场景等待上限，超了就降级。 */
@@ -73,6 +76,29 @@ export interface ProviderDeps {
  * 站内文章（零网络：数据加载器已内联进客户端）
  * ------------------------------------------------------------------ */
 
+/**
+ * 按 href 在 posts 数据里找文章。
+ *
+ * **同步、纯内存**：posts 数据是构建期产物、已在客户端，
+ * 所以站内链接能不能出卡，悬浮那一刻就能回答 —— 不需要等 fetch。
+ * 两个入口共用这一份匹配，`peek` 与 `fetch` 才不会各说一套。
+ */
+function findPost(deps: ProviderDeps, href: string): PostSummary | null {
+  try {
+    const path = new URL(href).pathname.replace(/\/index\.html$/, '')
+    return (
+      deps.posts.value.find((candidate) => {
+        // 数据里的 url 不含 base；比较时两边都归一化掉 base
+        return withBase(candidate.url) === path || candidate.url === path
+      }) ?? null
+    )
+  } catch {
+    // 相对路径 / 非法 URL：hoverLink 已把 href 归一化成绝对 URL，
+    // 走到这里说明是直接调用（测试或未来的其它入口），当作「没有」
+    return null
+  }
+}
+
 /** 站内文章 provider。数据来自 `posts.data.ts`，悬浮即出、无 CSP / 隐私问题。 */
 function createInternalProvider(deps: ProviderDeps): LinkProvider {
   return {
@@ -84,22 +110,34 @@ function createInternalProvider(deps: ProviderDeps): LinkProvider {
         return false
       }
     },
-    // 站内链接解析不到文章（如指向资源页）时收起卡片比域名卡更合理
-    async fetch(href) {
-      const path = new URL(href, location.origin).pathname.replace(/\/index\.html$/, '')
-      const post = deps.posts.value.find((candidate) => {
-        // 数据里的 url 不含 base；比较时两边都归一化掉 base
-        return withBase(candidate.url) === path || candidate.url === path
-      })
-      if (!post) return null
-      return {
-        title: post.title,
-        description: post.summary,
-        meta: post.dateText,
-        site: '',
-        url: href,
-      }
+    /**
+     * 站内链接的「有没有卡」是**同步可判**的：命中文章 = 有，其余（资源、页面、
+     * 404、图片原图）一律 `null` = 确定不弹。
+     *
+     * 这一个 `null` 就是「卡片闪一下」的根治点：以前走 fetch 路径，
+     * 调用方先亮骨架、等 fetch 回来发现没有才收起。
+     */
+    peek(href) {
+      const post = findPost(deps, href)
+      return post ? internalPreview(post, href) : null
     },
+    // 兼容旧入口：peek 之后 fetch 在悬浮路径上已经不会被调用，
+    // 但保留完整实现（未来的预取 / 其它调用方仍可用）。
+    async fetch(href) {
+      const post = findPost(deps, href)
+      return post ? internalPreview(post, href) : null
+    },
+  }
+}
+
+/** 站内文章 → 卡片数据。 */
+function internalPreview(post: PostSummary, href: string): LinkPreview {
+  return {
+    title: post.title,
+    description: post.summary,
+    meta: post.dateText,
+    site: '',
+    url: href,
   }
 }
 
@@ -200,15 +238,4 @@ function createBilibiliProvider(): LinkProvider {
  */
 export function createProviders(deps: ProviderDeps): LinkProvider[] {
   return [createInternalProvider(deps), createGitHubProvider(deps), createBilibiliProvider()]
-}
-/** 由 href 找到第一个匹配的 provider；都不匹配返回 `null`。 */
-export function matchProvider(providers: LinkProvider[], href: string): LinkProvider | null {
-  for (const provider of providers) {
-    try {
-      if (provider.match(href)) return provider
-    } catch {
-      // 单个 provider 的 match 抛错不阻断遍历
-    }
-  }
-  return null
 }
