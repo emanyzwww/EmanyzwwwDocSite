@@ -1024,9 +1024,28 @@
 }
 
 /* ---------- 代码块 ----------
-   VitePress 输出结构：
-     <div class="language-xxx"><button class="copy"></button><span class="lang">xxx</span><pre><code>…</code></pre></div>
-   高亮用 Shiki 单主题（github-dark-default），因此代码块在明暗两种主题下都是深色。 */
+ *
+ * 构建期由 `support/markdown/code-blocks.ts` 注入头部标记，DOM 固定为：
+ *
+ *   <div class="code-block code-block--file language-ts">
+ *     <span class="code-block__label" data-file="src/app.ts">src/app.ts</span>
+ *     <button class="copy"></button>
+ *     <span class="lang">ts</span>
+ *     <pre class="shiki">…</pre>
+ *   </div>
+ *
+ * **头部是常驻的 36px 横条**，不是浮在代码上的标签：文件路径 / 语言标识 /
+ * 复制按钮都在这条里，任何代码行都不可能从它们底下穿过去（旧实现的语言标签
+ * 是绝对定位的，长行会从标签下面穿过去）。
+ *
+ * 排两行只用 CSS Grid，不需要任何运行期 JS：
+ *   第 1 行 = 头部条（`::before` 铺底 + label / lang / copy 三个 grid item 叠在上面）
+ *   第 2 行 = 代码本体
+ *
+ * ⚠️ `button.copy` 必须是 `div[class*='language-']` 的**直接子元素**，且
+ * `.lang` 必须是它的下一个兄弟：VitePress 的复制逻辑靠
+ * `button.nextElementSibling.nextElementSibling` 找 `<pre>` 取文本。
+ */
 
 .prose div[class*='language-'] {
   position: relative;
@@ -1034,21 +1053,61 @@
   border-radius: var(--radius-md);
   background: var(--bg-code);
   /*
-   * 代码块在浅色页面上是一块**深色矩形**，本身就足够「浮起」，
-   * 不加阴影 —— 阴影只给需要遮挡内容的浮层（见 DESIGN.md 6.2）。
-   * 用一条极淡的内描边让它在深色主题下也能和页面分开。
+   * 代码块是一块**内容**，不是浮层：不加阴影（DESIGN.md 6.2）。
+   * 用一条极淡的 currentColor 内描边收边：浅色下压住纸面，深色下与页面分开。
    */
   border: var(--border-width) solid color-mix(in srgb, currentColor 8%, transparent);
   overflow: hidden;
 }
 
+/* 双主题：Shiki 不写死颜色，而是给每个 token span 打两个自定义属性 */
+
+.prose div[class*='language-'] span[style*='--shiki-light'] {
+  color: var(--shiki-light);
+}
+
+.dark .prose div[class*='language-'] span[style*='--shiki-dark'] {
+  color: var(--shiki-dark);
+}
+
+/* 头部条与 Grid 骨架 */
+.code-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: var(--code-head-height) auto;
+  align-items: center;
+}
+
+/*
+ * `::before` 是 Grid 容器的**匿名 grid item**，天然排在最前（即最底层），
+ * 铺满第一行做头部底色，不会盖住 label / 按钮。
+ */
+.code-block::before {
+  content: '';
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  background: var(--bg-code-head);
+  border-bottom: var(--border-width) solid var(--border-code);
+  pointer-events: none;
+}
+
+/* 代码本体：第二行，横跨三列 */
 .prose div[class*='language-'] > pre {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  align-self: stretch;
   margin: 0;
   padding: var(--space-4) var(--space-5);
   background: var(--bg-code) !important;
   overflow-x: auto;
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
+  /*
+   * Grid 子项默认 `min-width: auto`，不置 0 的话长代码会把整块撑出正文宽度，
+   * 横向滚动条永远不出现（这是 Grid 化代码块最容易踩的一个坑）。
+   */
+  min-width: 0;
 }
 
 /* 代码块本身由外层容器负责样式，`pre` 只做滚动容器；
@@ -1066,86 +1125,135 @@
   display: block;
   padding: 0;
   background: none;
-  color: var(--gray-100);
   font-family: var(--font-mono);
   font-size: inherit;
   line-height: inherit;
 }
 
-/* Shiki 会给 span 加内联色值，深色主题下保持原样即可；
-   只有行内背景（diff 高亮）需要跟随 token 自带颜色。 */
+/* ---------- 代码块头部：文件路径 / 语言标识 / 复制按钮 ----------
+ *
+ * 三者都是第一行的 grid item，共用一个 36px 高、带底色的头部条：
+ *
+ *   [ 路径或语言名 ................ ]  [ LANG ]  [ 复制 ]
+ *
+ * 视觉顺序是「路径/语言名 → 语言标识 → 复制」；DOM 顺序是
+ * label → button → `.lang` → pre（见上方结构，不能调换）。
+ * label 在最左（先报文件再报代码，屏幕阅读器也顺），copy 在最右
+ * （固定位置，不随路径长短漂移）。
+ */
 
-/* 语言标签 */
-.prose div[class*='language-'] > .lang {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-3);
-  z-index: 2;
+/* 文件路径（有 `[path]` 时）或语言名（没写路径时） */
+.code-block > .code-block__label {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: start;
+  align-self: center;
+  max-width: 100%;
+  padding-inline: var(--space-5) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--fg-code-head);
+  /*
+   * 路径**只截尾不换行**：头部条必须恒为 36px 高，换行会把整块代码往下推，
+   * 同一篇文章里几个代码块就会高低不一。完整路径放在 `title` 里（悬停可见）。
+   */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+/* 没写路径时，label 退化成语言名：小一号、大写、加字母间距 */
+.code-block:not(.code-block--file) > .code-block__label {
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
-  color: var(--gray-400);
-  user-select: none;
-  transition: opacity var(--duration-fast) var(--ease-out);
+  color: var(--fg-code-lang);
 }
 
-/* 复制按钮：由 VitePress 运行时接管点击，
-   这里只负责外观、悬停显隐与本地化的提示文字 */
+/* 右侧语言标识：只在「左边已经写了路径」时出现；否则和 label 重复 */
+.code-block > .lang {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: center;
+  padding-inline: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--fg-code-lang);
+  user-select: none;
+}
+
+.code-block:not(.code-block--file) > .lang {
+  display: none;
+}
+
+/* 复制按钮：**常驻**，不再悬停才出现。
+   读者不必先发现「悬停一下会有按钮」才能复制——这是文案站里最常被抱怨的交互。 */
 .prose div[class*='language-'] > button.copy {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  z-index: 3;
-  width: 1.9rem;
-  height: 1.9rem;
+  position: relative;
+  z-index: 1;
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
-  border-radius: var(--radius-sm);
-  border: var(--border-width) solid rgb(255 255 255 / 0.16);
-  background-color: rgb(255 255 255 / 0.08);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background-color: transparent;
   background-image: none;
-  color: var(--gray-300);
-  opacity: 0;
+  color: var(--code-action-fg);
+  opacity: 1;
   cursor: pointer;
   transition:
-    opacity var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
-/* 图标用 CSS 画，避免再引一张图片资源 */
+.code-block > button.copy {
+  grid-row: 1;
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+  margin-inline-end: var(--space-2);
+}
+
+/*
+ * 图标用 **mask** 绘制而不是图片：颜色直接取 `currentColor`，
+ * 悬停 / 复制成功 / 深色主题都自动跟着令牌走，不需要为每个状态准备一张图。
+ * mask 的 data URI 里只有形状（黑色描边 = 不透明像素），不含任何色值。
+ */
 .prose div[class*='language-'] > button.copy::after {
   content: '';
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 0.85rem;
-  height: 0.85rem;
-  border: 1.5px solid currentColor;
-  border-radius: 3px;
-  box-shadow:
-    3px -3px 0 -1px var(--bg-code),
-    4px -4px 0 0 currentColor;
-}
-
-.prose div[class*='language-']:hover > button.copy,
-.prose div[class*='language-'] > button.copy:focus-visible {
-  opacity: 1;
+  width: 0.95rem;
+  height: 0.95rem;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E")
+    center / contain no-repeat;
 }
 
 .prose div[class*='language-'] > button.copy:hover {
-  background-color: rgb(255 255 255 / 0.16);
-  color: var(--white);
+  background-color: var(--code-action-bg-hover);
+  color: var(--code-action-fg-hover);
 }
 
-/* 复制成功：按钮变绿并显示文字提示 */
+.prose div[class*='language-'] > button.copy:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-code);
+}
+
+/* 复制成功：换成文字「已复制」，用全站强调色表达，不再另起一个绿色 */
 .prose div[class*='language-'] > button.copy.copied {
-  opacity: 1;
   width: auto;
   padding-inline: 0.6rem;
-  border-color: rgb(126 231 135 / 0.4);
-  background-color: rgb(126 231 135 / 0.12);
-  color: #7ee787;
+  background-color: var(--code-copied-bg);
+  color: var(--code-copied-fg);
 }
 
 .prose div[class*='language-'] > button.copy.copied::after {
@@ -1156,13 +1264,15 @@
   content: attr(data-copied-label);
   font-size: var(--text-xs);
   font-family: var(--font-sans);
-  line-height: 1.9rem;
+  line-height: 1.75rem;
 }
 
-/* 按钮出现时让语言标签让位 */
-.prose div[class*='language-']:hover > .lang,
-.prose div[class*='language-'] > button.copy:focus-visible + .lang {
-  opacity: 0;
+/* 触屏上把按钮放大一档：它不是主要入口，但 28px 对拇指仍偏小 */
+@media (pointer: coarse) {
+  .code-block > button.copy {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
 }
 
 /* ---------- VitePress 容器（tip / warning / danger / info） ---------- */
@@ -1204,10 +1314,7 @@
  *
  * `::: code-group` 是 VitePress 的 Markdown 语法，运行时由
  * `useCodeGroups()` 接管点击（它只切 `.active` 类，不写任何样式）。
- *
- * 也就是说：**样式必须由主题提供，否则就是一排裸的 radio + 无样式标签**。
- * 本站此前完全没有这段，等于这个语法"能用但一写就难看"。
- * 补齐它，同时也是为将来「富文本里的 Tab 组件」建立同一套视觉。
+ * 样式必须由主题提供，否则就是一排裸的 radio + 无样式标签。
  *
  * VitePress 输出的结构（**顺序固定，选择器依赖它**）：
  *
@@ -1224,11 +1331,19 @@
  *     </div>
  *   </div>
  *
- * **不需要任何 JS**：`input:checked + label` 就是当前选中项，
- * 这是纯 CSS 能做到 Tab 的关键（也是 VitePress 采用 radio 的原因）。
+ * **不需要任何 JS**：`input:checked + label` 就是当前选中项。
+ *
+ * ## 分组里不要再加第二条头部
+ *
+ * tab 条本身就是这块代码的头部：写 `[文件名]` 时标签上就是文件名。
+ * 所以分组内的面板**没有** `.code-block__label`，`.lang` 也隐藏；
+ * 复制按钮被定位到 tab 条右端（面板 `position: static`，按钮相对整个分组定位），
+ * 于是整个分组只有一条 36px 头部，和单块代码块等高。
  */
 
 .prose .vp-code-group {
+  /* 复制按钮的定位锚点：面板不设 position，按钮相对分组右上角落位 */
+  position: relative;
   margin-block: var(--space-6);
 }
 
@@ -1246,7 +1361,10 @@
  */
 .prose .vp-code-group > .blocks > div[class*='language-'] {
   display: none;
+  /* 面板不自己定位：按钮要相对整个分组（tab 条右端）定位 */
+  position: static;
   margin-block: 0;
+  border-top: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -1255,19 +1373,54 @@
   display: block;
 }
 
+/*
+ * 兜底：分组里**所有**围栏都没写 `[标题]` 时，VitePress 一个 tab 都不生成、
+ * 也不给任何面板加 `.active` —— 结果是整个分组空白（上游默认主题同样如此）。
+ * 这里改为「隐藏空标签条 + 显示第一块」，至少代码能读到。
+ * 它没有头部条（tab 条就是分组头部），属于作者忘写标题时的降级形态。
+ */
+.prose .vp-code-group:not(:has(.tabs input)) .tabs {
+  display: none;
+}
+
+.prose .vp-code-group:not(:has(.tabs input)) > .blocks > div[class*='language-']:first-child {
+  display: block;
+  border-top: var(--border-width) solid color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: var(--radius-md);
+}
+
+/* 没有 tab 条时复制按钮会落在代码右上角，给首屏留出空间、别压住第一行尾部 */
+.prose .vp-code-group:not(:has(.tabs input)) > .blocks > div[class*='language-']:first-child > pre {
+  padding-right: 3.5rem;
+}
+
+/* 只显示当前面板的复制按钮（其余面板 display:none，本来就看不到） */
+.prose .vp-code-group > .blocks > div[class*='language-'] > button.copy {
+  position: absolute;
+  top: calc((var(--code-head-height) - 1.75rem) / 2);
+  right: var(--space-1);
+  z-index: 3;
+}
+
+/* tab 标签已经写着文件名/语言，面板里再标一次是重复 */
+.prose .vp-code-group > .blocks > div[class*='language-'] > .lang {
+  display: none;
+}
+
 .prose .vp-code-group .tabs {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) var(--space-2) 0;
   /*
-   * 与代码块同底：标签条是代码块的"标签页头"，不是独立的一块。
-   * 用略亮一档的底色把两段分开（深色下靠亮度差，见 DESIGN.md 6.3）。
+   * 右侧给复制按钮让位：按钮 28px + 4px 边距，再留一点余量给滚动条末端。
+   * 不留的话最后一个 tab 会滑到按钮底下。
    */
-  background: color-mix(in srgb, var(--bg-code) 88%, var(--white) 12%);
+  padding: 0 3rem 0 var(--space-2);
+  /* 与单块代码块的头部同底同高：两种代码块的「头部」视觉上必须是同一条 */
+  background: var(--bg-code-head);
   border: var(--border-width) solid color-mix(in srgb, currentColor 8%, transparent);
-  border-bottom: 0;
+  border-bottom: var(--border-width) solid var(--border-code);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -1300,11 +1453,11 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  /* 触控目标：标签是代码块的唯一入口，必须够大 */
-  min-height: 2.25rem;
+  /* 触控目标：标签是分组唯一的切换入口，必须够大；高度与单块头部对齐 */
+  min-height: var(--code-head-height);
   padding: 0 var(--space-3);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  color: var(--gray-400);
+  color: var(--fg-code-lang);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--leading-normal);
@@ -1317,19 +1470,19 @@
 }
 
 .prose .vp-code-group .tabs label:hover {
-  color: var(--gray-200);
-  background: rgb(255 255 255 / 0.06);
+  color: var(--fg-code-head);
+  background: var(--code-action-bg-hover);
 }
 
 /*
  * 选中态：文字提亮 + 底部一条 2px 强调色短线。
  *
- * 为什么不用"填充整块底色"：代码块本身就是深色，
+ * 为什么不用"填充整块底色"：代码块本身是一整块深/浅底，
  * 填充式选中会让标签条变成一排色块，与"代码块的标签"这个定位不符。
  * 下划线既轻又明确，且不会与代码内容的行背景混淆。
  */
 .prose .vp-code-group .tabs input:checked + label {
-  color: var(--gray-100);
+  color: var(--fg-code-head);
 }
 
 .prose .vp-code-group .tabs input:checked + label::after {
@@ -1340,7 +1493,7 @@
   left: var(--space-3);
   height: 2px;
   border-radius: var(--radius-full);
-  background: var(--teal-400);
+  background: var(--accent);
 }
 
 /*
@@ -1349,12 +1502,11 @@
  * radio 被 clip 掉了，浏览器画的焦点环在屏幕外看不见 ——
  * 必须把焦点指示**转移到 label 上**。用 `:focus-visible + label`
  * 只在键盘操作时出现，鼠标点击不会留下一个环。
+ * 内层用头部条底色挖空，和复制按钮共用同一个 `--ring-code`。
  */
 .prose .vp-code-group .tabs input:focus-visible + label {
   outline: none;
-  box-shadow:
-    0 0 0 2px var(--bg-code),
-    0 0 0 4px var(--accent);
+  box-shadow: var(--ring-code);
 }
 
 /*
@@ -1371,6 +1523,12 @@
 @keyframes code-tab-in {
   from {
     opacity: 0;
+  }
+}
+
+@media (pointer: coarse) {
+  .prose .vp-code-group > .blocks > div[class*='language-'] > button.copy {
+    top: calc((var(--code-head-height) - 2.25rem) / 2);
   }
 }
 

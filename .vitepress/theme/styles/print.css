@@ -11,7 +11,10 @@
   .skip-link,
   .reading-progress,
   .scrollbar,
-  .prose div[class*='language-'] > button.copy {
+  .prose div[class*='language-'] > button.copy,
+  /* 代码块头部的语言标识与分组 tab 条：纸上没有交互，也不该有两条头 */
+  .prose div[class*='language-'] > .lang,
+  .prose .vp-code-group .tabs {
     display: none !important;
   }
 
@@ -51,6 +54,29 @@
     border: 1px solid #ddd;
     box-shadow: none;
     break-inside: avoid;
+  }
+
+  /*
+   * 屏幕上的头部控件区在纸面上没有交互价值：底色条、复制按钮、语言标识都去掉，
+   * 只保留**文件路径**作为一行小标题——纸上读者同样需要知道「这是哪个文件」。
+   * 路径由构建期注入在 `.code-block__label` 里，没有路径的块显示语言名。
+   */
+  .code-block {
+    display: block;
+  }
+
+  .code-block::before {
+    display: none;
+  }
+
+  .code-block__label {
+    display: block;
+    padding: 4px 12px;
+    border-bottom: 1px solid #ddd;
+    color: #333;
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    line-height: 1.5;
   }
 
   .prose div[class*='language-'] > pre {

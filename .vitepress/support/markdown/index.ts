@@ -30,6 +30,7 @@
 import MarkdownIt from 'markdown-it'
 
 import { extendMarkdown } from '../markdown-plugins'
+import { installCodeBlocks } from './code-blocks'
 import { installDirectives } from './directives/index'
 
 /** 媒体管线安装器（由调用方注入，避免 `support/markdown/` 反向依赖 `support/media/`）。 */
@@ -72,6 +73,9 @@ export function applySiteMarkdown(md: unknown, options: SiteMarkdownOptions = {}
   // 媒体管线先装：它的 core 规则是图片拆段的定位锚点
   options.media?.(md)
   installDirectives(md)
+  // 代码块增强必须最后装：它包裹的是 VitePress 的 fence 包装器，
+  // 装得越晚越靠外层，拿到的 HTML 才稳定（见 code-blocks.ts 顶部说明）。
+  installCodeBlocks(md)
 }
 
 /**

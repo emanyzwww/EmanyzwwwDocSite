@@ -139,7 +139,7 @@ outline: true
 
 行内代码用一组反引号包住：`hello, world`。要在行内代码里写反引号本身，就用更长的反引号包起来：`` `代码` ``。
 
-围栏代码块写对语言名才有高亮（`js`、`ts`、`python`、`c`、`bash`、`markdown`…）：
+围栏代码块写对语言名才有高亮（`js`、`ts`、`python`、`c`、`bash`、`markdown`…）。代码块顶部有一条**常驻的 36px 头部控件区**：左边是文件路径（没写路径时显示语言名），右边是语言标识（写了路径时）与**常驻的复制按钮**；代码块跟着页面明暗走，浅色主题下浅底、深色主题下深底：
 
 ```javascript
 // JavaScript 代码高亮测试
@@ -157,11 +157,39 @@ def hello_world():
     print(message)
 ```
 
-不写语言名也能渲染，只是没有高亮：
+要标注代码来自哪个文件，在语言名后面写 `[路径]`——路径显示在头部左侧，语言标识与复制按钮仍在右侧：
+
+```ts [src/app.ts]
+export function add(a: number, b: number): number {
+  return a + b
+}
+```
+
+只写路径、不写语言也可以：语言按扩展名推断（`[src/app.ts]` → `ts`），查不到的扩展名按纯文本渲染：
+
+```[src/app.ts]
+const list = [1, 2, 3]
+```
+
+不写语言名也能渲染，只是没有高亮（头部显示语言名 `text`）：
 
 ```text
 没有语言标记的代码块
 ```
+
+代码分组 `::: code-group` 的多块代码共用一条 tab 条：tab 标签就是文件名，tab 条本身就是头部，不再额外叠一条头部条；复制按钮固定在右上角。
+
+::: code-group
+
+```ts [src/app.ts]
+const a = 1
+```
+
+```js [src/app.js]
+const a = 1
+```
+
+:::
 
 ### 链接与图片
 

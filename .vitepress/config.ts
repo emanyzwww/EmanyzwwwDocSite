@@ -14,6 +14,7 @@ import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
 import { articleRewrites, buildTagIndex, readPageUrls, readPosts } from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
 import { applySiteMarkdown } from './support/markdown'
+import { CODE_THEMES } from './support/markdown/code-theme'
 import { mediaMarkdown } from './support/media/render'
 import { mediaPlugin } from './support/media/vite'
 import { writeNotFoundFallback } from './support/not-found'
@@ -349,14 +350,20 @@ export default defineConfig({
   // ---------- Markdown ----------
   markdown: {
     /*
-     * 代码块在明暗主题下都保持深色，因此用单主题。
+     * 代码块用的是**本站自己的双主题**，不再借用 GitHub 的配色。
      *
-     * 用 `github-dark-default`（GitHub 现行配色）而不是旧的 `github-dark`：
-     * 旧主题的注释色 `#6a737d` 在 `--bg-code #0d1014` 上只有 **3.96:1**，
-     * 低于 WCAG AA 的 4.5:1 —— 而本站正文明亮、代码块恒深色，
-     * 注释是最常被扫读的部分之一。新主题的注释色 `#8b949e` 是 **6.20:1**。
+     * 明暗各一套（`support/markdown/code-theme.ts`）：
+     * - 浅色主题下代码块跟页面一样是浅底，深色主题下是深底；
+     * - 每个 token 颜色都对着**自己的底色**算过对比度，全部 ≥ 4.5:1
+     *   （`tests/code-theme.test.ts` 逐条复算）；
+     * - 色相只保留 4 个（jade / 琥珀 / 梅紫 / 青蓝），与全站「一个强调色」一致。
+     *
+     * 双主题时 Shiki 不写死 `color`，而是给每个 span 打两个自定义属性
+     * （`--shiki-light` / `--shiki-dark`），由 `content.css` 按 `.dark` 选择。
+     * 这也顺带修好了 RSS：feed 里没有 CSS，span 就不会带任何颜色，
+     * 阅读器用自己的前景色渲染，不会再出现「浅色字配白底」的隐形代码。
      */
-    theme: 'github-dark-default',
+    theme: CODE_THEMES,
     lineNumbers: false,
     // 右栏目录收集哪些级别的标题。H1 留给页面标题（模板已渲染），所以正文从 ## 起。
     // 想收更多层级就加数字，例如 [2, 3, 4]；只收两级就用 [2, 3]。

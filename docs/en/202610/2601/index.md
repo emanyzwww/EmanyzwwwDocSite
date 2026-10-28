@@ -139,7 +139,7 @@ To write a literal pipe inside a cell, escape it as `\|`, otherwise it splits th
 
 Inline code goes between a pair of backticks: `hello, world`. To show a backtick inside inline code, wrap it in a longer run of backticks: `` `code` ``.
 
-Fenced code blocks need the right language name to get highlighting (`js`, `ts`, `python`, `c`, `bash`, `markdown`, …):
+Fenced code blocks need the right language name to get highlighting (`js`, `ts`, `python`, `c`, `bash`, `markdown`, …). Every code block has a **permanent 36px header strip** at the top: the file path on the left (or the language name when no path is given), and on the right the language identifier (when a path is written) and a **permanent copy button**; code blocks follow the page theme—a light background in the light theme, a dark one in the dark theme:
 
 ```javascript
 // JavaScript syntax highlighting test
@@ -157,11 +157,39 @@ def hello_world():
     print(message)
 ```
 
-Without a language name it still renders, just without highlighting:
+To say where the code comes from, write a `[path]` after the language name—the path shows on the left of the header, while the language identifier and copy button stay on the right:
+
+```ts [src/app.ts]
+export function add(a: number, b: number): number {
+  return a + b
+}
+```
+
+You can also write the path alone, with no language: the language is inferred from the extension (`[src/app.ts]` → `ts`), and unknown extensions fall back to plain text:
+
+```[src/app.ts]
+const list = [1, 2, 3]
+```
+
+Without a language name it still renders, just without highlighting (the header shows the language name `text`):
 
 ```text
 A code block with no language tag
 ```
+
+A `::: code-group` block shares one tab strip: the tab labels are the file names when you write them, and the tab strip itself is the header—no second header is added; the copy button sits at the top-right.
+
+::: code-group
+
+```ts [src/app.ts]
+const a = 1
+```
+
+```js [src/app.js]
+const a = 1
+```
+
+:::
 
 ### Links and Images
 

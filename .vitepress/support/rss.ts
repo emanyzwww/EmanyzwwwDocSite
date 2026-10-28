@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path'
 import { LOCALE_CODES, LOCALES, SITE } from '../data/site'
 import type { LocaleCode, PostSummary } from '../types'
 import { readPosts } from './content'
+import { sanitizeFeedCode } from './feed-code'
 import { formatRfc822 } from './format'
 import { getRenderedContent } from './rendered'
 import { decodePath } from './urls'
@@ -105,7 +106,18 @@ function articleHtml(post: PostSummary, base: string): string {
     .replace(/<\/?figure\b[^>]*>/gi, '')
 
   /*
-   * 第三种：把站内链接补成绝对地址。
+   * 第三种清洗：**把代码块压成阅读器能读的纯文本**（细节见 `support/feed-code.ts`）。
+   *
+   * 网页上的代码块有常驻头部、复制按钮、语言标识，`::: code-group` 还有
+   * radio + label 的 tab 交互；这些在 feed 里没有 CSS 也没有 JS，只剩残渣。
+   *
+   * 放在链接绝对化**之前**：清洗会改变标签结构（拆包装层、删属性），
+   * 让绝对化最后统一处理还在的 `src` / `href`，顺序才不会互相踩。
+   */
+  const feedSafe = sanitizeFeedCode(cleaned)
+
+  /*
+   * 第四种：把站内链接补成绝对地址。
    *
    * 两种情况要分清：
    * 1. 渲染产物里的站内地址**已带 base**（我们的媒体管线在渲染期就拼好了，
@@ -118,7 +130,7 @@ function articleHtml(post: PostSummary, base: string): string {
    */
   const bareBase = base.replace(/\/$/, '')
 
-  return cleaned.replace(/(src|href)="([^"]+)"/g, (whole, attr: string, url: string) => {
+  return feedSafe.replace(/(src|href)="([^"]+)"/g, (whole, attr: string, url: string) => {
     // 已经是完整 URL / 协议相对 / 纯锚点 / data URI 的，原样保留
     if (/^(?:[a-z][a-z\d+.-]*:|#|\/\/)/i.test(url)) return whole
 

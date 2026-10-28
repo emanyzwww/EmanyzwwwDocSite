@@ -36,6 +36,7 @@ data/{posts,search,pages}.data.ts  ──►  摘要数组 / 搜索索引 / 页�
     ▼
 config.ts
     │  ③ rewrites 补 slug 段；transformPageData 补标题；transformHead 补 SEO
+    │  ③.4 support/markdown/：applySiteMarkdown 装行内 / 指令 / 代码块头部（渲染时执行）
     │  ③.5 support/media/：buildStart 预扫转码 → mediaMarkdown 渲染 srcset
     │     → generateBundle emitFile；dev 走中间件
     │  ③.6 transformHtml 收集已渲染正文 → support/rendered.ts（给 RSS）
@@ -88,8 +89,10 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
 │  ├─ translation.ts      跨语言配对（显式 translationKey > `<YYYYMM>/<DDNN>`）
 │  ├─ urls.ts / locale-paths.ts   路径与语言前缀换算（纯函数，不 import vitepress）
 │  ├─ format.ts           日期/字数/截断（纯函数，两端通用）
-│  ├─ markdown/           ★ Markdown 装配点（见「块级指令」）
+│  ├─ markdown/           ★ Markdown 装配点（见「块级指令」与「代码块管线」）
 │  │  ├─ index.ts         applySiteMarkdown()：页面正文与非页面共用同一套插件
+│  │  ├─ code-theme.ts    ★ 代码块双主题色板：Shiki 配色的唯一来源（含对比度契约）
+│  │  ├─ code-blocks.ts   ★ 代码块头部注入：`[路径]` 解析、语言推断、DOM 契约
 │  │  └─ directives/      registry（注册表/报错）、parse、block、images、builtins（六个指令）
 │  ├─ markdown-plugins.ts 自写行内语法：`==高亮==`、GFM 任务列表
 │  ├─ media/              ★ 图片管线
@@ -102,6 +105,7 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
 │  │  └─ vite.ts          Vite 插件：预扫 / emitFile / dev 中间件
 │  ├─ rendered.ts         收集 transformHtml 阶段的正文（给 RSS 用）
 │  ├─ rss.ts              RSS 生成（buildEnd 调用，含 content:encoded）
+│  ├─ feed-code.ts        RSS 代码块清洗：网页专用头部 / 按钮 / tab 条 → feed-safe
 │  ├─ robots.ts           robots.txt 生成（buildEnd 调用）
 │  ├─ not-found.ts        404 页无 JS 兜底（buildEnd 调用）
 │  └─ dev-redirect.ts     dev 下 `/` 按 Accept-Language 跳语言
@@ -162,7 +166,7 @@ scripts/                   ← 命令行脚本（内容侧工具，不参与构�
    ├─ args.ts             命令行参数解析
    └─ ui.ts               颜色、按显示宽度对齐、表格
 
-tests/                    23 个 *.test.ts + fixtures/tiny.png（见第九节）
+tests/                    26 个 *.test.ts + fixtures/tiny.png（见第九节）
 .github/                  workflows/deploy.yml（构建 + 门禁 + 部署 + 冒烟）、dependabot.yml（action 升级）
 
 media/                     ← 会换的图（头像等），走 Vite 指纹
@@ -317,19 +321,19 @@ export const NAV = {
 
 ### `config.ts` —— 构建行为
 
-| 想改               | 位置                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| 代码高亮主题       | `markdown.theme`（当前 `github-dark-default`）                                              |
-| 目录收几级标题     | `markdown.headers.level`（当前 `[2, 3]`，可加 4）                                           |
-| 草稿目录           | `srcExclude`（当前含 `**/_drafts/**` 与 `**/README.md`）                                    |
-| 文章 URL 映射      | `rewrites`（`<YYYYMM>/<DDNN>/index.md` → 带 slug 的 route，复用 `support/article-path.ts`） |
-| 锚点跳转偏移       | `scrollOffset`（当前 80；仅影响跨页 hash 定位，页内滚动读 `scroll-padding-top`）            |
-| 站点地图域名       | `sitemap.hostname`（= 站点 origin + `VP_BASE`）                                             |
-| 页头 meta          | `head` 数组（viewport、CSP、referrer、favicon）                                             |
-| 页面标题怎么拼     | `transformPageData`                                                                         |
-| OG / RSS / 互指    | `transformHead`                                                                             |
-| RSS / robots / 404 | `buildEnd` → `support/rss.ts` / `robots.ts` / `not-found.ts`                                |
-| RSS 正文           | `transformHtml` → `support/rendered.ts` 收集已渲染正文                                      |
+| 想改               | 位置                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| 代码高亮主题       | `markdown.theme`（`CODE_THEMES`：本站自有 `jade-light` / `jade-dark` 双主题，见「代码块管线」） |
+| 目录收几级标题     | `markdown.headers.level`（当前 `[2, 3]`，可加 4）                                               |
+| 草稿目录           | `srcExclude`（当前含 `**/_drafts/**` 与 `**/README.md`）                                        |
+| 文章 URL 映射      | `rewrites`（`<YYYYMM>/<DDNN>/index.md` → 带 slug 的 route，复用 `support/article-path.ts`）     |
+| 锚点跳转偏移       | `scrollOffset`（当前 80；仅影响跨页 hash 定位，页内滚动读 `scroll-padding-top`）                |
+| 站点地图域名       | `sitemap.hostname`（= 站点 origin + `VP_BASE`）                                                 |
+| 页头 meta          | `head` 数组（viewport、CSP、referrer、favicon）                                                 |
+| 页面标题怎么拼     | `transformPageData`                                                                             |
+| OG / RSS / 互指    | `transformHead`                                                                                 |
+| RSS / robots / 404 | `buildEnd` → `support/rss.ts` / `robots.ts` / `not-found.ts`                                    |
+| RSS 正文           | `transformHtml` → `support/rendered.ts` 收集已渲染正文                                          |
 
 ### 部署路径与环境变量
 
@@ -373,7 +377,9 @@ VitePress 的 `404.html` 是纯 SPA 空壳（禁用 JS / 抓取预览时是一�
 与网页完全一致，不再出现「feed 里的图是 ./banner.png」。写进 feed 前会删掉
 `srcset` / `sizes` / `loading` / `data-lightbox` 等网页专用属性、把 `<figure>` 压平成
 `<img>` + `<p><small>图注</small></p>`、站内相对地址补成绝对地址（先剥已有 base 再拼
-`SITE_URL`，避免 `/<repo>/<repo>/`）。
+`SITE_URL`，避免 `/<repo>/<repo>/`）。代码块另由 `support/feed-code.ts` 的 `sanitizeFeedCode()` 清洗：删掉
+头部条、复制按钮、语言标识与代码分组的 tab 条，`[路径]` 保留成 `<p><small>路径</small></p>`，
+`<pre>` 去掉全部属性与 `--shiki-*` 自定义属性（详见「代码块管线」）。
 
 `robots.txt` 由 `support/robots.ts` 写死 `Sitemap:` 绝对地址，与 sitemap 的 hostname 同源，
 不在 `public/` 里放静态文件。
@@ -571,6 +577,71 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 闭合行，构建会失败并提示把指令移到容器外；绕过办法是**让外层围栏更长**（外层 `::::`、
 内层 `:::`）。
 
+### 代码块管线
+
+代码块从「明暗恒深色 + github-dark-default 单主题」改成**本站自有双主题 + 常驻头部控件区**。
+它横跨五处，改任何一处先看清其余四处：
+
+| 段     | 文件                              | 负责                                                                                        |
+| ------ | --------------------------------- | ------------------------------------------------------------------------------------------- |
+| 构建期 | `support/markdown/code-blocks.ts` | `[路径]` 解析、`::: code-group` 跳过、扩展名推断语言、把头部标记写进 HTML                   |
+| 配色   | `support/markdown/code-theme.ts`  | Shiki 双主题色板 `CODE_PALETTE`；**token 色的唯一来源**                                     |
+| 视觉   | `theme/styles/content.css`        | 头部条 / Grid / 复制按钮 / 双主题桥接；底色与控件色来自 `tokens.css`                        |
+| RSS    | `support/feed-code.ts`            | `sanitizeFeedCode()`：把网页专用结构清成 feed-safe（在 `rss.ts` 的 `articleHtml()` 里调用） |
+| 打印   | `theme/styles/print.css`          | 去掉头部条底色与交互控件，保留路径行，强制浅底黑字                                          |
+
+**写法与语言推断。** 在围栏信息里写 `ts [src/app.ts]`：`ts` 是语言，`[src/app.ts]` 是文件路径。
+只写路径（` ``` [src/app.ts] `）时按**最后一段的扩展名**推断语言——`EXTENSION_LANG` 只登记
+常见扩展名，查不到就保持纯文本、不猜。`[路径]` 是 VitePress 的既有约定（`::: code-group`
+用它作标签名），会被 VitePress 自己的 fence 包装器从 `token.info` 里摘掉，不会泄漏给 Shiki。
+因为 VitePress 也从 `token.info` 取语言，`installCodeBlocks` 必须在调用原 fence 规则**之前**
+改写 `token.info`，晚一步就轮不到它。
+
+**DOM 契约**（`code-blocks.ts` 注入，CSS 与 RSS 清洗器共用，顺序固定、**不要调换**）：
+
+```text
+<div class="code-block code-block--file language-ts vp-adaptive-theme">
+  <span class="code-block__label" data-file="src/app.ts" title="src/app.ts">src/app.ts</span>
+  <button title="Copy code" class="copy"></button>
+  <span class="lang">ts</span>
+  <pre class="shiki shiki-themes jade-light jade-dark vp-code">…</pre>
+</div>
+```
+
+- `code-block` 必带；`code-block--file` 与 `data-file` / `title` 只在**写了路径**时出现——
+  RSS 清洗器靠 `data-file` 决定保留不保留路径行。没写路径时 label 文本是语言名、无 `data-file`。
+- **label 必须在 `button.copy` 前面。** VitePress 的复制逻辑写死了
+  `button.nextElementSibling?.nextElementSibling` 是 `<pre>`；label 若插在 button 与 `.lang`
+  之间，复制按钮拿到的就是语言名而不是代码（`tests/code-blocks.test.ts` 钉住这条契约）。
+- `.lang` 恒在 button 之后，同样是复制契约的一部分；`::: code-group` 里它由 CSS 隐藏，
+  且整块**不注入头部**。
+- 头部条是 CSS Grid 的第一行（`--code-head-height` = 36px），代码本体固定第二行；
+  路径 / 语言 / 复制按钮都是 grid item，结构上不可能与代码重叠。运行期零 JS。
+
+**`::: code-group` 特例。** tab 条本身就是头部，逐块不再加第二条；`isInsideCodeGroup`
+用容器 token 的深度计数判断（嵌套分组不误判），复制按钮由 CSS 绝对定位到分组右上角。
+
+**为什么必须最后装。** `installCodeBlocks` 包裹的是 VitePress 的 `preWrapperPlugin`：
+装得越晚越靠外层，拿到的才是「已包装、还没被别的规则改写」的 HTML。`applySiteMarkdown()`
+已把它排在 `installDirectives` 之后。
+
+**打印与 RSS。** 打印去掉头部条的底色、语言标识、复制按钮与 tab 条，但**保留文件路径**
+作为纸面上的小标题；代码块换浅底黑字并允许换行。
+RSS 侧 `feed-code.ts` 删掉复制按钮、语言标识、头部 label、tab 条与 `<div class="language-…">`
+包装，有 `data-file` 的路径保留成 `<p><small>路径</small></p>`，`<pre>` 及其内部 span 的全部
+属性（含 `--shiki-*` 自定义属性）清空但文本与实体原样保留；对没有代码块的 HTML 必须恒等输出。
+
+**改配色的步骤**（顺序不能反）：
+
+1. 改 `code-theme.ts` 的 `CODE_PALETTE`（浅 / 深各 10 个角色）与 `CODE_BACKGROUND`；
+2. 同步 `tokens.css` 的 `--bg-code`（必须与 `CODE_BACKGROUND` 一致）、`--bg-code-head`、
+   `--border-code`、`--fg-code-head`、`--fg-code-lang`、`--code-action-*`、`--code-copied-*`、
+   `--ring-code`；
+3. 按 DESIGN.md §9.1 用 WCAG 2.x 公式逐条复算：每个 token 对自己主题的 `--bg-code`，
+   头部三档对 `--bg-code-head`；
+4. 跑 `tests/code-theme.test.ts`（色板对比度 + 双主题结构）与 `tests/code-blocks.test.ts`；
+5. `pnpm build` 后肉眼过明暗两套、打印预览与 RSS 输出。
+
 ---
 
 ## 四、改样式
@@ -582,6 +653,9 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 
 `theme/styles/tokens.css` 分原始色阶、语义变量、排版/间距三层，其他 CSS
 **只引用变量、不写死数值**；改配色/字号/圆角/间距从 tokens 动手，规范准绳是 DESIGN.md。
+代码块是唯一的分工例外：底色与头部控件色在 `tokens.css`（`--bg-code*` / `--fg-code-*` /
+`--code-action-*` / `--ring-code`），**token 色本身在 `support/markdown/code-theme.ts`**，
+CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 `--weight-medium` 只是指向 400 的兼容别名，不要再用。
 
 ### 五条设计纪律（一句话）
@@ -608,22 +682,22 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 
 顺序在 `styles/index.css` 里（13 条 `@import` + 入口文件本身），**后面的能覆盖前面的**。
 
-| 文件                   | 管什么                                                           | 什么时候进这里改             |
-| ---------------------- | ---------------------------------------------------------------- | ---------------------------- |
-| `tokens.css`           | 全部设计变量（含 z 轴阶梯、浮层色、动效时长曲线、安全区）        | 换色、换圆角、换字号、换间距 |
-| `base.css`             | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接            | 调基础排版、改滚动条         |
-| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点                              | 改整体骨架、侧栏宽度         |
-| `components.css`       | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态       | 改页头页脚、按钮样式         |
-| `content.css`          | **正文专属**：标题、段落、列表、引用、表格、代码块、图片、嵌入块 | 改文章正文观感               |
-| `posts.css`            | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404      | 改列表和文章页               |
-| `widgets.css`          | 资料卡、标签卡、最近文章卡、统计卡、标签云                       | 改侧栏卡片                   |
-| `mobile.css`           | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局             | 改移动端交互                 |
-| `search.css`           | 全站搜索面板                                                     | 改搜索面板                   |
-| `lightbox.css`         | 图片查看器（满屏浮层，与搜索同一类）                             | 改查看器                     |
-| `link-preview.css`     | 链接悬浮预览卡（小浮层，Teleport 到 body）                       | 改悬浮卡                     |
-| `route-transition.css` | 页面切换与主题切换的 `::view-transition-*`                       | 改整页过渡                   |
-| `print.css`            | 打印样式                                                         | 调打印                       |
-| `index.css`            | `@import` 汇总，别放规则                                         | 加新样式文件时登记           |
+| 文件                   | 管什么                                                                                       | 什么时候进这里改             |
+| ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------- |
+| `tokens.css`           | 全部设计变量（含 z 轴阶梯、浮层色、动效时长曲线、安全区）                                    | 换色、换圆角、换字号、换间距 |
+| `base.css`             | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接                                        | 调基础排版、改滚动条         |
+| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点                                                          | 改整体骨架、侧栏宽度         |
+| `components.css`       | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态                                   | 改页头页脚、按钮样式         |
+| `content.css`          | **正文专属**：标题、段落、列表、引用、表格、代码块（含头部控件区与双主题桥接）、图片、嵌入块 | 改文章正文观感               |
+| `posts.css`            | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404                                  | 改列表和文章页               |
+| `widgets.css`          | 资料卡、标签卡、最近文章卡、统计卡、标签云                                                   | 改侧栏卡片                   |
+| `mobile.css`           | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局                                         | 改移动端交互                 |
+| `search.css`           | 全站搜索面板                                                                                 | 改搜索面板                   |
+| `lightbox.css`         | 图片查看器（满屏浮层，与搜索同一类）                                                         | 改查看器                     |
+| `link-preview.css`     | 链接悬浮预览卡（小浮层，Teleport 到 body）                                                   | 改悬浮卡                     |
+| `route-transition.css` | 页面切换与主题切换的 `::view-transition-*`                                                   | 改整页过渡                   |
+| `print.css`            | 打印样式                                                                                     | 调打印                       |
+| `index.css`            | `@import` 汇总，别放规则                                                                     | 加新样式文件时登记           |
 
 > **`content.css` 必须排在 `posts.css` 之前。** `posts.css` 里有 `.prose h2` 的
 > 移动端缩小规则，要压过正文默认值。
@@ -651,9 +725,10 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 ### 改配色后必须做的事
 
 按 DESIGN.md §9.1 的公式复算每个前景/背景组合的对比度（全部 AA 以上），再跑
-`pnpm build` 后肉眼过一遍明暗两套。注意装饰边框（`--border-subtle` / `--border-strong`）
-不按 3:1 要求，只有控件边框（`--border-control`）必须 ≥ 3:1——把装饰边框也压到 3:1
-会让界面变成一堆灰框。令牌完整性的口径：被引用但未定义的必须修；定义了但未引用的
+`pnpm build` 后肉眼过一遍明暗两套。代码块要额外算两遍：`code-theme.ts` 的每个 token 对着
+自己主题的 `--bg-code`，头部路径 / 语言 / 复制图标对着 `--bg-code-head`（步骤见「代码块管线」）。
+注意装饰边框（`--border-subtle` / `--border-strong`）不按 3:1 要求，只有控件边框
+（`--border-control`）必须 ≥ 3:1——把装饰边框也压到 3:1 会让界面变成一堆灰框。令牌完整性的口径：被引用但未定义的必须修；定义了但未引用的
 通常是有意保留（完整色阶、语义别名、预留档位），不必强求清零。
 
 ### 样式特异性的两个坑（都踩过）
@@ -667,20 +742,21 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 
 ### 常见改动
 
-| 想改     | 改哪个变量                                           |
-| -------- | ---------------------------------------------------- |
-| 强调色   | `--teal-*` 色阶（明暗各映射一次）                    |
-| 画布色调 | `--gray-25`（浅）/ `--gray-900`（深）                |
-| 圆角风格 | `--radius-xs/sm/md/lg/xl/full`（六档）               |
-| 整体字号 | `--text-*`（正文是 `--text-md` = 17px）              |
-| 间距节奏 | `--space-*`（4px 基准）                              |
-| 正文字体 | `--font-sans` / `--font-mono`                        |
-| 主体宽度 | `--layout-max`                                       |
-| 正文行宽 | `--layout-measure`（当前 42rem ≈ 39 汉字/行）        |
-| 侧栏宽度 | `--aside-width`                                      |
-| 页头高度 | `--header-height`（改后注意 `scrollOffset`）         |
-| 层级     | `--z-*` 命名阶梯，**禁止** `calc(var(--z-header)+N)` |
-| 滚动条色 | `--scrollbar-thumb*`（三档：静止/悬停/拖拽）         |
+| 想改       | 改哪个变量                                                                       |
+| ---------- | -------------------------------------------------------------------------------- |
+| 强调色     | `--teal-*` 色阶（明暗各映射一次）                                                |
+| 画布色调   | `--gray-25`（浅）/ `--gray-900`（深）                                            |
+| 圆角风格   | `--radius-xs/sm/md/lg/xl/full`（六档）                                           |
+| 整体字号   | `--text-*`（正文是 `--text-md` = 17px）                                          |
+| 间距节奏   | `--space-*`（4px 基准）                                                          |
+| 正文字体   | `--font-sans` / `--font-mono`                                                    |
+| 主体宽度   | `--layout-max`                                                                   |
+| 正文行宽   | `--layout-measure`（当前 42rem ≈ 39 汉字/行）                                    |
+| 侧栏宽度   | `--aside-width`                                                                  |
+| 页头高度   | `--header-height`（改后注意 `scrollOffset`）                                     |
+| 层级       | `--z-*` 命名阶梯，**禁止** `calc(var(--z-header)+N)`                             |
+| 滚动条色   | `--scrollbar-thumb*`（三档：静止/悬停/拖拽）                                     |
+| 代码块配色 | `code-theme.ts` 的 `CODE_PALETTE` + `tokens.css` 的 `--bg-code*`（两套都要复算） |
 
 ### 明暗主题的机制
 
@@ -1163,7 +1239,7 @@ frontmatter 字段表走 `frontmatter-schema.ts`、读写走 `frontmatter.ts`、
 ```powershell
 pnpm typecheck     # TS + Vue 类型检查（0 错误才算过）
 pnpm lint          # oxlint：未使用变量、可疑写法、性能提示
-pnpm test          # vitest：纯函数单测（23 个文件 / 450 个用例）
+pnpm test          # vitest：纯函数单测（26 个文件 / 514 个用例）
 pnpm test:watch    # 单测 watch 模式
 pnpm format        # 格式化：docs + .vitepress + scripts + 根目录几份 md
 pnpm format:check  # 只检查不写入
@@ -1180,34 +1256,37 @@ pnpm build         # 构建（也会暴露类型问题）
 
 ### 单测覆盖什么
 
-`tests/` 下共 **23 个文件、450 个用例**（其中 offline-build 的 1 个在默认门禁里会跑，
+`tests/` 下共 **26 个文件、514 个用例**（其中 offline-build 的 1 个在默认门禁里会跑，
 用上面的环境变量可跳过）。绝大多数测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
 
-| 文件                        | 用例 | 覆盖                                                                               |
-| --------------------------- | ---: | ---------------------------------------------------------------------------------- |
-| `urls.test.ts`              |   10 | 相对路径 → URL、中文编码、与 `decodePath` 互逆                                     |
-| `paths.test.ts`             |   27 | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性                         |
-| `article-path.test.ts`      |   11 | 文章路径解析（`<YYYYMM>/<DDNN>`）、配对键、route 与 URL 拼接                       |
-| `slug.test.ts`              |   14 | slug 推导（中文保留原字 / 纯拉丁 kebab-case）、可用性判断、`slugOf` 回退           |
-| `translation.test.ts`       |   10 | 跨语言配对键推导、配对索引与回退                                                   |
-| `pagination.test.ts`        |   12 | 分页边界（空列表、越界、非法 perPage）                                             |
-| `format.test.ts`            |   18 | 日期格式化、RFC 822、字数统计、纯文本化                                            |
-| `dev-redirect.test.ts`      |    6 | `Accept-Language` 解析                                                             |
-| `markdown-plugins.test.ts`  |   25 | `==高亮==` 与任务列表的渲染、嵌套、**不误伤比较运算**                              |
-| `markdown-pipeline.test.ts` |    9 | 两条渲染路径（页面正文 / 简介卡片）对同一段 Markdown 产出一致                      |
-| `directives.test.ts`        |   46 | 块级指令：参数解析、六个指令、分栏、图片拆段、嵌套、代码块内的 `:::`、错误文案     |
-| `offline-build.test.ts`     |    1 | **构建期零网络**：把 `fetch` 换掉再真跑一次完整构建（守核心契约）                  |
-| `shared-github.test.ts`     |   20 | URL 解析与仓库名归一化、数字缩写、相对天数                                         |
-| `link-preview.test.ts`      |   29 | 链接预览纯函数：GitHub/bilibili URL 解析、缓存键归一化、TTL、域名卡                |
-| `media-planner.test.ts`     |   34 | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名                 |
-| `media-probe.test.ts`       |   18 | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                        |
-| `media-render.test.ts`      |   23 | `<figure>` 提升边界、alt/图注/宽高、`data-plain`、`data-lqip`、与 attrs 的顺序契约 |
-| `anchor-scroll.test.ts`     |   15 | 锚点留白（读 `scroll-padding-top`）、滚动扣减、**滚动锁排队**（iOS 真机 bug）      |
-| `presence.test.ts`          |   10 | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约                                  |
-| `overlay-registry.test.ts`  |    5 | 浮层强制关闭登记表：注册、注销、幂等                                               |
-| `scrollbar.test.ts`         |   23 | 拇指长度/位置、`scrollTopForOffset` 互逆、自动隐藏边界（`shouldReveal`）           |
-| `dock-state.test.ts`        |    6 | 阅读态状态机：抑制窗口、停稳、硬上限、无位移退出                                   |
-| `scripts.test.ts`           |   78 | 命令行内核：北京时间、序号分配、frontmatter 序列化、slug、参数、建文章             |
+| 文件                        | 用例 | 覆盖                                                                                                    |
+| --------------------------- | ---: | ------------------------------------------------------------------------------------------------------- |
+| `urls.test.ts`              |   10 | 相对路径 → URL、中文编码、与 `decodePath` 互逆                                                          |
+| `paths.test.ts`             |   27 | 语言前缀换算、`asLocale`、`postListPath`、`LOCALES` 一致性                                              |
+| `article-path.test.ts`      |   11 | 文章路径解析（`<YYYYMM>/<DDNN>`）、配对键、route 与 URL 拼接                                            |
+| `slug.test.ts`              |   14 | slug 推导（中文保留原字 / 纯拉丁 kebab-case）、可用性判断、`slugOf` 回退                                |
+| `translation.test.ts`       |   10 | 跨语言配对键推导、配对索引与回退                                                                        |
+| `pagination.test.ts`        |   12 | 分页边界（空列表、越界、非法 perPage）                                                                  |
+| `format.test.ts`            |   18 | 日期格式化、RFC 822、字数统计、纯文本化                                                                 |
+| `dev-redirect.test.ts`      |    6 | `Accept-Language` 解析                                                                                  |
+| `markdown-plugins.test.ts`  |   25 | `==高亮==` 与任务列表的渲染、嵌套、**不误伤比较运算**                                                   |
+| `markdown-pipeline.test.ts` |    9 | 两条渲染路径（页面正文 / 简介卡片）对同一段 Markdown 产出一致                                           |
+| `code-theme.test.ts`        |   31 | 代码块色板：浅 / 深每个 token 对自己底色 ≥ 4.5:1、双主题结构、无斜体                                    |
+| `code-blocks.test.ts`       |   19 | `[路径]` 解析、扩展名推断语言、头部注入契约（label 在 button 前）、空语言兜底 `text`、code-group 不注入 |
+| `feed-code.test.ts`         |   14 | RSS 代码块清洗：普通块 / 路径行 / 实体保留 / 分组只留 active / 幂等 / 无块恒等                          |
+| `directives.test.ts`        |   46 | 块级指令：参数解析、六个指令、分栏、图片拆段、嵌套、代码块内的 `:::`、错误文案                          |
+| `offline-build.test.ts`     |    1 | **构建期零网络**：把 `fetch` 换掉再真跑一次完整构建（守核心契约）                                       |
+| `shared-github.test.ts`     |   20 | URL 解析与仓库名归一化、数字缩写、相对天数                                                              |
+| `link-preview.test.ts`      |   29 | 链接预览纯函数：GitHub/bilibili URL 解析、缓存键归一化、TTL、域名卡                                     |
+| `media-planner.test.ts`     |   34 | 格式裁决、档位计算、命名规则、`sizes` 常量、base 拼接、LQIP 文件名                                      |
+| `media-probe.test.ts`       |   18 | 图片头部尺寸探测（PNG/JPEG/WebP/GIF/SVG/AVIF 的真实文件头）                                             |
+| `media-render.test.ts`      |   23 | `<figure>` 提升边界、alt/图注/宽高、`data-plain`、`data-lqip`、与 attrs 的顺序契约                      |
+| `anchor-scroll.test.ts`     |   15 | 锚点留白（读 `scroll-padding-top`）、滚动扣减、**滚动锁排队**（iOS 真机 bug）                           |
+| `presence.test.ts`          |   10 | 浮层进出时机、退出途中重开、`EXIT_MS` 与 CSS 契约                                                       |
+| `overlay-registry.test.ts`  |    5 | 浮层强制关闭登记表：注册、注销、幂等                                                                    |
+| `scrollbar.test.ts`         |   23 | 拇指长度/位置、`scrollTopForOffset` 互逆、自动隐藏边界（`shouldReveal`）                                |
+| `dock-state.test.ts`        |    6 | 阅读态状态机：抑制窗口、停稳、硬上限、无位移退出                                                        |
+| `scripts.test.ts`           |   78 | 命令行内核：北京时间、序号分配、frontmatter 序列化、slug、参数、建文章                                  |
 
 几个值得单独理解的：`scripts.test.ts` 覆盖「建错会静默写坏内容」的那批函数
 （`nextSequence` 会不会撞号、`stringifyFrontmatter` 会不会写坏 YAML、`isoDateInZone`
@@ -1219,7 +1298,10 @@ pnpm build         # 构建（也会暴露类型问题）
 `anchor-scroll.test.ts` 守「手机上目录跳转失效」（锁持有期间必须排队，⚠️ 必须伪装
 iPhone UA 才能复现，手动验证见 DESIGN.md §7.5）；`dock-state.test.ts` 守「点跳转后
 chrome 有概率收起」；`scrollbar.test.ts` 守几何（拇指不越界、正反算互逆、
-`shouldReveal` 的强制条件优先于超时）。
+`shouldReveal` 的强制条件优先于超时）；`code-theme.test.ts` 守代码块配色的 AA 门槛
+（每个 token 对自己主题的 `--bg-code`）；`code-blocks.test.ts` 守复制按钮的隐式 DOM 契约
+（label 必须在 button 前，否则复制到的是语言名）；`feed-code.test.ts` 守 RSS 的
+feed-safe 输出（无 CSS 的环境里不能残留任何网页专用结构）。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在 `support/urls.ts`、`locale-paths.ts`、
 `translation.ts`、`article-path.ts`、`slug.ts` 与 `theme/support/{pagination,scrollbar}.ts`，
@@ -1303,24 +1385,24 @@ GITHUB_TOKEN 权限执行上游代码）；升级通过 Dependabot 发 PR。权�
 
 ## 附：设计决策速查
 
-| 决策                                                | 理由                                                                                                                      |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| 完全自定义主题，不 extends 默认主题                 | 默认主题 DOM 与样式高度耦合，还原三栏 + 卡片侧栏要大量覆盖，反而更难维护                                                  |
-| 目录式 URL（`cleanUrls: false`）                    | 不依赖服务器把 `/x` 映射到 `/x.html`，任何静态托管都能跑                                                                  |
-| 文章目录用 `<YYYYMM>/<DDNN>/`，标题只存 frontmatter | 目录名是机器身份（排序 / 跨语言配对 / 和 `date` 对账），URL 的标题段交给 `slug`；改标题不再牵动文件路径                   |
-| `shared/` 独立一层                                  | 构建期与运行期都要用的纯函数（GitHub 解析、图标表）既不能放 `support/` 也不能放 `theme/`，否则会反向依赖                  |
-| Shiki 单主题 `github-dark-default`                  | 原站代码块在明暗两套下都是深色；单主题省掉双主题 CSS 变量切换。`-default` 的注释色对比度 6.20:1（旧主题 3.96:1，低于 AA） |
-| 日期固定 `Asia/Shanghai`                            | 避免构建机时区不同导致跨日（`new` 与 `fix` 都按站点时区）                                                                 |
-| `LocaleCode` 用联合类型                             | 改语言集合时，TS 会指出所有需要适配的位置                                                                                 |
-| 标签页用动态路由 + `paths()`                        | 新增标签无需手写文件，是静态博客最容易腐化的地方                                                                          |
-| 侧栏用注册表 + 联合类型                             | 只有 profile/tags 两张；名字拼错在 typecheck 报错，而不是悄悄少渲染                                                       |
-| 搜索自建（构建期索引）                              | 不引入 Algolia 的第三方请求、查询词外发与前端 API key；纯前端匹配对博客量级足够                                           |
-| 嵌入块「构建期只出链接，运行期补数据」              | 构建期零网络、产物可复现；断网 / 禁 JS / 限流时仍是一条真链接                                                             |
-| `.vitepress` 放仓库根                               | 配置/主题与内容分离；`srcDir`/`outDir`/`cacheDir` 显式声明即可                                                            |
-| 中文也带 `/zh-cn/` 前缀                             | 与 `docs/zh-cn/` 一一对应，两种语言完全对称，无隐式映射；根路径只做语言分发                                               |
-| 高亮/任务列表自写插件，不装现成包                   | 两个包都无类型、`task-lists` 停更于 2018；自写零依赖，DOM 可控（详见 `support/markdown-plugins.ts` 顶部注释）             |
-| action 钉 40 位 SHA + 部署后冒烟                    | 防可变 tag 被改指；补「Actions 绿但线上坏」的盲区                                                                         |
-| `.gitattributes` 统一 LF                            | 避免 Windows `core.autocrlf` 让 `format:check` 本地红、CI 绿，以及 `fix` 整篇重写                                         |
+| 决策                                                | 理由                                                                                                                                                                                                                                                                       |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 完全自定义主题，不 extends 默认主题                 | 默认主题 DOM 与样式高度耦合，还原三栏 + 卡片侧栏要大量覆盖，反而更难维护                                                                                                                                                                                                   |
+| 目录式 URL（`cleanUrls: false`）                    | 不依赖服务器把 `/x` 映射到 `/x.html`，任何静态托管都能跑                                                                                                                                                                                                                   |
+| 文章目录用 `<YYYYMM>/<DDNN>/`，标题只存 frontmatter | 目录名是机器身份（排序 / 跨语言配对 / 和 `date` 对账），URL 的标题段交给 `slug`；改标题不再牵动文件路径                                                                                                                                                                    |
+| `shared/` 独立一层                                  | 构建期与运行期都要用的纯函数（GitHub 解析、图标表）既不能放 `support/` 也不能放 `theme/`，否则会反向依赖                                                                                                                                                                   |
+| Shiki 双主题 `jade-light` / `jade-dark`             | 代码块是正文的一部分，要跟着页面明暗走；现成主题的色板与本站 jade + 暖灰无关，也没有一组能同时满足两种底色。本站自有双主题让每个 token 对着自己底色 ≥ 4.5:1（唯一来源 `code-theme.ts`）；双色的 CSS 变量切换成本，换来浅色页面不再被黑矩形截断、RSS 里不再有写死的浅色文字 |
+| 日期固定 `Asia/Shanghai`                            | 避免构建机时区不同导致跨日（`new` 与 `fix` 都按站点时区）                                                                                                                                                                                                                  |
+| `LocaleCode` 用联合类型                             | 改语言集合时，TS 会指出所有需要适配的位置                                                                                                                                                                                                                                  |
+| 标签页用动态路由 + `paths()`                        | 新增标签无需手写文件，是静态博客最容易腐化的地方                                                                                                                                                                                                                           |
+| 侧栏用注册表 + 联合类型                             | 只有 profile/tags 两张；名字拼错在 typecheck 报错，而不是悄悄少渲染                                                                                                                                                                                                        |
+| 搜索自建（构建期索引）                              | 不引入 Algolia 的第三方请求、查询词外发与前端 API key；纯前端匹配对博客量级足够                                                                                                                                                                                            |
+| 嵌入块「构建期只出链接，运行期补数据」              | 构建期零网络、产物可复现；断网 / 禁 JS / 限流时仍是一条真链接                                                                                                                                                                                                              |
+| `.vitepress` 放仓库根                               | 配置/主题与内容分离；`srcDir`/`outDir`/`cacheDir` 显式声明即可                                                                                                                                                                                                             |
+| 中文也带 `/zh-cn/` 前缀                             | 与 `docs/zh-cn/` 一一对应，两种语言完全对称，无隐式映射；根路径只做语言分发                                                                                                                                                                                                |
+| 高亮/任务列表自写插件，不装现成包                   | 两个包都无类型、`task-lists` 停更于 2018；自写零依赖，DOM 可控（详见 `support/markdown-plugins.ts` 顶部注释）                                                                                                                                                              |
+| action 钉 40 位 SHA + 部署后冒烟                    | 防可变 tag 被改指；补「Actions 绿但线上坏」的盲区                                                                                                                                                                                                                          |
+| `.gitattributes` 统一 LF                            | 避免 Windows `core.autocrlf` 让 `format:check` 本地红、CI 绿，以及 `fix` 整篇重写                                                                                                                                                                                          |
 
 ---
 

@@ -78,7 +78,28 @@
   --bg-surface: var(--white);
   --bg-surface-alt: var(--gray-50);
   --bg-inset: var(--gray-100);
-  --bg-code: #11161a;
+  /*
+   * 代码块：**明暗各一套底色**（Shiki 双主题，配色见 support/markdown/code-theme.ts）。
+   *
+   * 浅色下不再是深色矩形，而是比画布（#fbfbfa）略深的「内嵌纸面」（#f4f5f3）：
+   * 代码块跟着页面主题走，读者不会在浅色页面里被一块黑矩形打断阅读节奏；
+   * 层次仍靠表面色差，不加阴影（DESIGN.md 6.2）。
+   */
+  --bg-code: var(--gray-50);
+  /* 头部控件区的底：比代码底再深一档，让「文件名/语言 + 复制」自成一条横条 */
+  --bg-code-head: var(--gray-100);
+  /* 头部与代码之间的分隔线。装饰性质，不要求 3:1（DESIGN.md 2.5） */
+  --border-code: var(--gray-150);
+  /* 头部文字：文件路径（13px 等宽）与语言标识（12px 大写） */
+  --fg-code-head: var(--gray-500);
+  --fg-code-lang: var(--gray-400);
+  /* 常驻复制按钮：图标属于「UI 组件可识别边界」，必须 ≥ 3:1（DESIGN.md 2.5） */
+  --code-action-fg: var(--gray-500);
+  --code-action-fg-hover: var(--gray-900);
+  --code-action-bg-hover: color-mix(in srgb, var(--gray-900) 6%, transparent);
+  /* 复制成功态：用全站唯一的强调色，不再另起一个绿色 */
+  --code-copied-fg: var(--accent);
+  --code-copied-bg: var(--accent-soft);
 
   --fg-default: #14181a;
   /*
@@ -146,6 +167,11 @@
    * 在彩色按钮上会糊成一片，在白卡上可能低到 1.58:1（低于 3:1 要求）。
    */
   --ring: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--accent);
+  /*
+   * 代码块内的焦点环：内层用**头部条**的底色挖空，而不是画布色。
+   * 复制按钮长在头部条上，用画布色挖空会在深色主题里露出一圈突兀的深灰。
+   */
+  --ring-code: 0 0 0 2px var(--bg-code-head), 0 0 0 4px var(--accent);
 }
 
 /* ---------- 2. 语义层：深色 ----------
@@ -164,7 +190,20 @@
   --bg-surface: var(--gray-850);
   --bg-surface-alt: var(--gray-800);
   --bg-inset: #202524;
+  /*
+   * 深色代码块：底比画布（#0c0f0e）更**暗**，形成「凹进去的终端」而不是浮起的卡片。
+   * 头部条反过来比代码底亮一档（#11161a），标题栏在上、代码在下，净高一目了然。
+   */
   --bg-code: #0a0d0c;
+  --bg-code-head: #11161a;
+  --border-code: #1f2523;
+  --fg-code-head: #b2b9b6;
+  --fg-code-lang: #8f9794;
+  --code-action-fg: #b2b9b6;
+  --code-action-fg-hover: #e8eae8;
+  --code-action-bg-hover: color-mix(in srgb, #ffffff 8%, transparent);
+  --code-copied-fg: var(--accent);
+  --code-copied-bg: var(--accent-soft);
 
   --fg-default: #e8eae8;
   /* 深色三级同样全部 ≥ 6:1（实测见 DESIGN.md 2.4） */
@@ -453,6 +492,12 @@
   --layout-measure: 42rem; /* 672px 正文最佳阅读宽度 */
   --layout-gap: var(--space-8);
   --aside-width: 16rem; /* 左右侧栏宽度 */
+  /*
+   * 代码块头部控件区高度：36px。
+   * 与 `::: code-group` 的标签条（label 的 min-height 2.25rem）取同一个值——
+   * 两种代码块的「头部」必须等高，否则同一篇文章里上下两个代码块的基线会错开。
+   */
+  --code-head-height: 2.25rem;
 }
 
 /* ---------- 7. 浮层（图片查看器） ----------
@@ -461,7 +506,8 @@
  * 与页面是浅色还是深色无关；若跟着主题切换，就会出现
  * 「深色主题下遮罩比页面还亮」这种反直觉的效果。
  *
- * 与 `--bg-code` 是同一个先例：代码块在明暗两套下都是深色。
+ * 它自成一体：遮罩不透明，所以遮罩上的对比度是**确定值**，不依赖底下是白页还是照片。
+ * （`--bg-code` 曾经是同一类例子，现在代码块改成明暗双主题，不再是先例。）
  *
  * 对比度是**确定值**（遮罩不透明，不依赖底下是什么），见 DESIGN.md 2.7：
  *   --overlay-fg         19.17:1
