@@ -11,7 +11,13 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
-import { articleRewrites, buildTagIndex, readPageUrls, readPosts } from './support/content'
+import {
+  articleRewrites,
+  buildTagIndex,
+  readDraftPosts,
+  readPageUrls,
+  readPosts,
+} from './support/content'
 import { devRootRedirect } from './support/dev-redirect'
 import { applySiteMarkdown } from './support/markdown'
 import { CODE_THEMES } from './support/markdown/code-theme'
@@ -47,6 +53,26 @@ const SITE_URL = (process.env.VP_SITE_URL ?? SITE.url).replace(/\/$/, '')
  * 这正是 GitHub Pages 项目站点 sitemap 全部指向域名根、404 的原因。
  */
 const SITEMAP_HOSTNAME = new URL(BASE, new URL(SITE_URL).origin).href
+
+/**
+ * sitemap 条目与 `PostSummary.url` 的统一比较键：去掉前导斜杠并**解码**。
+ *
+ * 两边的编码形态不同，必须归一化后才能比：
+ * - `SitemapItem.url` 是**未编码**的相对路径（`zh-cn/202610/1901/你好，世界/`，
+ *   没有前导斜杠，hostname 由下游的 SitemapStream 补）；
+ * - `PostSummary.url` 是**编码后**的站点路径（`/zh-cn/202610/1901/%E4%BD%A0…/`）。
+ *
+ * 不归一化的后果只出现在中文内容上：英文文章与草稿能正常过滤/拿到 `lastmod`，
+ * 中文文章的 slug 却永远匹配不上。
+ */
+function sitemapPathKey(path: string): string {
+  const withoutLeadingSlash = path.replace(/^\//, '')
+  try {
+    return decodeURIComponent(withoutLeadingSlash)
+  } catch {
+    return withoutLeadingSlash
+  }
+}
 
 /**
  * 由页面路径判断语言：第一段目录名就是语言（`zh-cn/` 或 `en/`）。
@@ -396,6 +422,35 @@ export default defineConfig({
   sitemap: {
     // 必须含部署子路径，否则 URL 解析会把 /<repo>/ 吃掉（见上方 SITEMAP_HOSTNAME）
     hostname: SITEMAP_HOSTNAME,
+
+    /**
+     * 两条内容规则，数据直接来自 `support/content.ts`（与文章页同源）：
+     *
+     * 1. **草稿不进 sitemap**：草稿页会生成（作者在浏览器里预览），也带了
+     *    `noindex`，但绝不能出现在给搜索引擎的清单里；
+     * 2. **文章的 `lastmod` 取「发布 / 更新」里较晚的时刻**：只有改过稿的文章
+     *    才会被搜索引擎重新抓取 —— 否则「更新日期」只在页面上好看。
+     */
+    transformItems(items) {
+      const draftUrls = new Set(readDraftPosts().map((post) => sitemapPathKey(post.url)))
+      const lastmodByUrl = new Map(
+        readPosts().map((post) => [sitemapPathKey(post.url), post.updated ?? post.date]),
+      )
+
+      /*
+       * 先按草稿过滤，再**原地**写 `lastmod`。
+       *
+       * 不写 `{ ...item, lastmod }`：这里的条目是我们自己产出的普通对象，
+       * 复制一份只会在每个 URL 上多分配一个对象（oxlint 的 `no-map-spread`
+       * 也会指出来）。下游的 SitemapStream 只读不改，原地写是安全的。
+       */
+      const kept = items.filter((item) => !draftUrls.has(sitemapPathKey(item.url)))
+      for (const item of kept) {
+        const lastmod = lastmodByUrl.get(sitemapPathKey(item.url))
+        if (lastmod) item.lastmod = lastmod
+      }
+      return kept
+    },
   },
 
   // ---------- 页头静态标签 ----------
@@ -534,6 +589,14 @@ export default defineConfig({
     // 404 页没有规范地址，也不该被索引：整块 SEO 标签都跳过
     if (pageData.isNotFound) {
       return [['meta', { name: 'robots', content: 'noindex' }]]
+    }
+
+    /*
+     * 草稿页：地址可以访问（作者要预览），但**不该被索引**。
+     * 与 sitemap 的草稿过滤是一对：一个阻止收录，一个不进清单。
+     */
+    if (pageData.frontmatter.draft === true) {
+      return [['meta', { name: 'robots', content: 'noindex, nofollow' }]]
     }
 
     const path = toPageUrl(pageData.relativePath)

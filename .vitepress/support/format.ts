@@ -84,6 +84,33 @@ export function formatIsoDate(date: Date, timeZone: string): string {
 }
 
 /**
+ * 更新日期的展示文本：**同年用 `MM-DD`，跨年才带 `YYYY-`**。
+ *
+ * 为什么不是完整日期：meta 行里已经有一个完整发布日，更新日只需要
+ * 「晚多少」的精度；跨年时必须带年份，否则 `01-02` 会被读成去年的 1 月 2 日。
+ */
+export function formatUpdatedDate(date: Date, timeZone: string, referenceYear: string): string {
+  const { year, month, day } = splitDate(date, timeZone)
+  return year === referenceYear ? `${month}-${day}` : `${year}-${month}-${day}`
+}
+
+/**
+ * 这次更新值不值得显示。
+ *
+ * 规则：**只有更新日（站点时区的日期部分）晚于发布日才算「更新」**。
+ * - 同一天改错字不显示：那只会让每篇刚发布的文章都挂上「更新于」；
+ * - `updated` 早于 `date`（作者写错）不显示：不能让文章显示「先更新后发布」。
+ */
+export function isMeaningfulUpdate(
+  published: Date,
+  updated: Date | null,
+  timeZone: string,
+): updated is Date {
+  if (!updated) return false
+  return formatIsoDate(updated, timeZone) > formatIsoDate(published, timeZone)
+}
+
+/**
  * RFC 822 时间串，用于 RSS 的 `pubDate` / `lastBuildDate`。
  *
  * 关键点：日期、时间、时区偏移**必须来自同一个时刻表示**。
@@ -118,16 +145,66 @@ export function plainText(markdown: string): string {
 }
 
 /**
+ * 正文的字符构成：汉字数 + 拉丁词数。
+ *
+ * `countWords`（字数）与 `readingMinutes`（阅读时长）共用这一份切分规则：
+ * 中文没有词间空格，两种统计必须从同一个口径出发，否则「504 字」与
+ * 「约 2 分钟」会互相打架。
+ */
+export function textStats(markdown: string): { han: number; latin: number } {
+  const text = plainText(markdown)
+  return {
+    han: text.match(/\p{Script=Han}/gu)?.length ?? 0,
+    latin: text.match(/[A-Za-z0-9]+/g)?.length ?? 0,
+  }
+}
+
+/**
  * 字数统计：汉字按字计，拉丁字母/数字按词计。
  *
  * 不用 `String#length` 或按空格切词：中文没有空格，
  * 按空格切会把整段汉字算成 1 个词（Hugo 的 `WordCount` 就是这个行为）。
  */
 export function countWords(markdown: string): number {
-  const text = plainText(markdown)
-  const han = text.match(/\p{Script=Han}/gu)?.length ?? 0
-  const latin = text.match(/[A-Za-z0-9]+/g)?.length ?? 0
+  const { han, latin } = textStats(markdown)
   return han + latin
+}
+
+/**
+ * 阅读时长（分钟，最小 1）。
+ *
+ * 口径：中文 **350 字/分**、拉丁 **200 词/分**（常见的阅读速度中位数）。
+ * 不含代码行的额外权重——本站代码块大多是短片段，单独加权只会让
+ * 「10 行代码」被算成 1 分钟，反而失真。
+ *
+ * 四舍五入到整分钟；不足 1 分钟按 1 分钟算（读者的感知下限不是 0）。
+ */
+export function readingMinutes(markdown: string): number {
+  const { han, latin } = textStats(markdown)
+  return Math.max(1, Math.round(han / 350 + latin / 200))
+}
+
+/**
+ * 比较「两段文字是不是同一句」用的归一化：去掉所有标点、符号与空白，并小写。
+ *
+ * 文章页的导语与正文首段常常是同一句话，只是标点写法不同
+ * （description 里写 `「hello, world」`，正文里写 `“hello, world”`）。
+ * 直接字符串比较会漏判，于是同一句话在标题下出现两次。
+ */
+export function normalizeComparable(text: string): string {
+  return text.replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase()
+}
+
+/**
+ * 这段导语是否**已经出现在正文开头**（等于或互为前缀）。
+ *
+ * 相等或前缀关系都算重复：描述常常就是正文的第一句，再贴一次没有信息量。
+ */
+export function isDuplicateOpening(lead: string, firstParagraphText: string): boolean {
+  const a = normalizeComparable(lead)
+  const b = normalizeComparable(firstParagraphText)
+  if (!a || !b) return false
+  return a === b || b.startsWith(a) || a.startsWith(b)
 }
 
 /** 截断到指定长度，超出部分用省略号代替。 */

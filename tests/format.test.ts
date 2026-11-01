@@ -3,8 +3,14 @@ import { describe, expect, it } from 'vitest'
 import {
   countWords,
   formatRfc822,
+  formatUpdatedDate,
+  isDuplicateOpening,
+  isMeaningfulUpdate,
+  normalizeComparable,
   parseDate,
   plainText,
+  readingMinutes,
+  textStats,
   truncate,
 } from '../.vitepress/support/format'
 
@@ -101,5 +107,93 @@ describe('truncate', () => {
 
   it('去掉首尾空白', () => {
     expect(truncate('  x  ', 10)).toBe('x')
+  })
+})
+
+describe('textStats / readingMinutes', () => {
+  it('汉字与拉丁词分开统计', () => {
+    expect(textStats('你好 世界 hello')).toEqual({ han: 4, latin: 1 })
+  })
+
+  it('中英混排按各自阅读速度折算（中文 350 字/分，英文 200 词/分）', () => {
+    // 700 汉字 = 2 分钟；400 拉丁词 = 2 分钟 → 合计 4 分钟
+    expect(readingMinutes('好'.repeat(700) + ' ' + Array(400).fill('word').join(' '))).toBe(4)
+  })
+
+  it('不足 1 分钟按 1 分钟（读者的感知下限不是 0）', () => {
+    expect(readingMinutes('短句')).toBe(1)
+    expect(readingMinutes('')).toBe(1)
+  })
+
+  it('只有标点/空白时也是 1 分钟', () => {
+    expect(readingMinutes('—— ！？')).toBe(1)
+  })
+
+  it('与字数统计同源（字数多不等于分钟数按字数直接除）', () => {
+    // 纯汉字：1000 字 → 1000/350 ≈ 2.86 → 3 分钟
+    expect(readingMinutes('好'.repeat(1000))).toBe(3)
+  })
+})
+
+describe('normalizeComparable / isDuplicateOpening', () => {
+  it('标点与空白不影响比较', () => {
+    expect(normalizeComparable('「hello, world」')).toBe('helloworld')
+  })
+
+  it('导语与正文首段是同一句（只是引号写法不同）→ 判为重复', () => {
+    const lead = '在搞机这个行业里，亲手完成一个「hello, world」项目。'
+    const opening = '在搞机这个行业里，亲手完成一个“hello, world”项目。'
+    expect(isDuplicateOpening(lead, opening)).toBe(true)
+  })
+
+  it('导语是正文首段的前缀 → 也判为重复', () => {
+    expect(isDuplicateOpening('一句话导语。', '一句话导语。后面还有正文。')).toBe(true)
+  })
+
+  it('内容不同 → 不重复（可以显示导语）', () => {
+    expect(isDuplicateOpening('本文讲双主题代码块。', '在搞机这个行业里……')).toBe(false)
+  })
+
+  it('任一侧为空 → 不判重复（交给显示层决定）', () => {
+    expect(isDuplicateOpening('', '正文')).toBe(false)
+    expect(isDuplicateOpening('导语', '')).toBe(false)
+  })
+})
+
+describe('formatUpdatedDate / isMeaningfulUpdate', () => {
+  const publish = new Date('2026-10-19T04:09:28+08:00')
+
+  it('同年只显示 MM-DD，跨年才带 YYYY', () => {
+    const sameYear = new Date('2026-10-28T09:00:00+08:00')
+    expect(formatUpdatedDate(sameYear, 'Asia/Shanghai', '2026')).toBe('10-28')
+
+    const nextYear = new Date('2027-01-02T09:00:00+08:00')
+    expect(formatUpdatedDate(nextYear, 'Asia/Shanghai', '2026')).toBe('2027-01-02')
+  })
+
+  it('晚于发布日 → 值得显示（跨天）', () => {
+    const updated = new Date('2026-10-28T09:00:00+08:00')
+    expect(isMeaningfulUpdate(publish, updated, 'Asia/Shanghai')).toBe(true)
+  })
+
+  it('同一天改字 → 不显示「更新于」', () => {
+    const sameDay = new Date('2026-10-19T23:00:00+08:00')
+    expect(isMeaningfulUpdate(publish, sameDay, 'Asia/Shanghai')).toBe(false)
+  })
+
+  it('写错（早于发布日 / 没有更新）→ 不显示', () => {
+    expect(isMeaningfulUpdate(publish, new Date('2026-10-01T00:00:00+08:00'), 'Asia/Shanghai')).toBe(
+      false,
+    )
+    expect(isMeaningfulUpdate(publish, null, 'Asia/Shanghai')).toBe(false)
+  })
+
+  it('按站点时区判断「哪一天」，不看构建机时区', () => {
+    // 上海 20 日 01:00（= 19 日 17:00Z）相对上海 19 日 23:00 是「第二天」；
+    // 但在 UTC 下两者都是 19 日 —— 同一条数据，两个时区结论相反。
+    const published = new Date('2026-10-19T23:00:00+08:00')
+    const updated = new Date('2026-10-20T01:00:00+08:00')
+    expect(isMeaningfulUpdate(published, updated, 'Asia/Shanghai')).toBe(true)
+    expect(isMeaningfulUpdate(published, updated, 'UTC')).toBe(false)
   })
 })

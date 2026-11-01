@@ -34,9 +34,13 @@ import {
   formatDate,
   formatIsoDate,
   formatShortDate,
+  formatUpdatedDate,
   formatYear,
+  isDuplicateOpening,
+  isMeaningfulUpdate,
   parseDate,
   plainText,
+  readingMinutes,
   truncate,
 } from './format'
 import { slugOf } from './slug'
@@ -240,6 +244,26 @@ export function toPostSummary(doc: RawDoc): PostSummary {
 
   const summarySource = explicitSummary || firstParagraph(doc.body)
 
+  /*
+   * 导语：作者显式写的 `description`，但**与正文首段重复时不显示**。
+   *
+   * 本站现有文章的 description 常常就是正文第一段（例如《你好，世界》），
+   * 直接贴到标题下会让同一句话出现两次；比较时先去掉标点/空白
+   * （description 用 `「」`、正文用 `“”`），否则永远判不相等。
+   */
+  const explicitLead = explicitSummary ? plainText(explicitSummary) : ''
+  const opening = firstParagraph(doc.body)
+  const lead = explicitLead && !isDuplicateOpening(explicitLead, opening) ? explicitLead : null
+
+  /*
+   * 更新日期：只有「更新日晚于发布日」才计算展示值。
+   * `updated` 写错（早于发布日）或与发布日同一天时，三个字段全部为 null ——
+   * 显示层不需要再判断一次。
+   */
+  const publishedYear = formatYear(date, meta.timeZone)
+  const updatedAt = parseDate(doc.data.updated)
+  const hasUpdate = isMeaningfulUpdate(date, updatedAt, meta.timeZone)
+
   return {
     url: doc.url,
     title:
@@ -249,25 +273,54 @@ export function toPostSummary(doc: RawDoc): PostSummary {
     isoDate: formatIsoDate(date, meta.timeZone),
     dateText: formatDate(date, doc.locale, meta.timeZone),
     dateShort: formatShortDate(date, meta.timeZone),
-    year: formatYear(date, meta.timeZone),
+    year: publishedYear,
     tags,
     wordCount: countWords(doc.body),
+    readingMinutes: readingMinutes(doc.body),
+    lead: lead ? truncate(lead, 160) : null,
+    updated: hasUpdate ? updatedAt.toISOString() : null,
+    updatedIso: hasUpdate ? formatIsoDate(updatedAt, meta.timeZone) : null,
+    updatedText: hasUpdate ? formatUpdatedDate(updatedAt, meta.timeZone, publishedYear) : null,
+    draft: doc.data.draft === true,
     locale: doc.locale,
     translationKey: translationKeyOf(doc.data, doc.filePath),
   }
 }
 
 /**
- * 读取全部已发布文章，按时间倒序。
- * 草稿（`draft: true`）不进入任何列表。
+ * 读取文章（可选包含草稿），按时间倒序。
+ *
+ * 草稿与已发布文章的**唯一差别是这里的分流**：同一个 `toPostSummary()`
+ * 产出同样的字段，所以草稿页也能有完整的文章版面（字数、阅读时长、标签、
+ * 上下篇之外的页脚动作），只是不进任何列表。
  */
-export function readPosts(locale?: LocaleCode): PostSummary[] {
+function collectPosts(options: { locale?: LocaleCode; drafts: boolean }): PostSummary[] {
   return readDocs()
     .filter(isPost)
-    .filter((doc) => doc.data.draft !== true)
+    .filter((doc) => (doc.data.draft === true) === options.drafts)
     .map(toPostSummary)
-    .filter((post) => (locale ? post.locale === locale : true))
+    .filter((post) => (options.locale ? post.locale === options.locale : true))
     .toSorted((a, b) => +new Date(b.date) - +new Date(a.date))
+}
+
+/**
+ * 全部已发布文章，按时间倒序。草稿（`draft: true`）不进入任何列表。
+ */
+export function readPosts(locale?: LocaleCode): PostSummary[] {
+  return collectPosts({ locale, drafts: false })
+}
+
+/**
+ * 草稿文章（`draft: true`），按时间倒序。
+ *
+ * 只给两个地方用：
+ * 1. `drafts.data.ts` → 文章页识别「当前页是草稿」，从而渲染完整版面与草稿徽章；
+ * 2. `config.ts` → sitemap 排除草稿、并给草稿页加 `noindex`。
+ *
+ * **列表、标签、搜索、RSS、语言切换都不该读它**（否则草稿就泄漏了）。
+ */
+export function readDraftPosts(locale?: LocaleCode): PostSummary[] {
+  return collectPosts({ locale, drafts: true })
 }
 
 /** 全部内容页路径（供语言切换判断「是否存在对应翻译」）。 */

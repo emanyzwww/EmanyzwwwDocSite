@@ -73,7 +73,8 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
 │  ├─ site.ts             ★ 站点名、域名、导航、页脚、分页数、侧栏顺序、语言表
 │  ├─ profile.ts          ★ 个人信息、头像、社交链接
 │  ├─ taxonomy.ts         标签 slug / 显示名覆盖（可选）
-│  ├─ posts.data.ts       → 文章摘要数组（PostSummary[]）
+│  ├─ posts.data.ts       → 文章摘要数组（PostSummary[]，**不含草稿**）
+│  ├─ drafts.data.ts      → 草稿摘要（只给文章页识别「当前页是草稿」，不进任何列表）
 │  ├─ pages.data.ts       → 全部内容页路径（语言切换用）
 │  ├─ profile.data.ts     → 渲染好的 bio HTML
 │  └─ search.data.ts      → 搜索索引（见第五节「搜索」）
@@ -88,7 +89,7 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
 │  ├─ slug.ts             ★ slug 规则（含中文保留原字 / 纯拉丁 kebab-case）
 │  ├─ translation.ts      跨语言配对（显式 translationKey > `<YYYYMM>/<DDNN>`）
 │  ├─ urls.ts / locale-paths.ts   路径与语言前缀换算（纯函数，不 import vitepress）
-│  ├─ format.ts           日期/字数/截断（纯函数，两端通用）
+│  ├─ format.ts           日期/字数/阅读时长/更新判定/截断（纯函数，两端通用）
 │  ├─ markdown/           ★ Markdown 装配点（见「块级指令」与「代码块管线」）
 │  │  ├─ index.ts         applySiteMarkdown()：页面正文与非页面共用同一套插件
 │  │  ├─ code-theme.ts    ★ 代码块双主题色板：Shiki 配色的唯一来源（含对比度契约）
@@ -118,7 +119,7 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
    ├─ Layout.vue          ★ 按 frontmatter.layout / isNotFound 分发页面组件
    ├─ i18n/               界面文案（zh-cn / en / index）
    ├─ composables/        12 个组合式函数（见第五节）
-   ├─ components/         38 个 .vue，按职责分 8 个目录
+   ├─ components/         39 个 .vue，按职责分 8 个目录
    │  ├─ pages/           六个页面级组件（Home/Posts/Doc/Tags/Tag/NotFound）
    │  ├─ layout/          外壳：PageShell、TwoColumn、ThreeColumn
    │  ├─ site/            页头、页脚、导航、搜索面板、主题切换、语言切换
@@ -243,7 +244,7 @@ frontmatter 字段的权威定义在 `scripts/lib/frontmatter-schema.ts`。
 本轮还清掉了一批死符号（`repoDisplayTitle`、`stripLocalePrefix`、`clearContentCache`、
 `clearRenderedContent`、`referencedSources`、`assertReadable`、`resetLightboxState`、
 `resetLinkPreviewState`、`EmbedEnhancer.dispose`、`NavItem`、`LocaleMeta.code`、
-`FooterConfig.text`、`PostSummary.filePath` / `draft`、`Messages.links` / `draft` /
+`FooterConfig.text`、`PostSummary.filePath`、`Messages.links` /
 `imageViewerFit`）。**旧文档提到它们的段落已全部删除**；如果你在别处还看到这些名字，
 那份材料已经过期。
 
@@ -265,6 +266,7 @@ export const SITE: SiteMeta = {
   tagPreviewCount: 3,
   outline: true, // 全站目录开关
   wordCount: true, // 全站字数开关
+  readingTime: true, // 全站阅读时长开关（由字数推导）
   widgets: ['profile', 'tags'], // 侧栏卡片顺序（只有这两张）
   footer: {/* copyright 留空自动生成；links 是页脚链接 */},
 }
@@ -352,6 +354,16 @@ CI 会自动算好这两个值传给构建（见 `.github/workflows/deploy.yml`�
 若 `hostname` 只有 origin，`/repo/` 会被 URL 解析吃掉，项目站点的 sitemap 会全部
 指向域名根。`SITEMAP_HOSTNAME` 就是为此存在的，`robots.txt` 也复用它。
 
+**`sitemap.transformItems`（唯一的后处理点）**：构建末段对 VitePress 生成的条目做两件事，
+数据来自 `support/content.ts`（与文章页同源）：
+
+1. **剔除草稿**：草稿页会生成、也带 `noindex`，但不能出现在给搜索引擎的清单里；
+2. **文章的 `lastmod` 取「发布 / 更新」里较晚的时刻**：改过稿的文章才会被重新抓取。
+
+坑：`items[].url` 是**未编码的相对路径**（`zh-cn/202610/1901/你好，世界/`），而
+`PostSummary.url` 是编码后的（`%E4%BD%A0…`）。中文 slug 必须先 `decodeURIComponent`
+再比，否则「英文文章正常、中文文章与草稿全都不匹配」——这个 bug 只在中文内容上显形。
+
 ### CSP 与安全 meta
 
 GitHub Pages 不允许自定义响应头，因此 CSP / Referrer-Policy 只能靠 `head` 里的 `<meta>` 补齐：
@@ -380,6 +392,11 @@ VitePress 的 `404.html` 是纯 SPA 空壳（禁用 JS / 抓取预览时是一�
 `SITE_URL`，避免 `/<repo>/<repo>/`）。代码块另由 `support/feed-code.ts` 的 `sanitizeFeedCode()` 清洗：删掉
 头部条、复制按钮、语言标识与代码分组的 tab 条，`[路径]` 保留成 `<p><small>路径</small></p>`，
 `<pre>` 去掉全部属性与 `--shiki-*` 自定义属性（详见「代码块管线」）。
+
+**时间字段有两条口径**：`<pubDate>` 永远是发布时刻；改过稿的文章额外输出
+`<atom:updated>`（RSS 2.0 的 item 没有自己的「更新时间」元素，复用频道已声明的 atom
+命名空间）。频道的 `<lastBuildDate>` 取「发布或更新」里**最晚**的那个时刻——只更新了旧文章时，
+订阅源也要让阅读器看到「这个 feed 动过」。草稿不进 feed（`readPosts()` 天然不含草稿）。
 
 `robots.txt` 由 `support/robots.ts` 写死 `Sitemap:` 绝对地址，与 sitemap 的 hostname 同源，
 不在 `public/` 里放静态文件。
@@ -934,6 +951,44 @@ iOS 额外固定 body、解锁先用 `behavior: 'instant'` 归位再通知 `onSc
 | 右栏目录卡     | 胶囊的「本页目录」（唯一入口）           |
 | 搜索（快捷键） | 胶囊的「搜索」（桌面另有可见入口）       |
 
+### 文章页要素（导语 / 元信息 / 草稿 / 文末动作条）
+
+一篇文章的页头到页尾由五样东西组成，改动前先看这张表——**每一行都只有一个数据来源**：
+
+| 要素                                 | 组件 / 位置                                            | 数据从哪来                                                                            | 开关                                 |
+| ------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------ |
+| 导语                                 | `DocPage` 的 `.post-header__lead`                      | `PostSummary.lead`（构建期在 `toPostSummary` 里算）                                   | 无（有值就显示）                     |
+| 草稿徽章                             | `PostMeta`（仅 `full`）                                | `PostSummary.draft` ← frontmatter `draft`                                             | 无（`draft: true` 才有）             |
+| 日期 / 更新 / 阅读时长 / 字数 / 标签 | `PostMeta`（`full` / `compact` / `timeline` 三种形态） | `PostSummary` 的 `dateText` / `updatedText` / `readingMinutes` / `wordCount` / `tags` | `SITE.wordCount`、`SITE.readingTime` |
+| 另一语言版本                         | `DocPage` 塞进 `PostMeta` 的默认插槽                   | `useLocaleSwitch().translations`（`post.data.ts` 的配对索引）                         | 无（真有翻译才有值）                 |
+| 文末动作条                           | `PostActions`（复制链接 / 分享）                       | 运行时 `location.href` / `navigator.share`                                            | 无（分享按钮按能力渲染）             |
+
+**四条不能随手改的规则**：
+
+1. **导语只在「与正文首段不同」时显示**。判定在 `support/format.ts` 的
+   `isDuplicateOpening()`：去掉标点/空白后相等或互为前缀就算重复。本站多数文章的
+   `description` 就是正文第一段，不做这一步会让同一句话在标题下出现两次。
+2. **阅读时长与字数同源**。`textStats()` 一次切出「汉字数 + 拉丁词数」，
+   `countWords()` 与 `readingMinutes()` 都从它出发；阅读速度写死在
+   `readingMinutes()`（中文 350 字/分、拉丁 200 词/分），改口径只改那一处。
+3. **`updated` 只有「日期部分晚于 `date`」才有展示值**（`isMeaningfulUpdate()`）。
+   同一天改错字不算更新；`PostSummary.updated / updatedIso / updatedText` 三个字段
+   要么同时有值、要么同时为 `null`，组件不需要再判一次。
+4. **草稿走 `drafts.data.ts`，不走 `posts.data.ts`**。草稿会生成页面、要有完整文章版面，
+   但绝不能进列表 / 标签 / 搜索 / RSS / sitemap；两个加载器共用 `toPostSummary()`，
+   区别只有过滤条件。`useCurrentPost()` 先查已发布、再查草稿。
+
+**加一项文章要素的完整链路**（以 `updated` 为例，可以直接照抄）：
+
+1. `scripts/lib/frontmatter-schema.ts` 登记字段（`check` / `fix` 自动跟随）；
+2. `types.ts` 给 `PostSummary` 加字段；
+3. `support/format.ts` 加纯函数（能被单测覆盖），`support/content.ts` 的
+   `toPostSummary()` 里取值、`readPosts()` / `readDraftPosts()` 自动带上；
+4. `PostMeta.vue` / `DocPage.vue` 里渲染（**不要**在组件里重新解析 frontmatter）；
+5. `i18n/zh-cn.ts` + `en.ts` 加文案（`Messages` 类型强制两边同步）；
+6. 需要进 RSS / sitemap 的，在 `support/rss.ts` / `config.ts` 的 `sitemap.transformItems` 里补；
+7. `tests/format.test.ts` 之类补用例，`DESIGN.md` 的 §10 表格与 `WRITING.md` 的字段表同步。
+
 ### 侧栏卡片
 
 `AsideWidgets.vue` 是容器，按 `SITE.widgets` 的顺序渲染，`REGISTRY` 里**只有两张卡**：
@@ -1000,10 +1055,15 @@ const REGISTRY = { profile: ProfileCard, tags: TagsCard } as const
 
 ### 加数据字段（进阶）
 
-以「给文章加 `cover` 封面图字段」为例：`types.ts` 的 `PostSummary` 加字段 →
-`support/content.ts` 的 `toPostSummary` 里从 `doc.data` 取值 → 组件里用 `post.cover`。
+以 `updated`（更新日期）为例，这是本轮真实加过的字段：`scripts/lib/frontmatter-schema.ts`
+登记 → `types.ts` 的 `PostSummary` 加字段 → `support/format.ts` 加纯函数
+（`isMeaningfulUpdate` / `formatUpdatedDate`）→ `support/content.ts` 的
+`toPostSummary` 里从 `doc.data` 取值 → `PostMeta.vue` 渲染。
 **不要**在组件里直接读 `frontmatter` 拿文章信息——那样每个组件都要自己解析，
 且拿不到列表页的数据。所有文章级信息都应该走 `PostSummary`。
+
+只有「运行时才知道、且不属于文章数据」的东西才留在组件里（如文末动作条的
+`location.href`、`navigator.share` 能力探测）。
 
 ---
 
@@ -1110,16 +1170,18 @@ docs/<lang>/<YYYYMM>/<DDNN>/index.md
 - 日期取**站点时区**（`Asia/Shanghai`），不是运行机器的本地时区；
 - 序号扫**目录名**得出（不是扫 frontmatter），`01`、`02`…自动递增，中间有空号时优先补空号；
   满 `99` 直接报错而不是变成三位；
-- frontmatter 的**全部字段**一次写全，字段表来自 `scripts/lib/frontmatter-schema.ts`；
+- frontmatter 的**全部常规字段**一次写全，字段表来自 `scripts/lib/frontmatter-schema.ts`；
   `slug` 由标题按 `support/slug.ts` 推导后**显式写入**；`date` 写成带显式偏移的完整
-  ISO 串（`2026-10-24T22:49:28+08:00`），不用裸日期；
+  ISO 串（`2026-10-24T22:49:28+08:00`），不用裸日期；**`updated` 与 `translationKey`
+  故意不生成**——没有改过稿 / 没有翻译时写空字段只是噪声，需要时手写一行；
 - 支持 `--date YYYYMMDD`、`-n/--sequence NN`、`-s/--slug`、`--draft`、`--no-outline`、
   `--dry-run`。
 
 **`pnpm check` / `pnpm fix` 的边界**：`check` 只报告、不改文件，分 `error`
 （退出码 1）与 `warn`（退出码 0；`--strict` 时也失败）两级。检查项包括：必填字段、
 `title` 类型/空值、`date` 可解析且带时区（必须读**文件里的原始字面量**，`gray-matter`
-解析后信息就丢了）、`tags` 类型、字段顺序、未知/废弃/未补齐字段、slug 可用性、
+解析后信息就丢了）、`updated` 可解析且晚于 `date`（写早了只是 warn：页面不会显示
+「更新于」）、`tags` 类型、字段顺序、未知/废弃/未补齐字段、slug 可用性、
 目录日期与 frontmatter 日期一致、正文为空、正文 H1（查前先剔代码块，否则注释里的 `#`
 会误报）、独占一段的裸 GitHub 链接、有 `date` 却不在文章目录。
 
@@ -1173,8 +1235,10 @@ docs/zh-cn/pages/posts/page/[page]/index.paths.ts → ../../../../../../.vitepre
 
 ### 常见任务的无脑清单
 
-- **给文章加字段**：`types.ts` → `PostSummary` 加字段 → `support/content.ts` 的
-  `toPostSummary` 里从 `doc.data` 取值 → 组件里用 `post.xxx`
+- **给文章加字段**：`scripts/lib/frontmatter-schema.ts` 登记 → `types.ts` → `PostSummary`
+  加字段 → `support/format.ts`（纯函数，能单测）→ `support/content.ts` 的
+  `toPostSummary` 里从 `doc.data` 取值 → 组件里用 `post.xxx` → i18n / 文档同步
+  （完整链路见「文章页要素」一节）
 - **加页面类型**：`components/pages/XxxPage.vue` → `Layout.vue` 的 `switch` 加 `case`
   → Markdown 里写 `layout: xxx`
 - **加界面文字**：`types.ts` → `Messages` 加字段 → `zh-cn.ts` + `en.ts` 各补一条
@@ -1279,7 +1343,7 @@ pnpm build         # 构建（也会暴露类型问题）
 
 ### 单测覆盖什么
 
-`tests/` 下共 **27 个文件、534 个用例**（其中 offline-build 的 1 个在默认门禁里会跑，
+`tests/` 下共 **27 个文件、549 个用例**（其中 offline-build 的 1 个在默认门禁里会跑，
 用上面的环境变量可跳过）。绝大多数测**纯函数**（不依赖 VitePress 运行时、不读磁盘）：
 
 | 文件                        | 用例 | 覆盖                                                                                                    |
@@ -1290,7 +1354,7 @@ pnpm build         # 构建（也会暴露类型问题）
 | `slug.test.ts`              |   14 | slug 推导（中文保留原字 / 纯拉丁 kebab-case）、可用性判断、`slugOf` 回退                                |
 | `translation.test.ts`       |   10 | 跨语言配对键推导、配对索引与回退                                                                        |
 | `pagination.test.ts`        |   12 | 分页边界（空列表、越界、非法 perPage）                                                                  |
-| `format.test.ts`            |   18 | 日期格式化、RFC 822、字数统计、纯文本化                                                                 |
+| `format.test.ts`            |   33 | 日期格式化、RFC 822、字数统计、阅读时长、更新判定、导语去重                                             |
 | `dev-redirect.test.ts`      |    6 | `Accept-Language` 解析                                                                                  |
 | `markdown-plugins.test.ts`  |   25 | `==高亮==` 与任务列表的渲染、嵌套、**不误伤比较运算**                                                   |
 | `markdown-pipeline.test.ts` |    9 | 两条渲染路径（页面正文 / 简介卡片）对同一段 Markdown 产出一致                                           |
@@ -1327,7 +1391,10 @@ chrome 有概率收起」；`scrollbar.test.ts` 守几何（拇指不越界、�
 （label 必须在 button 前，否则复制到的是语言名）；`feed-code.test.ts` 守 RSS 的
 feed-safe 输出（无 CSS 的环境里不能残留任何网页专用结构）；`link-preview-gate.test.ts`
 守预览卡的**入口**（图片链接不弹卡；provider 同步说「没有」时连骨架都不许亮）——
-它把 `PageShell` 里那段 DOM 委托判定抽成纯函数来测，不需要浏览器。
+它把 `PageShell` 里那段 DOM 委托判定抽成纯函数来测，不需要浏览器；
+`format.test.ts` 里新增的三组是文章页要素的地基：阅读时长口径、导语与正文首段的
+去重判定（标点差异也要判等）、`updated` 的「哪天才算更新」（按站点时区比日期，
+同一个时刻在上海与 UTC 可能得出相反结论）。
 
 为了让这些函数能在 Node 里跑，纯逻辑刻意放在 `support/urls.ts`、`locale-paths.ts`、
 `translation.ts`、`article-path.ts`、`slug.ts` 与 `theme/support/{pagination,scrollbar}.ts`，

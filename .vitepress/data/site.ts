@@ -44,6 +44,7 @@ export const SITE: SiteMeta = {
   homePostCount: 5,
   outline: true,
   wordCount: true,
+  readingTime: true,
   // 侧栏卡片渲染顺序。可选项：profile / tags
   widgets: ['profile', 'tags'] satisfies WidgetName[],
   footer,

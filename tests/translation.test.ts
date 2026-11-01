@@ -64,6 +64,12 @@ function post(url: string, locale: 'zh-cn' | 'en', translationKey: string | null
     year: '2026',
     tags: [],
     wordCount: 0,
+    readingMinutes: 1,
+    lead: null,
+    updated: null,
+    updatedIso: null,
+    updatedText: null,
+    draft: false,
     locale,
     translationKey,
   }

@@ -98,7 +98,33 @@
   color: var(--accent);
 }
 
-/* 文章尾部：返回列表 / RSS */
+/*
+ * 导语：作者显式写的 `description`。
+ *
+ * 只有「与正文首段不同」时才渲染（构建期在 `toPostSummary` 里判断）——
+ * 否则同一句话会在标题下出现两次。字号与首页/页面描述同档（`--text-lg`），
+ * 颜色降一档：它是「要不要读」的提示，不是正文的一部分。
+ */
+.post-header__lead {
+  margin: var(--space-4) 0 0;
+  color: var(--fg-muted);
+  font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+}
+
+/* 草稿状态：徽章 + 一行说明，只在草稿页出现（草稿不进列表，所以这里也看不到它） */
+.post-meta__draft {
+  gap: var(--space-2);
+}
+
+.post-meta__draft-hint {
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+}
+
+/*
+ * 文章尾部：返回列表 / RSS
+ */
 .post-footer {
   margin-top: var(--space-12);
   padding-top: var(--space-8);
@@ -108,6 +134,25 @@
   gap: var(--space-4);
   justify-content: space-between;
   align-items: center;
+}
+
+/*
+ * 右侧动作组：复制链接 / 分享 / RSS。
+ *
+ * 不用 `justify-content: flex-end` 也能靠外层 space-between 贴右；
+ * 单独包一层是为了**移动端换行时整组一起走**，而不是把三个按钮拆散在两端。
+ */
+.post-footer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 /* ---------- 时间线列表（/pages/posts/） ---------- */

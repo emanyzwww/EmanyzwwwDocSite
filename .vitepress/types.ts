@@ -38,6 +38,33 @@ export interface PostSummary {
   tags: TagRef[]
   /** 正文字数（汉字按字、拉丁按词）。 */
   wordCount: number
+  /** 阅读时长（分钟，最小 1；中文 350 字/分、拉丁 200 词/分）。 */
+  readingMinutes: number
+  /**
+   * 作者显式写的导语（frontmatter `description`）；不写、写空、
+   * 或与正文首段重复时为 `null`。
+   *
+   * **不要用 `summary` 代替**：`summary` 在没有 description 时会退到正文首段，
+   * 直接当导语显示会与正文第一段重复。
+   */
+  lead: string | null
+  /**
+   * 更新时刻（ISO）；`updated` 早于发布日或与发布日同一天时为 `null`。
+   *
+   * 显示口径：只有「更新日与发布日不是同一天」才值得告诉读者（`updatedText`）。
+   */
+  updated: string | null
+  /** 更新日期的 `YYYY-MM-DD`（站点时区，用于 `<time datetime>`）；无更新为 `null`。 */
+  updatedIso: string | null
+  /** 更新日期的展示文本（同年 `MM-DD`、跨年 `YYYY-MM-DD`）；无更新为 `null`。 */
+  updatedText: string | null
+  /**
+   * 是否为草稿（`draft: true`）。
+   *
+   * 草稿不进列表、标签、搜索与 RSS，但页面**仍会生成**（作者预览用），
+   * 由 `drafts.data.ts` 单独下发，文章页据此显示「草稿」徽章。
+   */
+  draft: boolean
   /** 所属语言。 */
   locale: LocaleCode
   /**
@@ -184,6 +211,8 @@ export interface SiteMeta {
   outline: boolean
   /** 是否显示字数。 */
   wordCount: boolean
+  /** 是否显示阅读时长（由字数推导，默认开）。 */
+  readingTime: boolean
   /** 侧栏卡片顺序。 */
   widgets: WidgetName[]
   footer: FooterConfig
@@ -199,6 +228,16 @@ export interface Messages {
   onThisPage: string
   tags: string
   wordCount: string
+  /** 阅读时长；`{count}` = 分钟。 */
+  readingTime: string
+  /** 更新日期；`{date}` = 已格式化的更新日。 */
+  updatedOn: string
+  /** 草稿徽章。 */
+  draft: string
+  /** 草稿页的补充说明（只在 `draft: true` 时显示）。 */
+  draftHint: string
+  /** 另一语言版本链接；`{language}` = 目标语言名（如 `English`）。 */
+  altLanguageVersion: string
   backToPosts: string
   allPosts: string
   previousPost: string
@@ -223,6 +262,10 @@ export interface Messages {
   recentPosts: string
   copyCode: string
   copied: string
+  /** 复制本页链接（文末动作条）。 */
+  copyLink: string
+  /** 分享本页（系统分享面板，不支持时不渲染按钮）。 */
+  share: string
 
   // ---------- 移动端专属交互 ----------
   /** 打开导航抽屉（汉堡按钮的无障碍名）。 */

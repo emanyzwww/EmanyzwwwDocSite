@@ -25,6 +25,7 @@ export type FrontmatterKey =
   | 'title'
   | 'slug'
   | 'date'
+  | 'updated'
   | 'tags'
   | 'description'
   | 'draft'
@@ -81,6 +82,19 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: true,
     summary: '完整时刻（带 +08:00 时区），决定排序、上下篇与时间线分组',
     fallback: '不会被当成文章，按普通页面渲染',
+    placeholder: '',
+  },
+  {
+    /*
+     * 更新时刻：**不写就是没更新过**，因此 `pnpm new` 不生成它
+     * （与 `translationKey` 同一类「按需手写」字段）。
+     * 只有日期部分晚于 `date` 时，文章页才会显示「更新于 …」。
+     */
+    key: 'updated',
+    type: 'datetime',
+    required: false,
+    summary: '最后更新时刻（格式同 date）；只有晚于 date 才在页面显示「更新于」',
+    fallback: '不显示更新日期',
     placeholder: '',
   },
   {

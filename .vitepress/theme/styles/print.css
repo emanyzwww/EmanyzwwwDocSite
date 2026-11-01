@@ -8,6 +8,8 @@
   .layout__aside,
   .pagination,
   .post-nav,
+  /* 复制链接 / 分享：纸上没有剪贴板，也没有系统分享面板 */
+  .post-actions,
   .skip-link,
   .reading-progress,
   .scrollbar,

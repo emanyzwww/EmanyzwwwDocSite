@@ -149,7 +149,17 @@ function buildFeed(locale: LocaleCode, posts: PostSummary[], base: string): stri
   const meta = LOCALES[locale]
   const home = homeUrl(locale)
   const feedUrl = `${home}index.xml`
-  const lastBuild = posts[0] ? formatRfc822(new Date(posts[0].date), SITE.timeZone) : ''
+  /*
+   * `lastBuildDate` 取「发布或更新」里最晚的那个时刻：
+   * 只更新了旧文章时，订阅源的「最后构建」也应该跟着动，否则读者看不出
+   * 这个 feed 有新内容（很多阅读器靠它决定要不要刷新）。
+   */
+  const latest = posts.reduce((max, post) => {
+    const published = +new Date(post.date)
+    const updated = post.updated ? +new Date(post.updated) : 0
+    return Math.max(max, published, updated)
+  }, 0)
+  const lastBuild = latest > 0 ? formatRfc822(new Date(latest), SITE.timeZone) : ''
 
   const items = posts
     .map((post) => {
@@ -160,6 +170,12 @@ function buildFeed(locale: LocaleCode, posts: PostSummary[], base: string): stri
         `      <link>${escapeXml(link)}</link>`,
         `      <guid isPermaLink="true">${escapeXml(link)}</guid>`,
         `      <pubDate>${formatRfc822(new Date(post.date), SITE.timeZone)}</pubDate>`,
+        // 更新时刻：RSS 2.0 没有 item 级「更新时间」，用 Atom 命名空间补一条
+        ...(post.updated
+          ? [
+              `      <atom:updated>${formatRfc822(new Date(post.updated), SITE.timeZone)}</atom:updated>`,
+            ]
+          : []),
         `      <description>${escapeXml(post.summary)}</description>`,
         `      <content:encoded>${escapeXml(articleHtml(post, base))}</content:encoded>`,
         ...post.tags.map((tag) => `      <category>${escapeXml(tag.label)}</category>`),

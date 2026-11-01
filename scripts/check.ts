@@ -14,6 +14,7 @@
  * 退出码：有 error 时为 1（可直接接进 CI 门禁），只有 warn 时为 0。
  */
 
+import { isMeaningfulUpdate, parseDate } from '../.vitepress/support/format'
 import { isUsableSlug } from '../.vitepress/support/slug'
 import { hasOption, optionValue, parseArgs, wantsHelp } from './lib/args'
 import { isoDateInZone } from './lib/dates'
@@ -130,6 +131,29 @@ function checkPost(post: PostFile, findings: Finding[]): void {
         level: 'warn',
         file,
         message: `date 建议写成带时区的完整格式：${dateLiteral} → 2026-10-24T22:49:28+08:00`,
+      })
+    }
+  }
+
+  // ---------- updated 可解析（可选字段） ----------
+  /*
+   * `updated` 只影响文章页是否显示「更新于」，写错不会让构建失败；
+   * 但写错就等于**悄悄不显示**，所以这里按 error 报（作者能立刻发现）。
+   * 与 `date` 同一天或更早则只给 warn：页面规则是「同日不算更新」。
+   */
+  if (data.updated !== undefined && data.updated !== null && data.updated !== '') {
+    const updatedDate = parseDate(data.updated)
+    if (updatedDate === null) {
+      findings.push({
+        level: 'error',
+        file,
+        message: `updated 无法解析：${String(data.updated)}（格式同 date，如 2026-10-28T09:00:00+08:00）`,
+      })
+    } else if (date !== null && !isMeaningfulUpdate(date, updatedDate, SITE_TIME_ZONE)) {
+      findings.push({
+        level: 'warn',
+        file,
+        message: 'updated 与 date 同一天或更早，文章页不会显示「更新于」',
       })
     }
   }

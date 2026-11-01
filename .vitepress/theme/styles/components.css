@@ -511,6 +511,19 @@
   letter-spacing: var(--tracking-wide);
 }
 
+/*
+ * 草稿徽章：**中性色**，不占用唯一强调色。
+ *
+ * 草稿是「状态」不是「高亮」：默认徽章的主色底（`--accent-soft`）在正文里
+ * 表达的是「当前/选中」（标签云里的当前标签、导航的当前项），用它标草稿
+ * 会让读者误以为这是一篇被推荐的文章。
+ */
+.badge--draft {
+  border: var(--border-width) solid var(--border-subtle);
+  background: var(--bg-surface-alt);
+  color: var(--fg-muted);
+}
+
 /* ---------- 统计列表 ---------- */
 
 .stat-list {
