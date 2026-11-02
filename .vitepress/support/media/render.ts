@@ -19,7 +19,7 @@
  *
  * ## 只提升「独占一段的图」
  *
- * 下面这些**故意不提升**（都有测试覆盖）：
+ * 下面这些**故意不提升**：
  * - `文字 ![a](./x.png) 后面还有` —— 行内图，提升会切断句子
  * - `[![a](./x.png)](https://…)` —— 作者自带链接，尊重作者意图
  * - `![a](https://…)` —— 外链，不归我们管
@@ -294,11 +294,11 @@ const promoteSoleImages: (state: CoreState) => void = (state) => {
  * - `![x](./a.png){width=200}` → 2 个 child（image + 文本）→ **不提升** ❌
  *
  * 表现就是「作者按文档加了个 width，图就失去点开放大」——真实事故，
- * 由 `tests/media-render.test.ts` 里那组装了 attrs 替身的用例守着。
+ * 顺序不能反。
  *
  * ## 为什么要 try/catch
  *
- * 裸 markdown-it（单测、`support/markdown/` 的非页面渲染）**没有** attrs 插件，
+ * 裸 markdown-it（`support/markdown/` 的非页面渲染）**没有** attrs 插件，
  * `ruler.after()` 找不到规则名会直接抛 `Parser rule not found`。
  * 那种环境下 attrs 不存在，也就没有「先于 attrs」的问题，退回 `inline` 即可。
  */

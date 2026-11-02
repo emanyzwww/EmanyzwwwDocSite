@@ -32,11 +32,6 @@ export { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE }
  */
 export const SITE_TIME_ZONE = SITE.timeZone
 
-/** 某语言的内容目录：`docs/zh-cn`。 */
-export function localeDir(locale: LocaleCode): string {
-  return join(DOCS_DIR, locale)
-}
-
 /** 判断一个字符串是否是合法语言代码。 */
 export function isLocaleCode(value: string): value is LocaleCode {
   return (LOCALE_CODES as readonly string[]).includes(value)
@@ -65,7 +60,7 @@ export function localeLabel(locale: LocaleCode): string {
 /**
  * 递归收集 `dir` 下所有 Markdown，返回**相对 `rootDir`**（默认 `docs/`）的路径。
  *
- * `rootDir` 与 `dir` 分开是为了测试：单测会拿一个临时目录当内容根，
+ * `rootDir` 与 `dir` 分开是为了让调用方指定「相对路径的基准」：例如把临时目录当内容根，
  * 这里仍要返回「相对那个根」的路径，才能让上层按 `docs/` 的规则解析。
  * 生产调用只传 `dir`。
  */

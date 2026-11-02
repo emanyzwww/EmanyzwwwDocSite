@@ -12,8 +12,6 @@ export const zhCN: Messages = {
   wordCount: '字',
   readingTime: '约 {count} 分钟',
   updatedOn: '更新于 {date}',
-  draft: '草稿',
-  draftHint: '未发布 · 不进列表与 RSS',
   altLanguageVersion: '另有 {language} 版',
   backToPosts: '返回文章列表',
   allPosts: '查看全部文章',

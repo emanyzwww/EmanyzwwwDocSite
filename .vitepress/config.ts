@@ -11,10 +11,11 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 
 import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from './data/site'
+import { siteRoutePath } from './support/article-path'
 import {
   articleRewrites,
   buildTagIndex,
-  readDraftPosts,
+  draftSourcePaths,
   readPageUrls,
   readPosts,
 } from './support/content'
@@ -126,7 +127,7 @@ function alternateLinks(
   const bare = path.slice(locale.length + 1) // `/zh-cn/pages/about/` → `/pages/about/`
 
   const links: [string, Record<string, string>][] = []
-  const translationKey = urlKeyByUrl().get(path) ?? null
+  const pairKey = urlKeyByUrl().get(path) ?? null
 
   for (const code of LOCALE_CODES) {
     // 当前语言的这一页**一定存在**（我们正在渲染它），无条件输出。
@@ -148,7 +149,7 @@ function alternateLinks(
      *    也不要输出一条指向 404 的互指（那会让整组 hreflang 失效）。
      */
     const target =
-      translatedUrl(translationIndexOf(), translationKey, code) ??
+      translatedUrl(translationIndexOf(), pairKey, code) ??
       (known.has(`/${code}${bare}`) ? `/${code}${bare}` : null)
     if (!target) continue
 
@@ -168,7 +169,7 @@ function alternateLinks(
    */
   if (links.length > 1) {
     const fallback =
-      translatedUrl(translationIndexOf(), translationKey, DEFAULT_LOCALE) ??
+      translatedUrl(translationIndexOf(), pairKey, DEFAULT_LOCALE) ??
       (known.has(`/${DEFAULT_LOCALE}${bare}`) ? `/${DEFAULT_LOCALE}${bare}` : null)
 
     if (fallback) {
@@ -250,19 +251,19 @@ export default defineConfig({
   // 目录式 URL（/zh-cn/202610/1901/你好，世界/），不依赖服务器对 cleanUrls 的支持
   cleanUrls: false,
   /**
-   * 文章 URL 的标题段（slug）。
+   * 路由映射：源文件路径 → URL 路径。
    *
-   * 源文件永远是 `docs/<locale>/<YYYYMM>/<DDNN>/index.md`（目录里只有数字），
-   * 标题只存在 frontmatter 的 `title` / `slug` 里。浏览器里想要的
-   * `/zh-cn/202610/1901/你好，世界/` 由这张映射算出来：
+   * 两类内容各有一套规则，都在这里收口：
    *
-   * ```text
-   * zh-cn/202610/1901/index.md → zh-cn/202610/1901/你好，世界/index.md
-   * ```
-   *
-   * 为什么用**函数**而不是静态对象：映射依赖每篇文章 frontmatter 的 slug，
-   * 只有扫完内容才知道。`articleRewrites()` 与 `support/content.ts` 共用
-   * `support/article-path.ts` / `support/slug.ts` 的规则，不会出现两套口径。
+   * 1. **文章**（`docs/<YYYYMM>/<DDNN>/<locale>/index.md`）：URL 的标题段来自
+   *    frontmatter 的 `slug`，映射成
+   *    `<locale>/<YYYYMM>/<DDNN>/<slug>/index.md`，于是读者看到的是
+   *    `/zh-cn/202610/1901/你好，世界/`。映射依赖每篇文章的 slug，只有扫完
+   *    内容才知道，所以走 `articleRewrites()`（与 `support/content.ts` 共用
+   *    `support/article-path.ts` / `support/slug.ts`，不会出现两套口径）。
+   * 2. **站点页面**（`docs/site/<locale>/**`）：去掉 `site/` 前缀就是 URL
+   *    （`site/zh-cn/pages/about/index.md` → `zh-cn/pages/about/index.md`），
+   *    纯前缀变换，不需要扫盘。
    *
    * 懒建 + 只建一次：VitePress 会对每个页面调一次这个函数，
    * 每次都扫盘是 O(n²) 的 IO；一次建表后就是 O(1)。
@@ -273,10 +274,21 @@ export default defineConfig({
    */
   rewrites: (() => {
     let map: Record<string, string> | null = null
-    return (page: string) => (map ??= articleRewrites())[page] ?? page
+    return (page: string) => {
+      const sitePath = siteRoutePath(page)
+      if (sitePath) return sitePath
+      return (map ??= articleRewrites())[page] ?? page
+    }
   })(),
-  // 草稿目录不参与构建；README 是给编辑器看的，不当页面
-  srcExclude: ['**/_drafts/**', '**/README.md'],
+  /**
+   * 不参与构建的源文件。
+   *
+   * - **草稿**：`draft: true` 的文章完全不构建（不生成页面、不进 sitemap/RSS/
+   *   列表/搜索），源路径由 `draftSourcePaths()` 在配置加载时算出来；
+   * - **`shared/`**：只放跨语言共用的资源，里面的 `.md` 不该变成孤儿页面；
+   * - **README**：给编辑器看的，不当页面。
+   */
+  srcExclude: [...draftSourcePaths(), '**/shared/**', '**/README.md'],
   // 锚点跳转时给粘性页头留出空隙
   scrollOffset: 80,
   // 跟随系统 + 手动覆盖（VitePress 自带无闪烁初始化脚本）
@@ -381,7 +393,7 @@ export default defineConfig({
      * 明暗各一套（`support/markdown/code-theme.ts`）：
      * - 浅色主题下代码块跟页面一样是浅底，深色主题下是深底；
      * - 每个 token 颜色都对着**自己的底色**算过对比度，全部 ≥ 4.5:1
-     *   （`tests/code-theme.test.ts` 逐条复算）；
+     *   （按 WCAG 2.x 公式逐条复算）；
      * - 色相只保留 4 个（jade / 琥珀 / 梅紫 / 青蓝），与全站「一个强调色」一致。
      *
      * 双主题时 Shiki 不写死 `color`，而是给每个 span 打两个自定义属性
@@ -424,32 +436,29 @@ export default defineConfig({
     hostname: SITEMAP_HOSTNAME,
 
     /**
-     * 两条内容规则，数据直接来自 `support/content.ts`（与文章页同源）：
+     * 一条内容规则，数据直接来自 `support/content.ts`（与文章页同源）：
      *
-     * 1. **草稿不进 sitemap**：草稿页会生成（作者在浏览器里预览），也带了
-     *    `noindex`，但绝不能出现在给搜索引擎的清单里；
-     * 2. **文章的 `lastmod` 取「发布 / 更新」里较晚的时刻**：只有改过稿的文章
-     *    才会被搜索引擎重新抓取 —— 否则「更新日期」只在页面上好看。
+     * **文章的 `lastmod` 取「发布 / 更新」里较晚的时刻**：只有改过稿的文章
+     * 才会被搜索引擎重新抓取 —— 否则「更新日期」只在页面上好看。
+     *
+     * 草稿不需要在这里过滤：它们根本不构建（见 `srcExclude`），
+     * 不会出现在 sitemap 的输入里。
      */
     transformItems(items) {
-      const draftUrls = new Set(readDraftPosts().map((post) => sitemapPathKey(post.url)))
       const lastmodByUrl = new Map(
         readPosts().map((post) => [sitemapPathKey(post.url), post.updated ?? post.date]),
       )
 
       /*
-       * 先按草稿过滤，再**原地**写 `lastmod`。
-       *
-       * 不写 `{ ...item, lastmod }`：这里的条目是我们自己产出的普通对象，
+       * **原地**写 `lastmod`：这里的条目是我们自己产出的普通对象，
        * 复制一份只会在每个 URL 上多分配一个对象（oxlint 的 `no-map-spread`
        * 也会指出来）。下游的 SitemapStream 只读不改，原地写是安全的。
        */
-      const kept = items.filter((item) => !draftUrls.has(sitemapPathKey(item.url)))
-      for (const item of kept) {
+      for (const item of items) {
         const lastmod = lastmodByUrl.get(sitemapPathKey(item.url))
         if (lastmod) item.lastmod = lastmod
       }
-      return kept
+      return items
     },
   },
 
@@ -589,14 +598,6 @@ export default defineConfig({
     // 404 页没有规范地址，也不该被索引：整块 SEO 标签都跳过
     if (pageData.isNotFound) {
       return [['meta', { name: 'robots', content: 'noindex' }]]
-    }
-
-    /*
-     * 草稿页：地址可以访问（作者要预览），但**不该被索引**。
-     * 与 sitemap 的草稿过滤是一对：一个阻止收录，一个不进清单。
-     */
-    if (pageData.frontmatter.draft === true) {
-      return [['meta', { name: 'robots', content: 'noindex, nofollow' }]]
     }
 
     const path = toPageUrl(pageData.relativePath)

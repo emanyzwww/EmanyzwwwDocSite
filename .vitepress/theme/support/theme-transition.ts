@@ -82,7 +82,7 @@ function prefersReducedMotion(): boolean {
  *
  * @param flip 同步修改主题的函数（通常是 `isDark.value = next`）。
  *
- * 返回 promise 供测试等待；调用方不需要 await（失败也不影响功能）。
+ * 返回 promise 便于需要时等待；调用方不需要 await（失败也不影响功能）。
  */
 export async function startThemeTransition(flip: () => void): Promise<void> {
   if (typeof document === 'undefined') {

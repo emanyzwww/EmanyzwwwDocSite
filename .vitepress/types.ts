@@ -8,8 +8,9 @@
 /**
  * 语言代码。
  *
- * 与目录结构一一对应：`docs/zh-cn/` → `zh-cn`（URL `/zh-cn/`），
- * `docs/en/` → `en`（URL `/en/`）。两者完全对称，没有「默认语言不带前缀」的特例。
+ * 与目录结构一一对应：文章里是 `docs/<YYYYMM>/<DDNN>/<lang>/`，
+ * 站点页面里是 `docs/site/<lang>/`；同时就是 URL 前缀 `/zh-cn/`、`/en/`。
+ * 两者完全对称，没有「默认语言不带前缀」的特例。
  */
 export type LocaleCode = 'zh-cn' | 'en'
 
@@ -56,24 +57,17 @@ export interface PostSummary {
   updated: string | null
   /** 更新日期的 `YYYY-MM-DD`（站点时区，用于 `<time datetime>`）；无更新为 `null`。 */
   updatedIso: string | null
-  /** 更新日期的展示文本（同年 `MM-DD`、跨年 `YYYY-MM-DD`）；无更新为 `null`。 */
+  /** 更新时间展示文本（同年 `MM-DD`、跨年 `YYYY-MM-DD`）；无更新为 `null`。 */
   updatedText: string | null
-  /**
-   * 是否为草稿（`draft: true`）。
-   *
-   * 草稿不进列表、标签、搜索与 RSS，但页面**仍会生成**（作者预览用），
-   * 由 `drafts.data.ts` 单独下发，文章页据此显示「草稿」徽章。
-   */
-  draft: boolean
   /** 所属语言。 */
   locale: LocaleCode
   /**
    * 跨语言配对键（同一篇文章各语言版本共享；详见 `support/translation.ts`）。
    *
-   * 来自 frontmatter 的显式声明，或由 `<YYYYMM>/<DDNN>/` 目录编号推导。
-   * 没有稳定键的页面（`pages/about` 等）为 `null`，语言切换对它们退回路径匹配。
+   * 由文章源路径的父目录 `<YYYYMM>/<DDNN>` 唯一决定，与 frontmatter 无关。
+   * 没有稳定键的页面（`site/**` 下的站点页面）为 `null`，语言切换对它们退回路径匹配。
    */
-  translationKey: string | null
+  pairKey: string | null
 }
 
 /** 标签的最小引用（用于文章元信息、卡片等处）。 */
@@ -232,10 +226,6 @@ export interface Messages {
   readingTime: string
   /** 更新日期；`{date}` = 已格式化的更新日。 */
   updatedOn: string
-  /** 草稿徽章。 */
-  draft: string
-  /** 草稿页的补充说明（只在 `draft: true` 时显示）。 */
-  draftHint: string
   /** 另一语言版本链接；`{language}` = 目标语言名（如 `English`）。 */
   altLanguageVersion: string
   backToPosts: string

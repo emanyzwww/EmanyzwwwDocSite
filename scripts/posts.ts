@@ -10,7 +10,7 @@
  * 命令行要能看到「刚建好、还没写 date」的文章，也要能在不启动 VitePress 的
  * 情况下工作。因此这里自己读文件，但「算不算文章」的判定与
  * `.vitepress/support/content.ts` 的 `isPost()` 保持一致
- * （`<lang>/<YYYYMM>/<DDNN>/index.md` + 有 date）。
+ * （`<YYYYMM>/<DDNN>/<lang>/index.md` + 有 date）。
  */
 
 import { countWords } from '../.vitepress/support/format'
@@ -66,7 +66,7 @@ interface Row {
   words: number
 }
 
-/** 排序所需的字段（抽出来便于单测，不必构造整个 Row）。 */
+/** 排序所需的字段（抽出来便于单独使用，不必构造整个 Row）。 */
 export interface SortableRow {
   title: string
   time: number
@@ -183,6 +183,7 @@ export default function main(argv: string[]): void {
           words: row.words,
           url: row.post.path.url,
           file: row.post.path.filePath,
+          articleDir: row.post.path.articleDir,
           month: row.post.path.month,
           daySeq: row.post.path.daySeq,
           slug: row.post.path.slug,

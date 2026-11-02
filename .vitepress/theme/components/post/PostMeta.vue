@@ -8,7 +8,7 @@ import { href } from '../../support/paths'
 import AppIcon from '../common/AppIcon.vue'
 
 /**
- * 文章元信息：草稿状态 / 日期 / 更新日期 / 阅读时长 / 字数 / 标签。
+ * 文章元信息：日期 / 更新日期 / 阅读时长 / 字数 / 标签。
  *
  * 文章页头部、文章卡片、时间线三处都用它，保证口径一致。
  * `variant` 只控制容器与显示哪些项，不复制三份模板：
@@ -43,7 +43,6 @@ const wrapperClass = computed(() => ({
 
 const isFull = computed(() => props.variant === 'full')
 
-const showDraft = computed(() => isFull.value && props.post.draft)
 const showWordCount = computed(() => SITE.wordCount)
 const showReadingTime = computed(() => isFull.value && SITE.readingTime)
 const showUpdate = computed(() => isFull.value && props.post.updatedText !== null)
@@ -59,12 +58,6 @@ const showDate = computed(() => props.variant !== 'timeline')
 
 <template>
   <component :is="tag" :class="wrapperClass">
-    <!-- 草稿：只在文章页出现（草稿不会进列表，卡片/时间线里永远看不到它） -->
-    <span v-if="showDraft" class="post-meta__item post-meta__draft">
-      <span class="badge badge--draft">{{ m.draft }}</span>
-      <span class="post-meta__draft-hint">{{ m.draftHint }}</span>
-    </span>
-
     <span v-if="showDate" class="post-meta__item">
       <AppIcon v-if="isFull" name="calendar" />
       <time :datetime="post.isoDate">{{ post.dateText }}</time>

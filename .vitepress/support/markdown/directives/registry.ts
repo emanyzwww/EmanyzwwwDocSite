@@ -198,8 +198,3 @@ function editDistance(a: string, b: string): number {
 
   return previous[cols - 1] ?? 0
 }
-
-/** 清空注册表（仅供测试）。 */
-export function clearDirectives(): void {
-  registry.clear()
-}

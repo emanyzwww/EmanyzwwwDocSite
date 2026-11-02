@@ -121,6 +121,14 @@ export default function main(argv: string[]): void {
 
   const all = locales.map(statsOf)
 
+  // 一篇文章 = 一个 <YYYYMM>/<DDNN> 目录，中英两个语言版本共享同一个目录。
+  // 「篇数」按语言版本数算（口径不变），目录数单独给一行，方便看真实产量。
+  const articleDirCount = new Set(
+    collectPostFiles(localeOption === undefined ? undefined : locales[0]).map(
+      (post) => post.path.articleDir,
+    ),
+  ).size
+
   if (hasOption(args, 'json')) {
     console.log(
       JSON.stringify(
@@ -151,7 +159,7 @@ export default function main(argv: string[]): void {
   const totalWords = all.reduce((sum, stat) => sum + stat.words, 0)
 
   console.log(
-    `${c.bold('内容统计')} ${c.dim(`· ${totalPosts} 篇 · ${totalWords.toLocaleString('zh-CN')} 字`)}`,
+    `${c.bold('内容统计')} ${c.dim(`· ${articleDirCount} 个文章目录 · ${totalPosts} 篇（语言版本） · ${totalWords.toLocaleString('zh-CN')} 字`)}`,
   )
   blank()
 

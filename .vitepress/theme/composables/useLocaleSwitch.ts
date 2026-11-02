@@ -11,8 +11,8 @@
  * 4. 再不行退回目标语言的**首页**。
  *
  * 「页面是否存在」由构建期生成的 `pages.data.ts` 决定，不做字符串猜测；
- * 「文章配对」由 `posts.data.ts` 的 `translationKey` 决定（见 `support/translation.ts`）。
- * 两种语言地位对等，都是 `/zh-cn/`、`/en/` 这样的前缀。
+ * 「文章配对」由 `posts.data.ts` 的 `pairKey`（父目录 `<YYYYMM>/<DDNN>`）决定
+ * （见 `support/translation.ts`）。两种语言地位对等，都是 `/zh-cn/`、`/en/` 这样的前缀。
  */
 
 import { useData, useRoute } from 'vitepress'
@@ -42,7 +42,6 @@ const knownPages = new Set(pages.urls)
 
 /** 跨语言配对索引：配对键 → 语言 → 文章地址。`posts.data.ts` 构建期已算好键。 */
 const translationIndex = buildTranslationIndex(posts)
-
 /**
  * 由「剥掉语言前缀的裸路径」反查配对键。
  *
@@ -51,9 +50,9 @@ const translationIndex = buildTranslationIndex(posts)
  * 所以这里先 `stripLocale` 再作键。裸路径可能未编码（SSG 原文）也可能已编码
  * （浏览器 `route.path`），统一 `encodeURI` 归一化——对已编码串是恒等变换。
  */
-const translationKeyByUrl = new Map<string, string>()
+const pairKeyByUrl = new Map<string, string>()
 for (const [key, urls] of translationIndex) {
-  for (const url of Object.values(urls)) translationKeyByUrl.set(encodeURI(stripLocale(url)), key)
+  for (const url of Object.values(urls)) pairKeyByUrl.set(encodeURI(stripLocale(url)), key)
 }
 
 export function useLocaleSwitch() {
@@ -96,7 +95,7 @@ export function useLocaleSwitch() {
    */
   const translations = computed<LocaleVariant[]>(() => {
     const bare = stripLocale(stripRouteBase(route.path))
-    const key = translationKeyByUrl.get(encodeURI(bare)) ?? null
+    const key = pairKeyByUrl.get(encodeURI(bare)) ?? null
     if (!key) return []
 
     return LOCALE_CODES.filter((code) => code !== current.value).flatMap((code) => {
@@ -117,11 +116,7 @@ export function useLocaleSwitch() {
 function resolveTarget(bare: string, locale: LocaleCode): string {
   // 0. 文章配对：按键直达目标语言的同一篇文章（两边 slug 不同也能配上）。
   //    `encodeURI` 把 SSG 的未编码原文与浏览器的已编码路径归一到同一形式。
-  const byKey = translatedUrl(
-    translationIndex,
-    translationKeyByUrl.get(encodeURI(bare)) ?? null,
-    locale,
-  )
+  const byKey = translatedUrl(translationIndex, pairKeyByUrl.get(encodeURI(bare)) ?? null, locale)
   if (byKey) return byKey
 
   // 1. 完全对应的页面（`pages/` 下的页面两边路径同名）

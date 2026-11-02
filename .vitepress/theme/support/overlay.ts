@@ -115,25 +115,6 @@ let lockCount = 0
  */
 const lockReleaseListeners = new Set<() => void>()
 
-/**
- * 重置全部模块级状态 —— **仅供单测**。
- *
- * `lockCount` / `savedStyle` / 订阅者都是模块级单例，这在浏览器里是刻意的
- * （全站共用一把锁）。但 vitest 在同一进程里跑所有用例，
- * 一个用例留下的计数会污染下一个（表现为"第一个断言就失败"）。
- *
- * 生产代码不要调用它：那会让正在打开的浮层失去锁，页面能滚。
- * 名字不带下划线前后缀（`resetOverlayStateForTests` 而非 `__reset…`）：
- * oxlint 的 `no-underscore-dangle` 会对那种命名报警，而为一个测试专用
- * 函数加 lint 豁免不值得。
- */
-export function resetOverlayStateForTests(): void {
-  lockCount = 0
-  savedStyle = null
-  savedScrollY = 0
-  lockReleaseListeners.clear()
-}
-
 /** 是否持有滚动锁（有浮层打开时为 true）。 */
 export function isScrollLocked(): boolean {
   return lockCount > 0

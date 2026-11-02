@@ -70,15 +70,6 @@ export function warnOnce(message: string): void {
   console.warn(`\x1b[33m[media] ${message}\x1b[0m`)
 }
 
-/** 清空（仅供测试）。 */
-export function clearMediaRegistry(): void {
-  entries.clear()
-  byKey.clear()
-  stamps.clear()
-  referenced.clear()
-  warned.clear()
-}
-
 /** 所有 entry（构建期发射用）。 */
 export function allEntries(): MediaEntry[] {
   return [...entries.values()]

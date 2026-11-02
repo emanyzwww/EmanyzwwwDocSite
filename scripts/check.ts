@@ -8,8 +8,13 @@
  * - **warn**：能构建但不合规范（字段顺序乱、日期没带时区、目录日期与 frontmatter 不一致、
  *   用了废弃字段、slug 缺失或不可用、带 date 却不在文章目录）
  *
- * 文章位置是严格判定的：只有 `<lang>/<YYYYMM>/<DDNN>/index.md` 算文章，
+ * 文章位置是严格判定的：只有 `<YYYYMM>/<DDNN>/<lang>/index.md` 算文章，
  * 因此「旧布局残留 / 放错位置」不再逐个当文章检查，而是单独提示一次。
+ *
+ * 除了逐篇检查，还有一组**目录级**检查（见 `checkArticleDirs`）：一篇文章 =
+ * 一个 `<YYYYMM>/<DDNN>` 目录，目录本身可能坏掉——少了语言层、语言目录缺
+ * `index.md`、混进未知子目录、`shared/` 里放了 Markdown……这些都不是某篇文章
+ * 的问题，逐篇检查发现不了。
  *
  * 退出码：有 error 时为 1（可直接接进 CI 门禁），只有 warn 时为 0。
  */
@@ -26,9 +31,15 @@ import {
   typeOfValue,
 } from './lib/frontmatter'
 import { REQUIRED_FRONTMATTER_KEYS } from './lib/frontmatter-schema'
-import { collectMisplacedDatedFiles, collectPostFiles, postDate } from './lib/posts'
-import type { PostFile } from './lib/posts'
-import { parseLocale, SITE_TIME_ZONE } from './lib/site'
+import {
+  ARTICLE_PATH_EXAMPLE,
+  collectMisplacedDatedFiles,
+  collectPostFiles,
+  postDate,
+  scanArticleDirs,
+} from './lib/posts'
+import type { ArticleDirScan, PostFile } from './lib/posts'
+import { LOCALE_CODES, parseLocale, SITE_TIME_ZONE } from './lib/site'
 import { blank, c, helpLines, info, success } from './lib/ui'
 
 /** 选项定义。 */
@@ -226,7 +237,7 @@ function checkPost(post: PostFile, findings: Finding[]): void {
     findings.push({
       level: 'warn',
       file,
-      message: `目录不符合 <YYYYMM>/<DDNN>/index.md 约定：${post.path.deviation ?? ''}`,
+      message: `目录不符合 <YYYYMM>/<DDNN>/<lang>/index.md 约定：${post.path.deviation ?? ''}`,
     })
   }
 
@@ -321,6 +332,127 @@ function checkCustomSyntax(prose: string, file: string, findings: Finding[]): vo
   }
 }
 
+/**
+ * 目录级检查：一篇文章 = 一个 `<YYYYMM>/<DDNN>` 目录。
+ *
+ * 为什么单独做：文章判定是严格的，目录坏掉时通常**根本没有文章**可以被逐篇检查
+ * 命中——`202610/1901/zh-cn.md`（漏了语言层）、`1901/`（空目录）、
+ * `1901/fr/index.md`（未知语言）都会静默地从文章列表里消失，作者只能看到
+ * 「我写的文章不见了」。这里把「目录结构本身」的问题一次说清楚。
+ *
+ * 全部按 warn 报：它们不会让构建失败（顶多少几篇文章），但一定不合规范。
+ */
+function checkArticleDirs(dirs: readonly ArticleDirScan[], findings: Finding[]): void {
+  for (const dir of dirs) {
+    const where = `${dir.month}/${dir.daySeq}`
+
+    // ---------- 数字越界的目录名 ----------
+    /*
+     * 目录名是纯数字时正则放行，但 `202613`（13 月）、`3201`（32 日）、
+     * `1900`（第 00 篇）都会让「目录日期」与 frontmatter 的 date 永远对不上，
+     * 排序也可能错位。逐字段报，作者一眼知道错在哪一段。
+     */
+    const monthNumber = Number(dir.month.slice(4))
+    const dayNumber = Number(dir.daySeq.slice(0, 2))
+    const sequenceNumber = Number(dir.daySeq.slice(2))
+    if (monthNumber < 1 || monthNumber > 12) {
+      findings.push({
+        level: 'warn',
+        file: where,
+        message: `年月目录 ${dir.month} 的月份不合法：${dir.month.slice(4)}（应为 01–12）`,
+      })
+    }
+    if (dayNumber < 1 || dayNumber > 31) {
+      findings.push({
+        level: 'warn',
+        file: where,
+        message: `日序号目录 ${dir.daySeq} 的「日」不合法：${dir.daySeq.slice(0, 2)}（应为 01–31）`,
+      })
+    }
+    if (sequenceNumber < 1 || sequenceNumber > 99) {
+      findings.push({
+        level: 'warn',
+        file: where,
+        message: `日序号目录 ${dir.daySeq} 的「当日序号」不合法：${dir.daySeq.slice(2)}（应为 01–99）`,
+      })
+    }
+
+    // ---------- 漏掉语言层 ----------
+    if (dir.hasRootIndex) {
+      findings.push({
+        level: 'warn',
+        file: where,
+        message:
+          `文章目录根直接放了 index.md（缺少语言层）：应放到 <YYYYMM>/<DDNN>/<lang>/index.md，` +
+          `如 ${ARTICLE_PATH_EXAMPLE}`,
+      })
+    }
+
+    // ---------- 语言版本 ----------
+    if (dir.locales.size === 0) {
+      /*
+       * 没有任何 `<lang>/index.md`：这个目录不会被构建成任何页面。
+       * 这里只报一条汇总，不再对每个 missingIndex 重复报——「都缺」时
+       * 逐语言刷屏只会让作者更难看清主要问题。
+       */
+      findings.push({
+        level: 'warn',
+        file: where,
+        message:
+          '没有任何语言版本的 index.md（zh-cn/en 都缺），这篇文章不会被构建：' +
+          `至少写一个 ${LOCALE_CODES.join('/')} 下的 index.md`,
+      })
+    } else {
+      // 部分语言有版本、另一语言的目录建了却没写文件 = 翻译做了一半
+      for (const code of dir.missingIndex) {
+        findings.push({
+          level: 'warn',
+          file: `${where}/${code}`,
+          message:
+            '语言目录存在但缺 index.md（翻译没写完，或空目录该删掉）：' +
+            `补写用 pnpm new -l=${code} --into ${where}`,
+        })
+      }
+    }
+
+    // ---------- 未知子目录 ----------
+    for (const name of dir.unknownDirs) {
+      findings.push({
+        level: 'warn',
+        file: `${where}/${name}`,
+        message:
+          `未知子目录「${name}」：<YYYYMM>/<DDNN> 下只应有 ` +
+          `${LOCALE_CODES.join('、')} 与 shared`,
+      })
+    }
+
+    // ---------- shared/ 里的 Markdown ----------
+    /*
+     * `shared/` 是**跨语言资源**目录。往里放 .md 会被当成普通页面构建
+     * （或干脆不构建），两条路都不对；文章必须落在 `<lang>/index.md`。
+     */ for (const file of dir.sharedMarkdownFiles) {
+      findings.push({
+        level: 'warn',
+        file,
+        message:
+          'shared/ 只放资源、不放 Markdown：文章应写成 <YYYYMM>/<DDNN>/<lang>/index.md，' +
+          '资源引用用 ../shared/images/xx.png',
+      })
+    }
+
+    // ---------- 语言目录根直接放文件 ----------
+    for (const file of dir.strayFiles) {
+      findings.push({
+        level: 'warn',
+        file,
+        message:
+          '语言目录根只应有 index.md：其它文件请放进类型目录（images/、audio/、video/、files/），' +
+          '共享资源放 ../shared/',
+      })
+    }
+  }
+}
+
 /** 主流程。 */
 export default function main(argv: string[]): void {
   const args = parseArgs(argv, [...SPECS])
@@ -335,9 +467,15 @@ export default function main(argv: string[]): void {
 
   const posts = collectPostFiles(locale, { includeUndated: hasOption(args, 'all') })
   const misplaced = collectMisplacedDatedFiles(locale)
+  /*
+   * 目录级检查不受 --lang 影响：一个 `<YYYYMM>/<DDNN>` 目录本身好不好，
+   * 与「这次只看哪种语言」无关。按语言裁剪反而会让目录问题在单语言检查里消失。
+   */
+  const articleDirs = scanArticleDirs()
   const findings: Finding[] = []
 
   for (const post of posts) checkPost(post, findings)
+  checkArticleDirs(articleDirs, findings)
 
   /*
    * 「有 date 但不在文章目录」单独提示：它不会被当成文章（也不该被当成文章
@@ -348,7 +486,8 @@ export default function main(argv: string[]): void {
       level: 'warn',
       file: filePath,
       message:
-        '有 date 但不在文章目录（不会进入文章列表）：应放到 <lang>/<YYYYMM>/<DDNN>/index.md，例如 zh-cn/202610/1901/index.md',
+        '有 date 但不在文章目录（不会进入文章列表）：应放到 <YYYYMM>/<DDNN>/<lang>/index.md，' +
+        `例如 ${ARTICLE_PATH_EXAMPLE}`,
     })
   }
 
@@ -358,7 +497,7 @@ export default function main(argv: string[]): void {
   blank()
 
   if (findings.length === 0) {
-    success(`全部合规：${posts.length} 篇文章`)
+    success(`全部合规：${posts.length} 篇文章 / ${articleDirs.length} 个文章目录`)
     blank()
     return
   }
@@ -385,10 +524,9 @@ export default function main(argv: string[]): void {
   if (errors.length > 0) summaryParts.push(c.red(`${errors.length} 个错误`))
   if (warnings.length > 0) summaryParts.push(c.yellow(`${warnings.length} 个警告`))
 
-  const scope =
-    misplaced.length > 0
-      ? `${posts.length} 篇文章、${misplaced.length} 个位置异常文件`
-      : `${posts.length} 篇文章`
+  const scopeParts = [`${posts.length} 篇文章`, `${articleDirs.length} 个文章目录`]
+  if (misplaced.length > 0) scopeParts.push(`${misplaced.length} 个位置异常文件`)
+  const scope = scopeParts.join('、')
   console.log(`${c.dim('检查了')} ${scope}${c.dim('：')}${summaryParts.join('，')}`)
 
   if (warnings.length > 0 && errors.length === 0) {

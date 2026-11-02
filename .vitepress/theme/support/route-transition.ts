@@ -96,7 +96,7 @@ function prefersReducedMotion(): boolean {
  * 安装路由过渡。
  *
  * 由 `theme/index.ts` 的 `enhanceApp` 调用一次（只有客户端）。
- * 返回卸载函数（目前没有调用点，但保留以便将来 HMR 或测试使用）。
+ * 返回卸载函数（目前没有调用点，保留以便将来 HMR 使用）。
  */
 export function installRouteTransition(router: RouterLike): () => void {
   if (typeof document === 'undefined') return () => {}

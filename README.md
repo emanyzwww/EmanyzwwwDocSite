@@ -4,8 +4,9 @@
 中英双语（`/zh-cn/` + `/en/`）、目录式 URL、明暗主题、站内搜索（Ctrl/⌘+K）、
 RSS + sitemap + 404 兜底；构建期零网络请求。
 
-文章源文件固定为 `docs/<lang>/<YYYYMM>/<DDNN>/index.md`，URL 的标题段由
-frontmatter 的 `slug` 决定，例如 `/zh-cn/202610/1901/你好，世界/`。
+文章源文件固定为 `docs/<YYYYMM>/<DDNN>/<locale>/index.md`（一个日期目录 = 一篇文章，
+`zh-cn/` 与 `en/` 是它的两个语言版本；配图放 `<locale>/images/` 或 `shared/images/`），
+URL 的标题段由 frontmatter 的 `slug` 决定，例如 `/zh-cn/202610/1901/你好，世界/`。
 
 ## 快速开始
 
@@ -19,7 +20,7 @@ pnpm preview     # 预览构建产物
 内容侧命令（写文章用）：
 
 ```powershell
-pnpm new         # 新建文章（北京时间 + 当日序号 + 补全 frontmatter）
+pnpm new         # 新建文章（北京时间 + 当日序号 + 补全 frontmatter，只建当前语言）
 pnpm posts       # 列出文章（可带 20261024 只看某天）
 pnpm check       # 检查 frontmatter / 目录约定
 pnpm fix         # 自动修正
@@ -29,8 +30,10 @@ pnpm clean       # 清理产物与缓存
 pnpm guide       # 全部命令的总览
 ```
 
-质量门禁：`pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm format:check`
-（CI 在每次推送后按同一顺序跑，然后再 build）。
+补另一语言版本：`pnpm new -l=en --into 202610/1901`（写进同一个文章目录，不分配新序号）。
+
+本地检查：`pnpm lint` / `pnpm typecheck` / `pnpm format:check`
+（CI 在构建前跑 lint / typecheck / audit）。
 
 ## 文档
 
@@ -52,21 +55,20 @@ pnpm guide       # 全部命令的总览
 `:::columns` / `:::gallery`。逐条写法与参数见 WRITING.md 的「块级指令」一节。
 
 **构建期零网络**：`:::github` 构建时只产出一条真链接，仓库数据由浏览器在卡片
-进入视口时补充；取不到就保持链接。同样的源码永远得到同样的产物，断网也能构建
-（`tests/offline-build.test.ts` 守着这条契约）。
+进入视口时补充；取不到就保持链接。同样的源码永远得到同样的产物，断网也能构建。
 
 ## 技术栈
 
-| 项     | 说明                                                            |
-| ------ | --------------------------------------------------------------- |
-| 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL）               |
-| 语言   | TypeScript 5（strict）                                          |
-| 主题   | 自定义，见 `.vitepress/theme/`                                  |
-| 样式   | 三层设计令牌 + 深青强调色，见 DESIGN.md                         |
-| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖                           |
-| 脚本   | `scripts/` + tsx，与构建期共用站点与 frontmatter 定义           |
-| 校验   | oxlint / vue-tsc / vitest（450 用例）/ oxfmt                    |
-| 部署   | GitHub Actions → GitHub Pages（质量门禁 + 部署后 sitemap 冒烟） |
+| 项     | 说明                                                  |
+| ------ | ----------------------------------------------------- |
+| 生成器 | VitePress 1.6.4（`cleanUrls: false`，目录式 URL）     |
+| 语言   | TypeScript 5（strict）                                |
+| 主题   | 自定义，见 `.vitepress/theme/`                        |
+| 样式   | 三层设计令牌 + 深青强调色，见 DESIGN.md               |
+| 搜索   | 构建期索引 + 纯前端匹配，零第三方依赖                 |
+| 脚本   | `scripts/` + tsx，与构建期共用站点与 frontmatter 定义 |
+| 校验   | oxlint / vue-tsc / oxfmt                              |
+| 部署   | GitHub Actions → GitHub Pages（构建 + 发布）          |
 
 无障碍：全部文字与控件对比度按 WCAG 公式实算，AA 以上；完整表见 DESIGN.md §9.1。
 
@@ -74,7 +76,7 @@ pnpm guide       # 全部命令的总览
 
 ```text
 .vitepress/    配置（config.ts）+ 构建期工具（support/、shared/、data/）+ 运行期主题（theme/）
-docs/          内容：<lang>/index.md（首页）、<lang>/<YYYYMM>/<DDNN>/、<lang>/pages/
+docs/          内容：日期树 <YYYYMM>/<DDNN>/{zh-cn,en,shared}/ + 站点页面 site/<locale>/
 scripts/       内容侧命令行（不参与构建）：run.ts + new/posts/check/fix/stats/tags/clean
 media/         会替换的图片（按内容指纹命名）
 public/        原样拷贝：favicon、根路径语言跳转页、占位图

@@ -1,7 +1,7 @@
 /**
  * `:::name 参数` 的行切分与参数解析。
  *
- * 这一层只做**字符串处理**（是纯函数，可直接单测）：
+ * 这一层只做**字符串处理**（纯函数）：
  *
  * ```text
  * :::github vuejs/core            →  { name: 'github', positional: ['vuejs/core'], named: {} }
@@ -10,7 +10,7 @@
  * ```
  *
  * 块级扫描（找配对围栏、递归解析内部 Markdown）在 `block.ts`，
- * 这里只负责「一行开标签怎么写」这一件事，便于单独测试。
+ * 这里只负责「一行开标签怎么写」这一件事。
  */
 
 import type { DirectiveArgs } from './registry'

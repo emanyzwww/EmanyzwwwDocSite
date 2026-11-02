@@ -112,16 +112,6 @@
   line-height: var(--leading-normal);
 }
 
-/* 草稿状态：徽章 + 一行说明，只在草稿页出现（草稿不进列表，所以这里也看不到它） */
-.post-meta__draft {
-  gap: var(--space-2);
-}
-
-.post-meta__draft-hint {
-  color: var(--fg-subtle);
-  font-size: var(--text-xs);
-}
-
 /*
  * 文章尾部：返回列表 / RSS
  */

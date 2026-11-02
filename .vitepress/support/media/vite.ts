@@ -26,9 +26,9 @@
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 
-import { DOCS_DIR } from '../content'
+import { DOCS_DIR, draftSourcePaths } from '../content'
 import { MEDIA_DIR } from './planner'
 import {
   allEntries,
@@ -118,9 +118,17 @@ function collectMarkdown(dir: string, acc: string[] = []): string[] {
  * 只要 resolve 过，`generateBundle` 就有完整 entry 可以直接发射。
  * 这里**吞掉**解析错误：具体报错留给渲染阶段，那里能带上「哪篇文章」的上下文，
  * 而预扫只有文件路径。
+ *
+ * **草稿跳过**：`draft: true` 的文章完全不构建，页面不存在，它的图片也不该
+ * 被发射进产物（否则 dist 里会多出一批没人引用的 webp）。
  */
 function prescan(): void {
+  const drafts = new Set(draftSourcePaths())
+
   for (const file of collectMarkdown(DOCS_DIR)) {
+    const relativePath = relative(DOCS_DIR, file).split(sep).join('/')
+    if (drafts.has(relativePath)) continue
+
     let text: string
     try {
       text = readFileSync(file, 'utf-8')

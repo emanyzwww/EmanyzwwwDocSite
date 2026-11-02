@@ -32,7 +32,7 @@
  * ## 契约
  *
  * 输入是 VitePress 1.6.4 渲染后（并经过 Vue 序列化）的正文，
- * 真实结构见 `tests/feed-code.test.ts` 的 fixture。两条硬约束：
+ * 真实结构由 `support/markdown/code-blocks.ts` 注入（见「代码块管线」）。两条硬约束：
  *
  * 1. **没有代码块的 HTML 必须恒等输出**——不能因为「顺手清理」改到正文；
  * 2. **幂等**：`sanitizeFeedCode(sanitizeFeedCode(html)) === sanitizeFeedCode(html)`。
@@ -281,7 +281,7 @@ const LANG_SPAN_RE = /<span\b[^>]*class="[^"]*\blang\b[^"]*"[^>]*>[^<]*<\/span>/
  * `<pre>` 的所有属性都去掉（`class="shiki …"`、`tabindex`、`v-pre`、`style`）。
  *
  * `v-pre` 是 Vue 的编译期指令——它在构建产物里其实已经被 Vue 消费掉，
- * 但单元测试直接喂 markdown-it 的原始输出时还在，两种输入都要能处理。
+ * 但直接喂 markdown-it 的原始输出时它还在，两种输入都要能处理。
  */
 const PRE_OPEN_RE = /<pre\b[^>]*>/gi
 

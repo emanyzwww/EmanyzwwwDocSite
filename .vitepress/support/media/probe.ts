@@ -225,7 +225,7 @@ export function readImageSize(bytes: Uint8Array): ImageSize | null {
   /*
    * 最短的判定门槛取 12：GIF 的逻辑屏幕描述符只需 13 字节，
    * 而 PNG / JPEG / WebP 各自在下面的解析里还有更严格的长度检查。
-   * 写成 16 会把「只有头的 GIF」直接判死（单测里就是这个场景）。
+   * 写成 16 会把「只有头的 GIF」直接判死。
    */
   if (bytes.length < 12) return null
 

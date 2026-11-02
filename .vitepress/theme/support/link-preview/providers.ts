@@ -94,7 +94,7 @@ function findPost(deps: ProviderDeps, href: string): PostSummary | null {
     )
   } catch {
     // 相对路径 / 非法 URL：hoverLink 已把 href 归一化成绝对 URL，
-    // 走到这里说明是直接调用（测试或未来的其它入口），当作「没有」
+    // 走到这里说明是直接调用（未来的其它入口），当作「没有」
     return null
   }
 }

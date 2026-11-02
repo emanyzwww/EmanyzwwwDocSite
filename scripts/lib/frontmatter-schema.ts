@@ -14,7 +14,7 @@
  * 为什么放在 `scripts/lib/` 而不是 `.vitepress/data/`：只有命令行读这张表，
  * 构建期与运行期都不需要它；`data/` 是站点数据（导航、资料、搜索索引）的家，
  * 混进去会让人误以为它会被下发到浏览器。本文件也不得引用 Node 内置模块，
- * 以便测试与将来的构建期脚本直接复用。
+ * 以便命令行与将来的构建期脚本直接复用。
  */
 
 /** 字段的值类型。决定命令如何生成与校验它。 */
@@ -30,7 +30,6 @@ export type FrontmatterKey =
   | 'description'
   | 'draft'
   | 'outline'
-  | 'translationKey'
 
 /** 一个字段的完整定义。 */
 export interface FrontmatterField {
@@ -86,8 +85,7 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
   },
   {
     /*
-     * 更新时刻：**不写就是没更新过**，因此 `pnpm new` 不生成它
-     * （与 `translationKey` 同一类「按需手写」字段）。
+     * 更新时刻：**不写就是没更新过**，因此 `pnpm new` 不生成它。
      * 只有日期部分晚于 `date` 时，文章页才会显示「更新于 …」。
      */
     key: 'updated',
@@ -117,8 +115,8 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     key: 'draft',
     type: 'boolean',
     required: false,
-    summary: '草稿标记；为 true 时从列表、标签页与 RSS 隐藏（页面仍会生成）',
-    fallback: 'false',
+    summary: 'true = 不构建该文章（不生成页面，不进列表、标签、RSS、搜索）',
+    fallback: 'false（正常构建）',
     placeholder: false,
   },
   {
@@ -128,20 +126,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     summary: '是否显示右栏目录；false 时强制关掉',
     fallback: '跟随站点全局设置（默认开）',
     placeholder: true,
-  },
-  {
-    /*
-     * 跨语言配对键。默认由两边 `<YYYYMM>/<DDNN>` 目录编号自动推导，
-     * 只有「目录编号没对齐」或想显式指定配对时才需要写。
-     * 它不是 `new` 会生成的字段（`create.ts` 的 switch 没有对应分支），
-     * 列进表里只是为了让 `check` 不再把它当成拼错的未知字段。
-     */
-    key: 'translationKey',
-    type: 'string',
-    required: false,
-    summary: '跨语言配对键；省略时按 <YYYYMM>/<DDNN> 目录编号推导',
-    fallback: '由目录编号推导（见 support/translation.ts）',
-    placeholder: '',
   },
 ]
 
@@ -166,4 +150,5 @@ export const DEPRECATED_FRONTMATTER_KEYS: Readonly<Record<string, string>> = {
   showWordCount: '改为全局开关（.vitepress/data/site.ts 的 wordCount）',
   categories: '已移除，只用 tags',
   summary: '仍兼容为 description，但建议直接写 description',
+  translationKey: '已移除：配对由 <YYYYMM>/<DDNN> 父目录决定，删掉即可',
 }

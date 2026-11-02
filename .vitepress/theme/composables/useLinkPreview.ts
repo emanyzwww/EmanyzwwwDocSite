@@ -262,7 +262,7 @@ export function dismiss(): void {
   anchor.value = null
 }
 
-/** 供单测：注入 provider 列表（避免依赖 app 上下文）。 */
+/** 注入 provider 列表（由 PageShell 在 setup 期间调用，避免依赖 app 上下文）。 */
 export function setLinkPreviewProviders(list: LinkProvider[]): void {
   providers = list
 }

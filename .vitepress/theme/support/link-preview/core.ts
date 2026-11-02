@@ -2,7 +2,7 @@
  * 链接预览的公共类型与纯函数。
  *
  * 这个模块刻意**零依赖**（不 import vite / vitepress / vue / node 模块）：
- * - provider 匹配、缓存键、缓存过期判断是纯函数，单测直接跑（tests/ 约定）；
+ * - provider 匹配、缓存键、缓存过期判断是纯函数；
  * - 构建期若将来要做预取，也能复用同一份类型。
  *
  * ## 设计总览（为什么是「provider 注册表」）
@@ -167,7 +167,7 @@ export const PREVIEW_STORAGE_PREFIX = 'emanyzwww-link-preview'
  * 提取 GitHub 仓库信息（owner/repo）与数字缩写。
  *
  * 实现已经收敛到 `shared/github.ts`（构建期与运行期共用的纯函数层），
- * 这里只再导出一次：本模块的调用方（`providers.ts` 与单测）不需要改 import 路径，
+ * 这里只再导出一次：本模块的调用方（`providers.ts`）不需要改 import 路径，
  * 也保证仓库卡与悬浮卡用的是**同一套**解析与数字格式，不会各显示一个数。
  */
 export { compactNumber, parseGitHubRepo } from '../../../shared/github'
@@ -193,7 +193,7 @@ export function parseBilibiliVideo(url: string): { bvid: string } | null {
  * 由 URL 构造域名兜底卡。
  *
  * 专用 provider（GitHub / bilibili…）拿不到数据时（限流、CORS、接口变更），
- * 调用方用它兜底 —— 保证悬浮卡**永不空白**。纯函数，单测直接覆盖。
+ * 调用方用它兜底 —— 保证悬浮卡**永不空白**。纯函数。
  *
  * `site` 可传专用 provider 的站点名（如 `GitHub`），让降级卡至少标明
  * 「这是哪类站」；传空则只显示域名。非 http(s) 或解析失败返回 `null`

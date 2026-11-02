@@ -24,7 +24,7 @@ export interface MediaRuntime {
   outDir: string
 }
 
-/** 在 vite 插件注入之前的兜底值：只够让纯函数单测与"意外提前渲染"不崩。 */
+/** 在 vite 插件注入之前的兜底值：只够让"意外提前渲染"不崩。 */
 const FALLBACK: MediaRuntime = {
   mode: 'build',
   base: '/',
@@ -40,7 +40,7 @@ export function setMediaRuntime(next: MediaRuntime): void {
   runtime = next
 }
 
-/** 读上下文。未注入时返回兜底值，**不抛错**——否则单测与 SSR 的边角路径会直接炸。 */
+/** 读上下文。未注入时返回兜底值，**不抛错**——否则 SSR 的边角路径会直接炸。 */
 export function getMediaRuntime(): MediaRuntime {
   return runtime ?? FALLBACK
 }

@@ -4,19 +4,27 @@
  * 这是「文章」概念的**唯一入口**：列表页、标签页、RSS、统计卡片都从这里取数据，
  * 避免多处各自解析 Markdown 导致口径不一致。
  *
- * ## 文章在哪（本次重构后的规则）
+ * ## 文章在哪
  *
  * ```text
- * docs/<locale>/<YYYYMM>/<DDNN>/index.md
+ * docs/<YYYYMM>/<DDNN>/<locale>/index.md
  * ```
  *
- * 目录里只有数字：`YYYYMM` 是年月，`DDNN` 是「日 + 当日序号」。
+ * 目录里只有数字与语言：`YYYYMM` 是年月，`DDNN` 是「日 + 当日序号」，
+ * `zh-cn` / `en` 是文章的语言版本（缺一个 = 该语言没有这篇）。
  * 标题与 URL 的标题段由 frontmatter 的 `title` / `slug` 决定，
  * 实际 URL（`/zh-cn/202610/1901/<slug>/`）由 `config.ts` 的 `rewrites`
  * 映射出来——因此 **`url` 不能用源文件路径直接换算**，必须走
  * `articleRoutePath()`（规则见 `support/article-path.ts`）。
  *
- * 非文章页面（`docs/<locale>/pages/**`、首页）没有 slug 段，URL 就是文件路径。
+ * 非文章页面在 `docs/site/<locale>/**`，去掉 `site/` 前缀就是 URL。
+ *
+ * ## 草稿
+ *
+ * 草稿只由 frontmatter 的 `draft: true` 决定，并且**完全不构建**：
+ * `config.ts` 把它们的源路径算进 `srcExclude`（页面不生成、不进 sitemap/RSS），
+ * 本文件也不把它们算进文章列表与页面索引，`support/media/vite.ts` 则跳过
+ * 草稿里引用的图片。草稿的源路径由 `draftSourcePaths()` 提供给上面两处。
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -24,10 +32,10 @@ import { join, relative, resolve, sep } from 'node:path'
 
 import matter from 'gray-matter'
 
-import { asLocale, DEFAULT_LOCALE, LOCALES } from '../data/site'
+import { DEFAULT_LOCALE, LOCALES } from '../data/site'
 import { TAG_LABELS, TAG_SLUGS } from '../data/taxonomy'
 import type { LocaleCode, PostSummary, TagRef } from '../types'
-import { articleRoutePath, isArticlePath } from './article-path'
+import { articleRoutePath, isArticlePath, localeOfDocPath, siteRoutePath } from './article-path'
 import {
   countWords,
   firstParagraph,
@@ -44,7 +52,7 @@ import {
   truncate,
 } from './format'
 import { slugOf } from './slug'
-import { translationKeyOf } from './translation'
+import { pairKeyOf } from './translation'
 import { toPageUrl } from './urls'
 
 /** 内容根目录。优先取 VitePress 已解析的 `srcDir`，避免依赖启动目录。 */
@@ -55,21 +63,20 @@ export const DOCS_DIR =
 /**
  * 不作为内容页统计的目录。
  *
- * `_drafts` 与 `config.ts` 的 `srcExclude` 保持同一口径：草稿不参与构建，
- * 因此也不该出现在页面索引（语言切换会据此判断「目标语言有没有这页」）、
- * 搜索索引与 hreflang 判断里。
+ * `shared` 只放跨语言共用的资源，不是页面：放进去的 `.md` 会变成没有语言
+ * 前缀的孤儿页面，所以内容扫描与 `config.ts` 的 `srcExclude` 都不认它。
  */
-const IGNORED_DIRS = new Set(['.vitepress', 'public', 'node_modules', '_drafts'])
+const IGNORED_DIRS = new Set(['.vitepress', 'public', 'node_modules', 'shared'])
 
 /** 一份 Markdown 文档的原始信息。 */
 export interface RawDoc {
-  /** 相对 `docs/` 的路径，统一用 `/` 分隔，含语言前缀（`zh-cn/202610/1901/index.md`）。 */
+  /** 相对 `docs/` 的路径，统一用 `/` 分隔，含语言（`202610/1901/zh-cn/index.md`）。 */
   filePath: string
   /**
    * 这份文档真正的 route 相对路径（`rewrites` 的目标，带 `.md`）。
    *
-   * 文章是 `<locale>/<YYYYMM>/<DDNN>/<slug>/index.md`；非文章与 `filePath` 相同。
-   * RSS、canonical、页面的 `relativePath` 都以它为准。
+   * 文章是 `<locale>/<YYYYMM>/<DDNN>/<slug>/index.md`；站点页面去掉
+   * `site/` 前缀；RSS、canonical、页面的 `relativePath` 都以它为准。
    */
   routePath: string
   /** 站点内路径（已 URL 编码），含语言前缀，如 `/zh-cn/pages/tags/随笔/`。 */
@@ -80,11 +87,6 @@ export interface RawDoc {
   data: Record<string, unknown>
   /** 正文（不含 frontmatter）。 */
   body: string
-}
-
-/** 判断文件属于哪种语言：第一段目录名就是语言。 */
-function toLocale(filePath: string): LocaleCode {
-  return asLocale(filePath.split('/')[0])
 }
 
 /** 递归收集 `docs/` 下所有 Markdown 文件（相对路径，`/` 分隔）。 */
@@ -105,11 +107,11 @@ function collectMarkdown(dir = DOCS_DIR, acc: string[] = []): string[] {
 /**
  * 一份文档的 route 路径。
  *
- * 文章用 frontmatter 的 slug 替换掉 `<DDNN>/index.md` 这一段；
- * 非文章（首页、`pages/**`）原样返回。
+ * 文章用「语言 + 日期目录 + slug」拼出带标题段的地址；站点页面直接去掉
+ * `site/` 前缀（`site/zh-cn/pages/about/index.md` → `zh-cn/pages/about/index.md`）。
  */
 export function routePathOf(filePath: string, data: Record<string, unknown>): string {
-  return articleRoutePath(filePath, slugOf(data)) ?? filePath
+  return articleRoutePath(filePath, slugOf(data)) ?? siteRoutePath(filePath) ?? filePath
 }
 
 /** 读取单份 Markdown，解析 frontmatter。 */
@@ -122,7 +124,7 @@ export function readDoc(filePath: string): RawDoc {
     filePath,
     routePath,
     url: toPageUrl(routePath),
-    locale: toLocale(filePath),
+    locale: localeOfDocPath(filePath),
     data: data as Record<string, unknown>,
     body: content,
   }
@@ -281,49 +283,48 @@ export function toPostSummary(doc: RawDoc): PostSummary {
     updated: hasUpdate ? updatedAt.toISOString() : null,
     updatedIso: hasUpdate ? formatIsoDate(updatedAt, meta.timeZone) : null,
     updatedText: hasUpdate ? formatUpdatedDate(updatedAt, meta.timeZone, publishedYear) : null,
-    draft: doc.data.draft === true,
     locale: doc.locale,
-    translationKey: translationKeyOf(doc.data, doc.filePath),
+    pairKey: pairKeyOf(doc.filePath),
   }
 }
 
 /**
- * 读取文章（可选包含草稿），按时间倒序。
+ * 读取已发布文章，按时间倒序。
  *
- * 草稿与已发布文章的**唯一差别是这里的分流**：同一个 `toPostSummary()`
- * 产出同样的字段，所以草稿页也能有完整的文章版面（字数、阅读时长、标签、
- * 上下篇之外的页脚动作），只是不进任何列表。
+ * 草稿（`draft: true`）在**构建期就被整体排除**（`config.ts` 的 `srcExclude`），
+ * 这里再过滤一次是为了不依赖构建配置：`pnpm posts` 等脚本也直接读内容，
+ * 它们拿到的同样应该是「读者能看到的文章」。
  */
-function collectPosts(options: { locale?: LocaleCode; drafts: boolean }): PostSummary[] {
+function collectPosts(locale?: LocaleCode): PostSummary[] {
   return readDocs()
     .filter(isPost)
-    .filter((doc) => (doc.data.draft === true) === options.drafts)
+    .filter((doc) => doc.data.draft !== true)
     .map(toPostSummary)
-    .filter((post) => (options.locale ? post.locale === options.locale : true))
+    .filter((post) => (locale ? post.locale === locale : true))
     .toSorted((a, b) => +new Date(b.date) - +new Date(a.date))
 }
 
-/**
- * 全部已发布文章，按时间倒序。草稿（`draft: true`）不进入任何列表。
- */
+/** 全部已发布文章，按时间倒序。草稿不进入任何列表。 */
 export function readPosts(locale?: LocaleCode): PostSummary[] {
-  return collectPosts({ locale, drafts: false })
+  return collectPosts(locale)
 }
 
 /**
- * 草稿文章（`draft: true`），按时间倒序。
+ * 草稿的源文件路径（相对 `docs/`）。
  *
- * 只给两个地方用：
- * 1. `drafts.data.ts` → 文章页识别「当前页是草稿」，从而渲染完整版面与草稿徽章；
- * 2. `config.ts` → sitemap 排除草稿、并给草稿页加 `noindex`。
- *
- * **列表、标签、搜索、RSS、语言切换都不该读它**（否则草稿就泄漏了）。
+ * 只给构建配置用：`config.ts` 把它们算进 `srcExclude`，于是草稿**完全不构建**
+ * （不生成页面、不进 sitemap/RSS/列表/搜索）；`support/media/vite.ts` 也据此
+ * 跳过草稿里引用的图片，避免为不存在的页面发射产物。
  */
-export function readDraftPosts(locale?: LocaleCode): PostSummary[] {
-  return collectPosts({ locale, drafts: true })
+export function draftSourcePaths(): string[] {
+  return readDocs()
+    .filter((doc) => doc.data.draft === true)
+    .map((doc) => doc.filePath)
 }
 
-/** 全部内容页路径（供语言切换判断「是否存在对应翻译」）。 */
+/** 全部内容页路径（供语言切换判断「是否存在对应翻译」）。草稿不算页面。 */
 export function readPageUrls(): string[] {
-  return readDocs().map((doc) => doc.url)
+  return readDocs()
+    .filter((doc) => doc.data.draft !== true)
+    .map((doc) => doc.url)
 }

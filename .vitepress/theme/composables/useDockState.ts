@@ -348,28 +348,3 @@ export function useDockState() {
     reset: resetDock,
   }
 }
-
-/**
- * 重置模块级状态 —— **仅供单测**。
- *
- * 与 `overlay.ts` 的 `resetOverlayStateForTests` 同一个理由：
- * `listening`（是否已注册滚动监听）是模块级单例。在 vitest 里，
- * 第一个用例调用 `useDockState()` 后它就永远是 true；后续用例若
- * 重新 stub 了 `window`，监听器注册会被 `listening` 短路 ——
- * 于是滚动事件再也派发不进状态机，表现为「怎么滚都是 rest」。
- *
- * 浏览器里不要调用：那会导致重复注册滚动监听。
- */
-export function resetDockStateForTests(): void {
-  listening = false
-  inputListening = false
-  frame = 0
-  settling = false
-  started = false
-  holdUntil = 0
-  cooldownUntil = 0
-  downAccum = 0
-  upAccum = 0
-  mode.value = 'rest'
-  scrolled.value = false
-}

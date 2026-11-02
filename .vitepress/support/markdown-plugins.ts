@@ -128,7 +128,7 @@ interface MarkdownItLike {
  * - `[==高亮== 链接](https://example.com)`
  * - 表格、引用、列表、标题里的高亮
  *
- * 刻意保持的「不误伤」行为（`tests/markdown-plugins.test.ts` 有覆盖）：
+ * 刻意保持的「不误伤」行为：
  *
  * - 单个等号：`a == b`、`if (a==b)`、`1 == 1` 原样输出；
  * - 行内代码与代码块里的 `==` 不参与解析（反引号规则先吃掉）；

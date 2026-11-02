@@ -25,9 +25,7 @@
     ".vitepress/**/*.vue",
     ".vitepress/**/*.d.ts",
     "docs/**/*.paths.ts",
-    "scripts/**/*.ts",
-    "tests/**/*.ts",
-    "vitest.config.ts"
+    "scripts/**/*.ts"
   ],
   "exclude": [".vitepress/dist", ".vitepress/cache", ".vitepress/.temp", "node_modules"]
 }

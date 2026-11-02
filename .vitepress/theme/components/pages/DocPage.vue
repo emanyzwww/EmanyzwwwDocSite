@@ -19,9 +19,9 @@ import PostNav from '../post/PostNav.vue'
  * 文档 / 文章页（默认布局）。
  *
  * 判断「是不是文章」不靠路径判断，而是看构建期的文章数据里能否匹配到当前页，
- * 因此把一篇文章放到 `docs/<locale>/<YYYYMM>/<DDNN>/index.md` 并写 `date`，
+ * 因此把一篇文章放到 `docs/<YYYYMM>/<DDNN>/<locale>/index.md` 并写 `date`，
  * 就会自动获得文章的全部行为（元信息、导语、返回列表、上下篇、进度条、
- * 文末动作条）。草稿（`draft: true`）走同一套版面，只多一枚「草稿」徽章。
+ * 文末动作条）。
  */
 
 const { frontmatter, page } = useData()
@@ -29,7 +29,7 @@ const { locale, m } = useI18n()
 const { current } = useCurrentPost()
 const { translations } = useLocaleSwitch()
 
-/** 是否为一篇文章：能匹配到构建期文章数据即为文章（含草稿）。 */
+/** 是否为一篇文章：能匹配到构建期文章数据即为文章。 */
 const isPost = computed(() => current.value !== undefined)
 
 /** 页面标题（不含站点名）。 */

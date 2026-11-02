@@ -19,7 +19,6 @@ const TARGETS = [
   { path: '.vitepress/cache', label: '构建缓存' },
   { path: '.vitepress/.temp', label: '临时文件' },
   { path: 'node_modules/.vite', label: 'Vite 依赖预构建缓存' },
-  { path: 'node_modules/.vitest-cache', label: '测试缓存' },
 ] as const
 
 /** 选项。 */

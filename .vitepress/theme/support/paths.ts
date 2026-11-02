@@ -6,8 +6,8 @@
  * 1. 原样转出纯函数，组件统一从本文件 import；
  * 2. 给需要 `base` 的地址包一层 `withBase`（只有浏览器侧才需要）。
  *
- * 拆开的原因：纯函数要能在 Node 里单测，而 `vitepress` 的 `withBase`
- * 依赖站点数据，在测试环境里不可用。
+ * 拆开的原因：纯函数要能在 Node 里直接运行，而 `vitepress` 的 `withBase`
+ * 依赖站点数据，在纯函数环境里不可用。
  */
 
 import { withBase } from 'vitepress'
@@ -29,7 +29,7 @@ import type { LocaleCode } from '../../types'
  * 部署 base，形如 `/repo/`（根部署时是 `/`）。
  *
  * 用 Vite 的 `BASE_URL` 而不是 `site.value.base`：前者是构建期常量，
- * 可以在**任何**模块（含非组件的纯函数、单测替身）里直接用，不需要 `useData()`。
+ * 可以在**任何**模块（含非组件的纯函数）里直接用，不需要 `useData()`。
  * VitePress 会把配置里的 `base` 同步写进 Vite 配置，两者始终一致。
  */
 export const BASE_URL: string = import.meta.env.BASE_URL || '/'

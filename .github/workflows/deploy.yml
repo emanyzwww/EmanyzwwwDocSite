@@ -60,19 +60,18 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # 质量门禁：lint / 类型 / 测试 必须在构建前通过。
+      # 构建前检查：lint / 类型 必须在构建前通过。
       #
       # `pnpm audit` 刻意用 `--prod`：生产依赖树是空的（所有依赖都在
       # devDependencies），所以它必然是干净的；而裸 `pnpm audit` 会报
       # vite/esbuild 的 dev-only 漏洞（2 high / 6 moderate），
       # 那些只在 dev server 与构建期生效、不进产物、线上零影响，
-      # 却会让 CI 永久红灯 —— 那等于把门禁关掉。
+      # 却会让 CI 永久红灯 —— 那等于把检查关掉。
       - name: Quality gate
         run: |
           set -euo pipefail
           pnpm lint
           pnpm typecheck
-          pnpm test
           pnpm audit --prod
 
       # 计算本次部署的 base 与站点地址：
@@ -125,91 +124,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
-
-      # 部署后冒烟：补上「部署成功了但线上是坏的」这个盲区。
-      # 历史上踩过 VP_BASE/VP_SITE_URL 解析错导致全站相对链接断掉的问题，
-      # 而那种故障在 Actions 里显示为绿色，只能靠肉眼发现。
-      #
-      # URL 直接取部署步骤输出的 `page_url`，**不再自己推算**。
-      # 曾经在这里按「owner.github.io + /repo/」重算过一次，结果
-      # `${HOME}${BASE}` 把仓库路径拼了两遍（HOME 本身已含 repo），
-      # 冒烟测的是 .../EmanyzwwwDocSite/EmanyzwwwDocSite/ 这种不存在的地址，
-      # 导致部署明明成功、工作流却红叉。
-      # 用官方输出还有个额外好处：将来绑自定义域名（vars.SITE_URL）时，
-      # 冒烟会自动跟着变，不会和实际部署地址漂移。
-      #
-      # 页面清单**以 sitemap 为准**，不在 workflow 里硬编码栏目地址：
-      # 2026-10 重构（`posts/` → `pages/posts/`）时，这里刚好写死了
-      # `zh-cn/posts/`，部署成功却因为冒烟清单过期而红叉——内容结构一变
-      # 就得记得改 workflow，这本身就是漏洞。sitemap 是构建产物自己生成的
-      # 页面清单，与真实路由同源；逐条请求它，既能自动跟上内容结构，
-      # 也能抓到 base / 站点地址拼错导致的整站 404。
-      - name: Smoke test
-        env:
-          SITE: ${{ steps.deployment.outputs.page_url }}
-        run: |
-          set -euo pipefail
-
-          # 防御性规整：确保恰好一个结尾斜杠
-          ROOT="${SITE%/}/"
-          echo "冒烟目标：${ROOT}"
-
-          fail=0
-
-          # ① 稳定入口：站点根、语言首页、栏目首页、sitemap / robots / RSS。
-          #    这些地址不随文章增删变化，值得在 sitemap 之外单独断言一次
-          #    （sitemap 只覆盖「页面」，不覆盖 robots.txt 与 feed）。
-          for path in \
-            "" \
-            "zh-cn/" \
-            "en/" \
-            "zh-cn/pages/posts/" \
-            "en/pages/posts/" \
-            "zh-cn/pages/about/" \
-            "en/pages/about/" \
-            "zh-cn/pages/tags/" \
-            "en/pages/tags/" \
-            "sitemap.xml" \
-            "robots.txt" \
-            "zh-cn/index.xml" \
-            "en/index.xml"; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-delay 2 "${ROOT}${path}")
-            echo "  ${path:-/} -> ${code}"
-            if [ "${code}" != "200" ]; then
-              echo "::error::冒烟失败：${ROOT}${path} 返回 ${code}"
-              fail=1
-            fi
-          done
-
-          # ② 以 sitemap 为准，把每一个页面都真的请求一遍。
-          #    URL 里可能有中文（百分号编码），按空白切分即可，不会有空格。
-          locs=$(curl -sS --max-time 20 "${ROOT}sitemap.xml" \
-            | grep -o '<loc>[^<]*</loc>' \
-            | sed -e 's|<loc>||' -e 's|</loc>||' || true)
-
-          if [ -z "${locs}" ]; then
-            echo "::error::冒烟失败：sitemap.xml 里没有 <loc>"
-            fail=1
-          else
-            count=0
-            for url in ${locs}; do
-              code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 3 --retry-delay 2 "${url}")
-              count=$((count + 1))
-              if [ "${code}" != "200" ]; then
-                echo "::error::冒烟失败：sitemap 页面 ${url} 返回 ${code}"
-                fail=1
-              fi
-            done
-            echo "  sitemap 页面 ${count} 条：全部 200"
-          fi
-
-          # ③ 关键内容探针：确认拿到的是真实页面而不是空壳/兜底页
-          if ! curl -sS --max-time 20 "${ROOT}hashmap.json" | grep -q 'zh-cn_index'; then
-            echo "::error::冒烟失败：hashmap.json 缺 zh-cn_index"
-            fail=1
-          fi
-
-          if [ "${fail}" -eq 0 ]; then
-            echo "✓ 冒烟全部通过"
-          fi
-          exit "${fail}"

@@ -81,7 +81,7 @@ export interface PresenceState {
  * 把「逻辑开关」翻译成「DOM 是否存在 + 是否正在退出」。
  *
  * @param source 浮层的开关（通常是 `defineModel` 出来的 ref 或 `computed`）
- * @param duration 退出时长；默认 `EXIT_MS`。只有测试与特殊浮层才需要覆盖。
+ * @param duration 退出时长；默认 `EXIT_MS`。只有特殊浮层才需要覆盖。
  *
  * @example
  * const { present, exiting } = usePresence(open)
@@ -101,8 +101,7 @@ export function usePresence(
    * 待执行的移除定时器。
    *
    * 类型用 `ReturnType<typeof setTimeout>` 而不是 `number`：
-   * 浏览器返回 number，Node 返回 Timeout 对象，两个环境都要能跑
-   * （本文件要能在 vitest 里被单测，见 tests/presence.test.ts）。
+   * 浏览器返回 number，Node 返回 Timeout 对象，两个环境都要能跑。
    */
   let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -141,8 +140,8 @@ export function usePresence(
       clearTimer()
       /*
        * 用全局 `setTimeout` 而不是 `window.setTimeout`：
-       * SSR 与单测环境里没有 `window`，而本文件在两个环境里都会被求值
-       * （`v-if` 的初值、以及组件测试）。`globalThis` 在浏览器 / Node 都有。
+       * SSR 环境里没有 `window`，而本文件在两个环境里都会被求值
+       * （`v-if` 的初值）。`globalThis` 在浏览器 / Node 都有。
        */
       timer = setTimeout(finish, duration + EXIT_SLACK_MS)
     },
@@ -154,11 +153,11 @@ export function usePresence(
    *
    * 少了这一条，路由切换把浮层组件销毁后，定时器仍会在 200ms 后
    * 触发一次 `present.value = false` —— 对已卸载的组件写 ref 虽然无害，
-   * 但在 vitest 里会让"上一个用例的定时器"漏进下一个用例，
-   * 表现为随机的、无法复现的失败。
+   * 但在同一进程里反复挂载/销毁时，上一个实例的定时器会漏进下一个实例，
+   * 表现为随机的、无法复现的异常。
    *
    * 用 `getCurrentScope()` 先判断：在组件 `setup()` 里调用时一定有作用域，
-   * 但**单测里直接调用本函数时没有** —— 那时 `onScopeDispose` 会打印
+   * 但**直接调用本函数时可能没有** —— 那时 `onScopeDispose` 会打印
    * 「no active effect scope」警告。那种情况下也确实没有作用域需要清理，
    * 跳过即可。
    */

@@ -12,8 +12,6 @@ export const en: Messages = {
   wordCount: 'words',
   readingTime: '{count} min read',
   updatedOn: 'Updated {date}',
-  draft: 'Draft',
-  draftHint: 'Not published · hidden from lists and RSS',
   altLanguageVersion: 'Also in {language}',
   backToPosts: 'Back to posts',
   allPosts: 'View all posts',

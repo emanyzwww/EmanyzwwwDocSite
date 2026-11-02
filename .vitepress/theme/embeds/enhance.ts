@@ -292,7 +292,7 @@ export class EmbedEnhancer {
     this.m = messages
 
     /*
-     * 不支持 IntersectionObserver 的环境（极老浏览器、部分测试环境）
+     * 不支持 IntersectionObserver 的环境（极老浏览器、部分精简运行时）
      * 退化成「立即全部加载」——宁可多几个请求，也不要卡片永远停在链接态。
      */
     if (typeof IntersectionObserver === 'undefined') {

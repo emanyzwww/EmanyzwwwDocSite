@@ -1,8 +1,8 @@
 /**
  * 媒体管线的**纯函数层**：格式裁决、档位计算、命名规则。
  *
- * 这一层刻意不碰文件系统、不 import sharp，因此可以直接被 vitest 加载
- * （本仓库 `tests/` 只测纯函数的约定，见 DEVELOPING.md 第九节）。
+ * 这一层刻意不碰文件系统、不 import sharp，因此可以在任何环境直接加载
+ * （不依赖 Node 或 Vite，构建期与浏览器侧共用同一份规则）。
  */
 
 import type { MediaKind } from './types'
@@ -151,7 +151,7 @@ export function ladderWidths(intrinsicWidth: number): number[] {
   if (!Number.isFinite(intrinsicWidth) || intrinsicWidth < 1) return []
 
   const width = Math.floor(intrinsicWidth)
-  // `DISPLAY_WIDTHS` 声明成 `as const` 是为了保住字面量类型去做测试断言，
+  // `DISPLAY_WIDTHS` 声明成 `as const` 是为了保住字面量类型，
   // 但这里需要的是 number[]，所以显式放宽
   const widths: number[] = DISPLAY_WIDTHS.filter((candidate) => candidate < width)
   widths.push(Math.min(width, MASTER_CAP))

@@ -2,7 +2,7 @@
  * 语言前缀换算（纯函数，无框架依赖）。
  *
  * 与 `urls.ts` 一样，这里刻意不 import `vitepress`：
- * 构建期（`config.ts`）与测试都直接用它，需要 `withBase` 的地方在
+ * 构建期（`config.ts`）直接用它，需要 `withBase` 的地方在
  * `theme/support/paths.ts` 里再包一层。
  *
  * 重构之后，「栏目」的地址也跟着内容树走了：

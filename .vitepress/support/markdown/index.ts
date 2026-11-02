@@ -79,7 +79,7 @@ export function applySiteMarkdown(md: unknown, options: SiteMarkdownOptions = {}
 }
 
 /**
- * 创建一个装好站点扩展的独立实例（非页面场景：简介、单测）。
+ * 创建一个装好站点扩展的 Markdown 实例。
  *
  * 单例复用：这些内容每次构建只渲染几次，但实例创建不便宜（要注册整条规则链）。
  */
@@ -90,8 +90,8 @@ function getRenderer(): MarkdownIt {
   return renderer
 }
 
-/** 创建一个**新**的实例（不复用单例）。单测与需要隔离状态的场景用这个。 */
-export function createSiteMarkdown(): MarkdownIt {
+/** 创建一个**新**的实例（不复用单例）。需要隔离状态的场景用这个。 */
+function createSiteMarkdown(): MarkdownIt {
   const md = new MarkdownIt({
     html: true,
     linkify: true,

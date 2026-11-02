@@ -126,10 +126,9 @@ git rev-parse --verify HEAD
 | `.vitepress/support/`（内容扫描、RSS、robots、dev 跳转） | `support` |
 | `.vitepress/config.ts`、`tsconfig.json`、`package.json` | `config` |
 | `public/`、`media/`（静态资源与图片） | `assets` |
-| `tests/` | `test` |
 | `README.md`、`WRITING.md`、`DEVELOPING.md` | `docs` |
 | `.github/` | `ci` |
-| `.dsh/`、`.gitignore`、`.oxfmtrc.json`、`.oxlintrc.json`、`vitest.config.ts` | `chore` |
+| `.dsh/`、`.gitignore`、`.oxfmtrc.json`、`.oxlintrc.json` | `chore` |
 
 - 主次分明时取主要一方；确实并列则用半角逗号：`theme,content`
 - 无法归入以上任一项时用 `root`

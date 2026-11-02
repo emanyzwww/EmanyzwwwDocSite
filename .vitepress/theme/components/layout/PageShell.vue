@@ -115,7 +115,7 @@ function onDocumentKeydown(event: KeyboardEvent): void {
  *
  * 「值不值得弹卡」的规则不写在这里：本组件只负责从 DOM 收集事实，
  * 规则本身是纯函数 `shouldPreviewLink`（`support/link-preview/gate.ts`），
- * 这样「图片链接不弹卡」这类判定能被单测直接钉住。
+ * 这样「图片链接不弹卡」这类判定能被直接断言。
  */
 function isPreviewableLink(element: Element | null | undefined): element is HTMLAnchorElement {
   if (!(element instanceof HTMLAnchorElement)) return false
