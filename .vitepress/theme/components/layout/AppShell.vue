@@ -22,7 +22,12 @@ import SiteFooter from '../site/SiteFooter.vue'
 import SiteHeader from '../site/SiteHeader.vue'
 
 /**
- * 页面外壳。
+ * App 外壳（全站唯一，跨设备共用）。
+ *
+ * 这里只放「内核」：与设备无关的骨架、以及**必须只有一份**的全局单例。
+ * 设备专属的界面结构不在这里，而是在各自的页头里：
+ * `desktop/DesktopHeader.vue`（PC）与 `mobile/MobileHeader.vue`（PE）。
+ * 外壳本身同时渲染两者，由 CSS 媒体查询决定显示哪一份。
  *
  * 承担五件事：
  * 1. 无障碍跳转链接（对应旧站 baseof.html 的 skip-link）；
@@ -33,9 +38,12 @@ import SiteHeader from '../site/SiteHeader.vue'
  * 5. 图片查看器 —— 同理，而且它的入口（正文里的 `<a data-lightbox>`）
  *    是**构建期生成的 HTML**，不是 Vue 组件，只能用事件委托接。
  *
- * 搜索状态由这里统一持有：桌面入口在 `SiteHeader`，移动入口在
+ * 搜索状态由这里统一持有：桌面入口在 `DesktopHeader`，移动入口在
  * `MobileDock`，两边都通过事件把开关请求发上来 —— 面板只有一份，
  * 不会出现「桌面开的和手机开的不是同一个实例」。
+ *
+ * 这些单例（搜索状态、滚动锁、查看器、链接预览、滚动条）**必须留在这里**：
+ * 一旦下放进某个设备外壳，就会在另一套外壳上产生第二个实例。
  *
  * 自绘滚动条（`ScrollBar`）也挂在这里，与页头**平级**。
  * 它不能挂进 `<header>` 内部：页头的 `backdrop-filter` 会为

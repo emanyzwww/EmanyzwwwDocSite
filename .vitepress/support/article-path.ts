@@ -69,13 +69,6 @@ export interface ArticlePathParts {
   dateKey: string
 }
 
-/** 一份「今天」或「指定日期」的年月日。 */
-export interface ArticleDateParts {
-  year: string
-  month: string
-  day: string
-}
-
 /** 统一成正斜杠、去掉前导斜杠。 */
 function normalizeDocPath(filePath: string): string {
   return filePath.replace(/^\/+/, '').replace(/\\/g, '/')
@@ -129,11 +122,6 @@ export function articleRoutePath(filePath: string, slug: string): string | null 
   return `${parts.locale}/${parts.month}/${parts.daySeq}/${slug}/index.md`
 }
 
-/** 文章源文件路径（相对 `docs/`）：`202610/1901/zh-cn/index.md`。 */
-export function articleSourcePath(locale: LocaleCode, month: string, daySeq: string): string {
-  return `${month}/${daySeq}/${locale}/index.md`
-}
-
 /** 文章 URL（未编码、结尾带斜杠）：`/zh-cn/202610/1901/你好，世界/`。 */
 export function articleUrlPath(
   locale: LocaleCode,
@@ -142,23 +130,6 @@ export function articleUrlPath(
   slug: string,
 ): string {
   return `/${locale}/${month}/${daySeq}/${slug}/`
-}
-
-/**
- * 由年月日 + 当日序号算出两个目录段。
- *
- * @example
- * articleDirOf({year:'2026',month:'10',day:'19'}, '01')
- * // { month: '202610', daySeq: '1901' }
- */
-export function articleDirOf(
-  date: ArticleDateParts,
-  sequence: string,
-): { month: string; daySeq: string } {
-  return {
-    month: `${date.year}${date.month}`,
-    daySeq: `${date.day}${sequence}`,
-  }
 }
 
 /**

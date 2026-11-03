@@ -24,6 +24,7 @@ import { applySiteMarkdown } from './support/markdown'
 import { CODE_THEMES } from './support/markdown/code-theme'
 import { mediaMarkdown } from './support/media/render'
 import { mediaPlugin } from './support/media/vite'
+import { assertMobileBreakpoints } from './support/mobile-breakpoints'
 import { writeNotFoundFallback } from './support/not-found'
 import { collectRenderedContent } from './support/rendered'
 import { writeRobots } from './support/robots'
@@ -236,6 +237,13 @@ function urlKeyByUrl(): Map<string, string> {
  */
 const OG_IMAGE_NAME = ''
 const OG_IMAGE = OG_IMAGE_NAME ? `${SITE_URL}${BASE}${OG_IMAGE_NAME}` : ''
+
+/*
+ * 移动端断点校验：`theme/support/device.ts` 是 JS 侧的唯一来源，
+ * CSS 侧只能手抄。构建/启动时在这里校验一遍，避免又一次
+ * 「胶囊切了但灯箱没切」这种只在特定设备上显形的漂移。
+ */
+assertMobileBreakpoints()
 
 export default defineConfig({
   // ---------- 基础 ----------

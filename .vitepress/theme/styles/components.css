@@ -57,14 +57,6 @@
   text-decoration: none;
 }
 
-.site-brand__logo {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: var(--radius-xs);
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
 .site-brand__text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -348,10 +340,6 @@
   padding-block: var(--space-10);
   color: var(--fg-subtle);
   font-size: var(--text-sm);
-}
-
-.site-footer__text {
-  flex-basis: 100%;
 }
 
 .site-footer__inner a {

@@ -10,7 +10,7 @@ import AppIcon from '../common/AppIcon.vue'
  * 链接悬浮预览卡。
  *
  * 零 props / 零 emits：状态全在 `useLinkPreview` 单例里，悬浮入口是
- * 正文里构建期生成的 `<a>`（事件委托在 `PageShell`），与 ImageViewer 同构。
+ * 正文里构建期生成的 `<a>`（事件委托在 `AppShell`），与 ImageViewer 同构。
  *
  * 交互约定：
  * - 进入 300ms 延迟、离开 200ms 宽限（由组合式函数负责，本组件只渲染）；

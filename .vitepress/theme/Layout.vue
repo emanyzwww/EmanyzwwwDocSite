@@ -2,7 +2,7 @@
 import { useData } from 'vitepress'
 import { computed } from 'vue'
 
-import PageShell from './components/layout/PageShell.vue'
+import AppShell from './components/layout/AppShell.vue'
 import DocPage from './components/pages/DocPage.vue'
 import HomePage from './components/pages/HomePage.vue'
 import NotFoundPage from './components/pages/NotFoundPage.vue'
@@ -47,7 +47,7 @@ const view = computed(() => {
 </script>
 
 <template>
-  <PageShell>
+  <AppShell>
     <component :is="view" />
-  </PageShell>
+  </AppShell>
 </template>

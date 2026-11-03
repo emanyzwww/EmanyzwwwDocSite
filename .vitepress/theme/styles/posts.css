@@ -254,33 +254,6 @@
   white-space: nowrap;
 }
 
-.tl__meta-item + .tl__meta-item::before {
-  content: '·';
-  margin-right: var(--space-2);
-  color: var(--border-strong);
-}
-
-.tl__tags {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.tl__tags a {
-  color: var(--fg-subtle);
-  text-decoration: none;
-}
-
-.tl__tags a:hover {
-  color: var(--accent);
-}
-
-.tl__tags a + a::before {
-  content: '·';
-  margin-right: var(--space-1);
-  color: var(--border-strong);
-}
-
 /* 条件与 `mobile.css` 的移动端判定一致：含手机横屏（触屏 + 高度不足 500px）。
    否则横屏下时间线仍是桌面三列，而页头已经切成移动端，节奏错位。 */
 @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {

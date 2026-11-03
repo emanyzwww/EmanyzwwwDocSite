@@ -47,7 +47,7 @@ config.ts
     │  ③.6 transformHtml 收集已渲染正文 → support/rendered.ts（给 RSS）
     ▼
 theme/Layout.vue
-    │  ④ 按 frontmatter.layout 选页面组件；PageShell 挂载跨页面能力
+    │  ④ 按 frontmatter.layout 选页面组件；AppShell 挂载跨页面能力
     ▼
 Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接管）
     │  ⑤ buildEnd 写 RSS / robots / 404 兜底
@@ -100,6 +100,7 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
 │  │  ├─ code-blocks.ts   ★ 代码块头部注入：`[路径]` 解析、语言推断、DOM 契约
 │  │  └─ directives/      registry（注册表/报错）、parse、block、images、builtins（六个指令）
 │  ├─ markdown-plugins.ts 自写行内语法：`==高亮==`、GFM 任务列表
+│  ├─ mobile-breakpoints.ts ★ 构建期校验 CSS 手抄的移动端断点（见第四节「响应式断点」）
 │  ├─ media/              ★ 图片管线
 │  │  ├─ planner.ts       纯函数：格式裁决、档位、命名、base 拼接
 │  │  ├─ probe.ts         同步读图片头部尺寸（零依赖）
@@ -123,17 +124,19 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
    ├─ Layout.vue          ★ 按 frontmatter.layout / isNotFound 分发页面组件
    ├─ i18n/               界面文案（zh-cn / en / index）
    ├─ composables/        12 个组合式函数（见第五节）
-   ├─ components/         39 个 .vue，按职责分 8 个目录
+   ├─ components/         41 个 .vue，按职责分 9 个目录
    │  ├─ pages/           六个页面级组件（Home/Posts/Doc/Tags/Tag/NotFound）
-   │  ├─ layout/          外壳：PageShell、TwoColumn、ThreeColumn
-   │  ├─ site/            页头、页脚、导航、搜索面板、主题切换、语言切换
-   │  ├─ mobile/          移动端专属：导航抽屉（MobileNav）、悬浮胶囊（MobileDock）
+   │  ├─ layout/          外壳：AppShell（跨设备内核外壳）、TwoColumn、ThreeColumn
+   │  ├─ desktop/         PC 专属：页头内容（DesktopHeader）
+   │  ├─ mobile/          PE 专属：页头内容 + 抽屉（MobileHeader / MobileNav）、悬浮胶囊（MobileDock）
+   │  ├─ site/            页头框架（SiteHeader）、页脚、导航、搜索面板、主题切换、语言切换
    │  ├─ post/            文章卡片、时间线、元信息、上下篇、分页
    │  ├─ tag/             标签云、标签分组、其他标签
    │  ├─ aside/           容器 + 5 张卡（注册表里只有 profile/tags 两张，其余由页面直接挂）
    │  └─ common/          图标、空状态、进度条、滚动条、查看器、链接预览卡
    ├─ embeds/enhance.ts   `:::github` 等嵌入块的运行期增强（EmbedEnhancer）
    ├─ support/            浏览器侧工具（见下方「三类 support 与 shared」）
+   │  ├─ device.ts        ★ 设备形态判定：MOBILE_MEDIA + matchesMobile()（JS 侧唯一来源）
    │  └─ link-preview/    core（纯函数）+ gate（要不要弹卡）+ providers（provider 注册表）
    └─ styles/             14 个样式文件（tokens + 12 个分层 + index 入口，见第四节）
 
@@ -256,6 +259,7 @@ frontmatter 字段的权威定义在 `scripts/lib/frontmatter-schema.ts`。
 | `theme/support/icons.ts`（兼容层）                                    | 已删，`shared/icons.ts` 是唯一图标表             |
 | `.vitepress/data/frontmatter.ts`                                      | 移到 `scripts/lib/frontmatter-schema.ts`         |
 | `scripts/lib/site.ts` 的 `articleRootDir` / `pagesDir` / `localeMeta` | 已删；目录与语言从 `.vitepress` 再导出           |
+| `SiteHeader` / `MobileDock` 上的 `data-mode` 调试属性                 | 已删；没有任何 CSS / JS 依赖它                   |
 | `package.json` 的 `list` 别名                                         | 已删；列文章用 `pnpm posts`，总览用 `pnpm guide` |
 
 本轮还清掉了一批死符号（`repoDisplayTitle`、`stripLocalePrefix`、`clearContentCache`、
@@ -554,7 +558,7 @@ providers.ts   provider 注册表：站内 → GitHub → bilibili（顺序即�
 
 **入口有三道筛，顺序不能颠倒**：
 
-1. **`shouldPreviewLink`（`gate.ts`，纯函数）**——`PageShell` 只负责从 DOM 收集事实
+1. **`shouldPreviewLink`（`gate.ts`，纯函数）**——`AppShell` 只负责从 DOM 收集事实
    （`href` / `rawHref` / `inProse` / `inEmbed` / `isLightbox`），判定本身是纯函数。
    **图片链接（`<a data-lightbox>`）不弹卡**：它指向 `.png` / `.webp`
    原图，没有任何可预览的标题或摘要，它的悬浮反馈是右下角「可点开放大」角标
@@ -576,7 +580,7 @@ providers.ts   provider 注册表：站内 → GitHub → bilibili（顺序即�
 GitHub（`api.github.com`，CORS 可用）、bilibili（**不发请求**，直接出域名卡，因为它的
 web 接口带 `Origin` 即 403 且无 CORS 头）。**没有通用外链兜底**：不认识的链接悬浮不弹卡。
 
-**依赖注入是硬约束**：`createProviders({ posts, messages })` 必须由 `PageShell`
+**依赖注入是硬约束**：`createProviders({ posts, messages })` 必须由 `AppShell`
 在 **setup 期间**调用（posts / messages 内部走 `inject()`，离开 setup 会抛错），
 响应式引用被闭包捕获，悬浮回调里只读 `.value`。
 
@@ -740,22 +744,22 @@ CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 
 顺序在 `styles/index.css` 里（13 条 `@import` + 入口文件本身），**后面的能覆盖前面的**。
 
-| 文件                   | 管什么                                                                                       | 什么时候进这里改             |
-| ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------- |
-| `tokens.css`           | 全部设计变量（含 z 轴阶梯、浮层色、动效时长曲线、安全区）                                    | 换色、换圆角、换字号、换间距 |
-| `base.css`             | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接                                        | 调基础排版、改滚动条         |
-| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点                                                          | 改整体骨架、侧栏宽度         |
-| `components.css`       | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态                                   | 改页头页脚、按钮样式         |
-| `content.css`          | **正文专属**：标题、段落、列表、引用、表格、代码块（含头部控件区与双主题桥接）、图片、嵌入块 | 改文章正文观感               |
-| `posts.css`            | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404                                  | 改列表和文章页               |
-| `widgets.css`          | 资料卡、标签卡、最近文章卡、统计卡、标签云                                                   | 改侧栏卡片                   |
-| `mobile.css`           | 页头隐藏、导航抽屉、悬浮胶囊、目录浮层、手机断点布局                                         | 改移动端交互                 |
-| `search.css`           | 全站搜索面板                                                                                 | 改搜索面板                   |
-| `lightbox.css`         | 图片查看器（满屏浮层，与搜索同一类）                                                         | 改查看器                     |
-| `link-preview.css`     | 链接悬浮预览卡（小浮层，Teleport 到 body）                                                   | 改悬浮卡                     |
-| `route-transition.css` | 页面切换与主题切换的 `::view-transition-*`                                                   | 改整页过渡                   |
-| `print.css`            | 打印样式                                                                                     | 调打印                       |
-| `index.css`            | `@import` 汇总，别放规则                                                                     | 加新样式文件时登记           |
+| 文件                   | 管什么                                                                                                | 什么时候进这里改             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `tokens.css`           | 全部设计变量（含 z 轴阶梯、浮层色、动效时长曲线、安全区；`--header-height` 的唯一来源，含移动端覆盖） | 换色、换圆角、换字号、换间距 |
+| `base.css`             | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接                                                 | 调基础排版、改滚动条         |
+| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点                                                                   | 改整体骨架、侧栏宽度         |
+| `components.css`       | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态                                            | 改页头页脚、按钮样式         |
+| `content.css`          | **正文专属**：标题、段落、列表、引用、表格、代码块（含头部控件区与双主题桥接）、图片、嵌入块          | 改文章正文观感               |
+| `posts.css`            | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404                                           | 改列表和文章页               |
+| `widgets.css`          | 资料卡、标签卡、最近文章卡、统计卡、标签云                                                            | 改侧栏卡片                   |
+| `mobile.css`           | 移动端页头 / 抽屉 / 胶囊 / 目录浮层的规则、手机断点布局（页头高度只读 `var(--header-height)`）        | 改移动端交互                 |
+| `search.css`           | 全站搜索面板                                                                                          | 改搜索面板                   |
+| `lightbox.css`         | 图片查看器（满屏浮层，与搜索同一类）                                                                  | 改查看器                     |
+| `link-preview.css`     | 链接悬浮预览卡（小浮层，Teleport 到 body）                                                            | 改悬浮卡                     |
+| `route-transition.css` | 页面切换与主题切换的 `::view-transition-*`                                                            | 改整页过渡                   |
+| `print.css`            | 打印样式                                                                                              | 调打印                       |
+| `index.css`            | `@import` 汇总，别放规则                                                                              | 加新样式文件时登记           |
 
 > **`content.css` 必须排在 `posts.css` 之前。** `posts.css` 里有 `.prose h2` 的
 > 移动端缩小规则，要压过正文默认值。
@@ -773,11 +777,24 @@ CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 | `max-width: 640px`                                                | 上下篇变单列                                               |
 
 移动端媒体查询**不是只有 `max-width: 720px`**：横屏手机（粗指针 + 矮视口）也走移动端
-布局，所以规则写成 `(max-width: 720px), (pointer: coarse) and (max-height: 500px)`。
-这个断点在 `mobile.css` / `search.css` / `posts.css` 里重复了多次，**改一处要同步其余几处**。
+布局，完整条件是 `(max-width: 720px), (pointer: coarse) and (max-height: 500px)`。
+这些条件有两个来源，其它地方不许再造第三个：
+
+- **JS 侧唯一来源**是 `theme/support/device.ts` 的 `MOBILE_MEDIA` 与 `matchesMobile()`
+  （目前只有 `SearchPanel` 用它算搜索面板的展开原点，不要直接手写 `matchMedia`）；
+- **CSS 侧无法 import TS，只能手抄**：`tokens.css` 的页头高度覆盖 1 处、
+  `mobile.css` 4 处、`posts.css` 2 处、`search.css` 1 处、`lightbox.css` 1 处（共 9 处）。
+  构建时 `.vitepress/support/mobile-breakpoints.ts` 会扫描 `theme/styles/*.css`，任何含
+  `720px` 的 `@media` 只要与 `MOBILE_MEDIA` 不是逐字一致，`pnpm dev` / `pnpm build`
+  直接失败（由 `config.ts` 顶层调用 `assertMobileBreakpoints()`）。**所以不靠「记得同步」**，
+  漏改会当场报错；确实需要不同断点，先改 `device.ts` 再同步所有手抄处。
+
 720px 是**模式切换**而不是「缩小一号」：跨过它之后导航换成「汉堡抽屉 + 悬浮胶囊」，
-侧栏卡片离开文档流（精简资料条移进抽屉）。改断点要同时看 `--header-height`
-（移动端 3.5rem、桌面 4rem）与 `mobile.css` 整块规则。加规则改对应文件末尾的
+侧栏卡片离开文档流（精简资料条移进抽屉）。页头高度也只有**一个来源**：`tokens.css`
+的 `--header-height`（桌面 4rem，移动端由同文件里的媒体查询覆盖成 3.5rem），
+`mobile.css` 只写 `min-height: var(--header-height)`，不要再写 `:root` 覆盖。
+`lightbox.css` 的移动端规则曾经只写 `max-width: 720px`，横屏手机下胶囊已切成移动形态、
+查看器却还是桌面形态；现在它同样是完整条件，由构建校验兜住。加规则改对应文件末尾的
 `@media` 块，别新建文件。
 
 ### 改配色后必须做的事
@@ -882,19 +899,45 @@ frontmatter.layout === 'home'   → HomePage.vue    首页
 - 文案用 `m.xxx`，不要写死中文（否则英文站会串中文）
 - 链接用 `href()` 包装（处理部署子路径）
 
-### 三个布局外壳与 `PageShell`
+### 三个布局外壳与 `AppShell`
 
 | 组件          | 结构                                                                     | 用在哪                  |
 | ------------- | ------------------------------------------------------------------------ | ----------------------- |
-| `PageShell`   | 跳转链接 + 页头 + `<main>` + 页脚 + 胶囊 + 搜索 + 查看器 + 预览 + 滚动条 | `Layout.vue` 包在最外层 |
+| `AppShell`    | 跳转链接 + 页头 + `<main>` + 页脚 + 胶囊 + 搜索 + 查看器 + 预览 + 滚动条 | `Layout.vue` 包在最外层 |
 | `TwoColumn`   | 左侧栏 + 主内容                                                          | 首页、列表、普通页      |
 | `ThreeColumn` | 左侧栏 + 主内容 + 右侧栏（具名插槽 `#aside`）                            | 文章页、标签页          |
 
-`PageShell` 是「跨页面能力」的唯一挂载点：无障碍跳转链接与页头/页脚骨架；
-**搜索状态单一持有**（桌面入口在 `SiteHeader`、移动入口在 `MobileDock`，都通过
-`@search` 事件发上来，`SearchPanel` 只有一份）；图片查看器与链接预览都靠
-**document 上的一次事件委托**接（入口是构建期生成的 `<a>`，不是 Vue 组件）；
+`AppShell` 是**跨设备的内核外壳**，也是「跨页面能力」的唯一挂载点：无障碍跳转链接与
+页头/页脚骨架；**搜索状态单一持有**（桌面入口在 `DesktopHeader`、移动入口在
+`MobileDock`，都通过 `@search` 事件发上来，`SearchPanel` 只有一份）；图片查看器与链接
+预览都靠 **document 上的一次事件委托**接（入口是构建期生成的 `<a>`，不是 Vue 组件）；
 自绘滚动条与页头**平级**——不能挂进 `<header>`（见文末「阅读进度条、滚动锁与自绘滚动条」）。
+
+### 设备外壳边界
+
+本站是「一套内核 + 两套外壳」，**目录归属就是依赖方向**：
+
+- **内核**：`common/` 组件、`site/` 里与设备无关的共享组件（`SiteNav` / `SiteFooter` /
+  `ThemeToggle` / `LocaleSwitch` / `SearchPanel`）、`composables/`、`support/`、
+  `styles/tokens.css` 与基础样式。它们**不许** import `components/desktop/` 或
+  `components/mobile/` 里的任何东西——一旦反向依赖，另一套外壳就被迫加载它，
+  「设备差异」也会从外壳层漏进共享层；
+- **PC 专属**进 `components/desktop/`（目前只有 `DesktopHeader`：品牌 + 横向导航 +
+  搜索入口 + 工具，⌘K / Ctrl K 平台判定也在这里）；
+- **PE 专属**进 `components/mobile/`（`MobileHeader` 品牌 + 汉堡并持有抽屉开关、
+  `MobileNav` 抽屉、`MobileDock` 悬浮胶囊）；
+- 两边都要用的才放 `common/`（真正无关设备）或 `site/`（站点级共享）。
+
+反向 import 只有两个**组装点**是允许的：`site/SiteHeader.vue` 是**页头框架**，只保留
+单个 `<header>`、阅读态 `is-hidden` 与 `ProgressBar`，同时渲染两个设备页头；
+`layout/AppShell.vue` 挂 `MobileDock` 这个跨页面单例。它们负责把两套外壳拼起来，
+不承担设备专属的界面细节。
+
+**为什么不能用 `v-if` 按设备二选一**：本站是静态站，页面在构建期 SSR、浏览器再水合。
+服务端不知道视口宽度，按设备条件渲染会让首屏结构（DOM）与客户端不一致。所以两个页头
+**同时渲染**、由 CSS 媒体查询互斥显示；CSS 里的条件与 JS 侧 `device.ts` 由构建校验绑定
+（见第四节「响应式断点」）。新增设备专属界面时按这个边界放文件，不要往内核组件里塞
+设备分支。
 
 ### 搜索：构建期索引 + 纯前端面板
 
@@ -908,7 +951,7 @@ frontmatter.layout === 'home'   → HomePage.vue    首页
 **无值属性**，旧正则只认 `=` 会漏）。标签单独成字段（标签往往不在正文里出现），
 并按语言分组；数据随数据加载器内联进 chunk，不额外发请求。
 
-**面板（`site/SearchPanel.vue`）**：桌面 `Ctrl/⌘ + K` 唤起（`SiteHeader` 另有可见入口），
+**面板（`site/SearchPanel.vue`）**：桌面 `Ctrl/⌘ + K` 唤起（桌面入口按钮在 `DesktopHeader`），
 手机由胶囊的「搜索」唤起。纯前端「小写包含」+ 打分：标题命中 100、标题开头 +50、
 标签 30、描述 20、正文 5，取前 12 条；不引入模糊匹配库。`↑` `↓` 循环选择、`Enter` 用
 `router.go()` 客户端跳转（**不要** `location.href`，否则鼠标点和键盘走会得到两种观感）、
@@ -957,17 +1000,17 @@ iOS 额外固定 body、解锁先用 `behavior: 'instant'` 归位再通知 `onSc
 4. 抽屉里不能用下拉菜单（会被 `overflow-y: auto` 裁掉），语言用
    `LocaleSwitch variant="segmented"` 分段按钮；
 5. 胶囊外层是 `height: 100dvh` 的固定层，浏览器工具栏收放由合成器跟随，
-   **不要**再写 JS 逐帧算视口（`PageShell` 里没有视口补偿代码）。
+   **不要**再写 JS 逐帧算视口（`AppShell` 里没有视口补偿代码）。
 
 **手机上隐藏了哪些桌面内容，去哪找**：
 
-| 桌面位置       | 手机上                                   |
-| -------------- | ---------------------------------------- |
-| 页头横向导航   | 汉堡 → 抽屉                              |
-| 左栏资料卡     | 抽屉底部精简资料条（头像 + 名字 + 图标） |
-| 左栏标签卡     | 抽屉的「标签」导航项                     |
-| 右栏目录卡     | 胶囊的「本页目录」（唯一入口）           |
-| 搜索（快捷键） | 胶囊的「搜索」（桌面另有可见入口）       |
+| 桌面位置                        | 手机上                                       |
+| ------------------------------- | -------------------------------------------- |
+| 页头横向导航（`DesktopHeader`） | 汉堡（`MobileHeader`）→ 抽屉（`MobileNav`）  |
+| 左栏资料卡                      | 抽屉底部精简资料条（头像 + 名字 + 图标）     |
+| 左栏标签卡                      | 抽屉的「标签」导航项                         |
+| 右栏目录卡                      | 胶囊的「本页目录」（唯一入口）               |
+| 搜索（快捷键）                  | 胶囊的「搜索」（桌面入口在 `DesktopHeader`） |
 
 ### 文章页要素（导语 / 元信息 / 文末动作条）
 
@@ -1017,8 +1060,8 @@ const REGISTRY = { profile: ProfileCard, tags: TagsCard } as const
 的 `#aside` 直接挂（有目录用 `OutlineCard`，否则 `StatsCard`），`TagsPage` 右栏用
 `StatsCard` + `RecentPostsCard`。
 
-**加一张侧栏卡**：新建 `components/aside/MyCard.vue`（用 `.card` / `.card__title` /
-`.widget__body` 骨架）→ 在 `AsideWidgets.vue` 的 `REGISTRY` 加一行，并给 `types.ts` 的
+**加一张侧栏卡**：新建 `components/aside/MyCard.vue`（用 `.card` / `.card__title` 骨架）→
+在 `AsideWidgets.vue` 的 `REGISTRY` 加一行，并给 `types.ts` 的
 `WidgetName` 加 `'mycard'` → 在 `data/site.ts` 的 `widgets` 数组里加名字（否则只是登记，
 不显示）。名字拼错会在 `pnpm typecheck` 报错——这是用联合类型而不是字符串的原因。
 
@@ -1519,7 +1562,7 @@ scrollY；解锁先用 `behavior: 'instant'` 归位再通知 `onScrollLockReleas
 
 **为什么不能挂进 `<header>`**：页头的 `backdrop-filter` 会为 fixed 后代创建包含块，
 把滚动条关进页头的层叠上下文，`z-index` 就压不住正文了；所以它和页头**平级**，
-都挂在 `PageShell`。
+都挂在 `AppShell`。
 
 **长度下限与轨道上沿靠测量，不写死令牌**：轨道上沿取页头实测 `bottom`（阅读态下
 `-57` 需夹到 0），长度下限取实测高度。不要改成 `--header-height`（布局契约，历史上

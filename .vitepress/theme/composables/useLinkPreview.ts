@@ -4,7 +4,7 @@
  * ## 为什么是单例
  *
  * 与 `useImageViewer` 同一理由：悬浮入口是正文里构建期生成的 `<a>`
- * （事件委托装在 `PageShell`），卡片组件是 Teleport 到 body 的单份 DOM ——
+ * （事件委托装在 `AppShell`），卡片组件是 Teleport 到 body 的单份 DOM ——
  * 两边必须看到同一份状态。
  *
  * ## 交互时序
@@ -59,7 +59,7 @@ let leaveTimer: ReturnType<typeof setTimeout> | null = null
 /**
  * provider 列表。
  *
- * 必须由 `PageShell` 在 **setup 期间**调用 `setLinkPreviewProviders`
+ * 必须由 `AppShell` 在 **setup 期间**调用 `setLinkPreviewProviders`
  * 注入（内部要捕获 `usePosts` / `useI18n` 的响应式引用，见 providers.ts
  * 「依赖注入」）。注入前悬浮直接忽略 —— 不会报错，只是没卡片。
  */
@@ -154,7 +154,7 @@ export function hoverLink(link: HTMLAnchorElement, delayMs = 300): void {
    * `fallbackPreview` 各算各的（`new URL('./x.png')` 直接抛错）。
    */
   const href = link.href
-  if (!isPreviewableHref(href)) return // 兜底：PageShell 已先筛过一遍
+  if (!isPreviewableHref(href)) return // 兜底：AppShell 已先筛过一遍
 
   const provider = matchProvider(providers ?? [], href)
   if (!provider) return
@@ -262,7 +262,7 @@ export function dismiss(): void {
   anchor.value = null
 }
 
-/** 注入 provider 列表（由 PageShell 在 setup 期间调用，避免依赖 app 上下文）。 */
+/** 注入 provider 列表（由 AppShell 在 setup 期间调用，避免依赖 app 上下文）。 */
 export function setLinkPreviewProviders(list: LinkProvider[]): void {
   providers = list
 }

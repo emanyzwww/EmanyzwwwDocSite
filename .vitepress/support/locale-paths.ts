@@ -75,13 +75,3 @@ export function postListPath(locale: LocaleCode, page = 1): string {
   const base = page <= 1 ? '/pages/posts/' : `/pages/posts/page/${page}/`
   return withLocale(base, locale)
 }
-
-/** 标签总览页地址（不含 base）：`/<locale>/pages/tags/`。 */
-export function tagIndexPath(locale: LocaleCode): string {
-  return withLocale('/pages/tags/', locale)
-}
-
-/** 关于页地址（不含 base）：`/<locale>/pages/about/`。 */
-export function aboutPath(locale: LocaleCode): string {
-  return withLocale('/pages/about/', locale)
-}

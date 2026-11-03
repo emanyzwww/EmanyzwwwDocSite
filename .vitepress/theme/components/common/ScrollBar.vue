@@ -23,7 +23,7 @@ import { useScrollBar } from '../../composables/useScrollBar'
  * 这里**不能**像阅读进度条那样挂在 `<header>` 内部：
  * 页头的 `backdrop-filter` 会为 `position: fixed` 后代创建包含块，
  * 把滚动条关进页头的层叠上下文里 —— 那样它的 `z-index` 就只跟页头的
- * 子元素比较，与页面内容无关了。所以它挂在 `PageShell`，与页头平级。
+ * 子元素比较，与页面内容无关了。所以它挂在 `AppShell`，与页头平级。
  *
  * 轨道上沿**按页头实测下沿**起算（不写死 `--header-height`），
  * 同时把拇指长度下限设为页头高度：短页里拇指也不会退化成一条缝，
@@ -60,7 +60,7 @@ const props = withDefaults(
 /**
  * 页头元素（缓存）。
  *
- * 每帧都 `querySelector` 是浪费，而页头由 `PageShell` 常驻、
+ * 每帧都 `querySelector` 是浪费，而页头由 `AppShell` 常驻、
  * 路由切换不会重建，所以只查一次就够；查不到（极早期）时下次再试。
  */
 let header: HTMLElement | null = null
@@ -78,7 +78,7 @@ const route = useRoute()
 /**
  * 路由切换后重测。
  *
- * 这个组件挂在常驻的 `PageShell` 上，**不会**随路由重建，所以它必须自己
+ * 这个组件挂在常驻的 `AppShell` 上，**不会**随路由重建，所以它必须自己
  * 知道「页面换了一篇」。否则从长文章跳到首页时，`scrollY` 一直是 0、
  * 没有任何 scroll 事件，拇指会留在屏上指示一个已经不存在的位置。
  *

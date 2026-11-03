@@ -47,8 +47,12 @@
    藏掉 —— 平板宽度完全放得下并置布局。横屏手机高度 ≤ 500px，
    平板横屏高度通常 ≥ 700px，这个值与设备形态一一对应。
 
-   **改动这里时必须同步改本文件其余三处 `@media`**，
-   否则会出现「侧栏藏了但胶囊没出来」这类半套布局。
+   **改动这里时必须同步改其余所有手抄处**（本文件 4 处、`tokens.css` 1 处、
+   `posts.css` 2 处、`search.css` / `lightbox.css` 各 1 处，共 9 处；JS 侧统一走
+   `theme/support/device.ts` 的 `matchesMobile()`），否则会出现
+   「侧栏藏了但胶囊没出来」「胶囊切了但灯箱没切」这类半套布局。
+   构建时 `support/mobile-breakpoints.ts` 会校验这些字面量是否与
+   `MOBILE_MEDIA` 完全一致，不一致直接构建失败。
    ========================================================= */
 
 @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
@@ -63,18 +67,12 @@
     gap: var(--space-3);
     width: 100%;
     /*
-     * 移动端页头恒为一行，高度固定 56px。
-     *
-     * 这个值同时写进 `--header-height`（见下方 :root 覆盖），
-     * 因为锚点偏移、目录高亮线都读那个变量。
-     * 两者必须同步改，否则会出现「跳转后标题被页头盖」。
+     * 移动端页头恒为一行。高度直接取 `--header-height`
+     * （令牌层在该断点下已覆盖成 3.5rem），不在这里再写一份数字：
+     * 锚点偏移、目录高亮线、滚动条几何都读同一个变量，
+     * 两处不一致就会出现「跳转后标题被页头盖」。
      */
-    min-height: 3.5rem;
-  }
-
-  /* 页头高度契约：与上面 .site-header__mobile 的实际高度保持一致 */
-  :root {
-    --header-height: 3.5rem;
+    min-height: var(--header-height);
   }
 }
 

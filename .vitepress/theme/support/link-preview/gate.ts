@@ -6,7 +6,7 @@
  * 这条判定**只跟读者的意图有关**，跟 DOM、Vue、网络都无关，却是历史上真出过
  * bug 的地方：图片链接（`<a data-lightbox>`，`href` 指向 `.png` 原图）被当成
  * 普通链接，悬浮时先亮骨架、再因为拿不到数据收起 —— 表现为「卡片一闪而过」。
- * 把它抽成纯函数，`PageShell` 只负责从 DOM 里**收集事实**，规则本身可以被
+ * 把它抽成纯函数，`AppShell` 只负责从 DOM 里**收集事实**，规则本身可以被
  * 直接断言，不用起浏览器。
  *
  * ## 事实从哪来
@@ -24,7 +24,7 @@
 
 import { isPreviewableHref } from './core'
 
-/** 一次悬浮命中的全部相关事实（由 `PageShell` 从 DOM 收集）。 */
+/** 一次悬浮命中的全部相关事实（由 `AppShell` 从 DOM 收集）。 */
 export interface LinkTargetFacts {
   /** `HTMLAnchorElement.href`：浏览器解析后的绝对 URL；无 `href` 属性时是空串。 */
   href: string

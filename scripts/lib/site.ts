@@ -12,7 +12,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, NAV, SITE } from '../../.vitepress/data/site'
+import { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE } from '../../.vitepress/data/site'
 import type { LocaleCode } from '../../.vitepress/types'
 
 /** 仓库根目录（`scripts/lib/site.ts` 往上两级）。 */
@@ -50,11 +50,6 @@ export function parseLocale(value: string | undefined): LocaleCode {
     throw new Error(`不支持的语言：${value}（可选：${LOCALE_CODES.join('、')}）`)
   }
   return normalized
-}
-
-/** 各语言在导航里的展示名，用于提示信息。 */
-export function localeLabel(locale: LocaleCode): string {
-  return LOCALES[locale].label
 }
 
 /**
@@ -101,22 +96,4 @@ export function relativePathToUrl(relativePath: string): string {
   const withoutExt = relativePath.replace(/\.md$/, '')
   const withoutIndex = withoutExt.replace(/(^|\/)index$/, '$1')
   return `/${withoutIndex}`.replace(/\/{2,}/g, '/').replace(/\/?$/, '/')
-}
-
-/** 供帮助文本使用的语言清单。 */
-export function localeOptionsText(): string {
-  return LOCALE_CODES.map((code) => `${code}（${LOCALES[code].label}）`).join('、')
-}
-
-/**
- * 导航里该语言的文章列表入口，用于 `pnpm new` 的后续提示。
- *
- * 重构后文章列表在 `pages/posts/` 下：按新链接找，找不到时退回同一地址，
- * 而不是悄悄给出旧 `/<lang>/posts/`（那个地址已经不存在了）。
- */
-export function postsIndexUrl(locale: LocaleCode): string {
-  return (
-    NAV[locale].find((item) => item.link.includes('/pages/posts/'))?.link ??
-    `/${locale}/pages/posts/`
-  )
 }

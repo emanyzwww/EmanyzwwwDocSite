@@ -57,7 +57,7 @@ const { page, frontmatter } = useData()
 const { mode, reset } = useDockState()
 
 const emit = defineEmits<{
-  /** 请求打开搜索面板（由 `PageShell` 统一管理搜索状态）。 */
+  /** 请求打开搜索面板（由 `AppShell` 统一管理搜索状态）。 */
   (e: 'search'): void
 }>()
 
@@ -337,11 +337,7 @@ onBeforeUnmount(() => {
     （详见 mobile.css 里 `.m-dock-layer` 的注释）。
   -->
   <div class="m-dock-layer">
-    <nav
-      class="m-dock"
-      :class="{ 'is-collapsed': collapsed }"
-      :data-mode="mode"
-      :aria-label="m.menuTitle">
+    <nav class="m-dock" :class="{ 'is-collapsed': collapsed }" :aria-label="m.menuTitle">
       <!-- 展开态：横向胶囊 -->
       <div class="m-dock__items" :aria-hidden="collapsed ? 'true' : undefined">
         <a class="m-dock__item" :href="homeHref" :tabindex="collapsed ? -1 : 0">

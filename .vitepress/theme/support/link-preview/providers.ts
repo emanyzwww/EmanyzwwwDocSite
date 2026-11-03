@@ -17,7 +17,7 @@
  * provider 的数据源里有两个「只能在组件 setup 期间创建」的东西：
  * `usePosts()`（内部 `useData()` → `inject()`）和 `useI18n()`。
  * 悬浮回调运行时早已离开 setup 上下文，那时再调 `inject` 会抛错。
- * 所以由 `PageShell` 在 setup 里调用 `createProviders({ posts, messages })`，
+ * 所以由 `AppShell` 在 setup 里调用 `createProviders({ posts, messages })`，
  * 把**响应式引用**闭包捕获进 provider —— fetch 时只读 `.value`，永远合法。
  *
  * ## 通用约定

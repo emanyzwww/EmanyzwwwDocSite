@@ -35,9 +35,6 @@ export const DISPLAY_WIDTHS = [336, 672, 1008] as const
  */
 export const MASTER_CAP = 2016
 
-/** 小于这个宽度的图不再切档（切了也没区别，只会多几个文件）。 */
-export const MIN_DISPLAY_WIDTH = 336
-
 /**
  * `sizes` 属性。
  *
@@ -140,7 +137,7 @@ export function decideKind(ext: string): KindDecision {
  * 1. **永不放大**：大于等于固有宽的档位丢弃；
  * 2. **必须补一档原宽**（超过 `MASTER_CAP` 则补 `MASTER_CAP`）：
  *    否则 1200 宽的源图在 2× DPR 下只能用 1008 档，画质白损失；
- * 3. 源图比 `MIN_DISPLAY_WIDTH` 还小时只出一档 = 原宽。
+ * 3. 源图比最小档位还小时只出一档 = 原宽。
  *
  * @example
  * ladderWidths(1200) // [336, 672, 1008, 1200]
@@ -217,15 +214,6 @@ export function lqipFileName(key: string): string {
 /** 原图文件名（相对产物根）。扩展名决定浏览器能否直接显示。 */
 export function originFileName(key: string, ext: string): string {
   return `${ORIGIN_DIR}/${shortKey(key)}.${ext.toLowerCase()}`
-}
-
-/**
- * 要放进 `<img src>` 的那一档文件名。
- *
- * 与 `pickSrcWidth` 配套：先选宽度，再按宽度取文件名。
- */
-export function srcVariantFileName(key: string, widths: readonly number[]): string {
-  return variantFileName(key, pickSrcWidth(widths))
 }
 
 /** `srcset` 属性值。 */

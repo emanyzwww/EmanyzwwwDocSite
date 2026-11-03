@@ -15,7 +15,7 @@
 
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 
 import sharp from 'sharp'
 
@@ -202,9 +202,4 @@ export async function encodeVariant(input: {
 /** 源图字节的 sha256。去重、命名、缓存全都以它为键。 */
 export function hashSource(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex')
-}
-
-/** 确保目录存在（dev 下按需写缓存用）。 */
-export function ensureDir(file: string): void {
-  mkdirSync(dirname(file), { recursive: true })
 }

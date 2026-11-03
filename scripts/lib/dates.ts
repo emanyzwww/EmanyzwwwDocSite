@@ -91,12 +91,6 @@ export function nowInZone(timeZone: string, now: Date = new Date()): ZonedParts 
   return splitZoned(now, timeZone)
 }
 
-/** 某时刻在站点时区下的日期部分。 */
-export function datePartsInZone(date: Date, timeZone: string): DateParts {
-  const { year, month, day } = splitZoned(date, timeZone)
-  return { year, month, day }
-}
-
 /**
  * 生成 frontmatter 的 `date` 值：`2026-10-24T22:49:28+08:00`。
  *
@@ -111,11 +105,6 @@ export function formatZonedIso(date: Date, timeZone: string): string {
 /** `2026` + `10` + `24` → `20261024`（`pnpm posts 20261024` 的过滤格式）。 */
 export function toCompactDate(parts: DateParts): string {
   return `${parts.year}${parts.month}${parts.day}`
-}
-
-/** 目录路径的三段 → `20261024`。 */
-export function pathToCompactDate(year: string, month: string, day: string): string {
-  return `${year}${month}${day}`
 }
 
 /**
@@ -153,11 +142,6 @@ export function formatReadableDate(parts: DateParts): string {
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
-/** `2026-10-24T...` → `2026-10-24`，截取即用（前提是该串已按站点时区生成）。 */
-export function isoDatePart(iso: string): string {
-  return iso.slice(0, 10)
-}
-
 /**
  * 某时刻在**站点时区**下的 `YYYY-MM-DD`。
  *
@@ -169,20 +153,4 @@ export function isoDatePart(iso: string): string {
 export function isoDateInZone(date: Date, timeZone: string): string {
   const { year, month, day } = splitZoned(date, timeZone)
   return `${year}-${month}-${day}`
-}
-
-/**
- * 把 ISO 串压回紧凑日期。
- *
- * 用于「frontmatter 的 date」与「目录名里的日期」做一致性校验：
- * 两者都来自同一个时刻，因此截取前 10 位、去掉连字符即可比较，
- * 不需要再做一次时区换算（`formatZonedIso` 输出的日期部分已经是站点时区的）。
- */
-export function isoToCompactDate(iso: string): string {
-  return iso.slice(0, 10).replace(/-/g, '')
-}
-
-/** 从 ISO 串取出 `YYYY-MM-DD`。 */
-export function isoToDashedDate(iso: string): string {
-  return iso.slice(0, 10)
 }

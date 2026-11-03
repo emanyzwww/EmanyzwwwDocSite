@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { data as searchIndex } from '../../../data/search.data'
 import { usePresence } from '../../composables/usePresence'
 import { format, useI18n } from '../../i18n'
+import { matchesMobile } from '../../support/device'
 import {
   acquireScrollLock,
   registerOverlayCloser,
@@ -137,8 +138,9 @@ function clampPercent(value: number): number {
 /** 触发按钮：`SiteHeader` 的 `.search-trigger`，或移动胶囊里的搜索项。 */
 function computeOrigin(): void {
   if (typeof document === 'undefined') return
-  // 移动端贴顶全宽：横向原点固定居中，纵向从顶部展开
-  if (window.matchMedia('(max-width: 720px), (pointer: coarse) and (max-height: 500px)').matches) {
+  // 移动端贴顶全宽：横向原点固定居中，纵向从顶部展开。
+  // 条件来自 `support/device.ts`（全站唯一来源），不要在这里手写媒体查询。
+  if (matchesMobile()) {
     origin.value = '50% 0%'
     return
   }

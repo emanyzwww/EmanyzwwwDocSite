@@ -437,15 +437,34 @@
    * 页头高度。这是**布局契约**，不只是「页头自己的事」：
    * - `.reading-progress` 贴在页头下沿；
    * - `scroll-padding-top`（经 `--anchor-offset`）用它给锚点跳转留空隙；
-   * - `useActiveAnchor` 直接读 `--anchor-offset` 算目录高亮线。
+   * - `useActiveAnchor` 直接读 `--anchor-offset` 算目录高亮线；
+   * - 粘性侧栏的上沿与最大高度（`layout.css`）按它算。
    *
-   * 三处都依赖它，所以它一旦与实际页头高度不符，会同时表现为
+   * 这几处都依赖它，所以它一旦与实际页头高度不符，会同时表现为
    * 「进度条被页头盖住」和「点目录跳转后标题被页头吃掉」。
-   * 窄屏页头会换行变高，必须同步覆盖（见 mobile.css）。
+   * 注意自绘滚动条**不读这个变量**：它直接量页头元素的实际高度
+   * （见 `useScrollBar` 的 `headerHeight()`），因为实测比令牌更可靠。
+   *
+   * **只有这一个来源**：移动端的 3.5rem 由下面同文件的媒体查询覆盖，
+   * `mobile.css` 只允许 `min-height: var(--header-height)`，不许再写 `:root`。
    */
   --header-height: 4rem;
   /* 锚点跳转时给粘性页头留的空隙：scroll-padding-top 与目录高亮共用这一个值 */
   --anchor-offset: calc(var(--header-height) + var(--space-4));
+}
+
+/*
+ * 移动端页头高度。
+ *
+ * 放在令牌层而不是 `mobile.css`：页头高度是布局契约，必须和它的消费者
+ * （页头本身、锚点偏移、目录高亮、粘性侧栏）定义在同一处。
+ * 媒体查询条件与 `theme/support/device.ts` 的 `MOBILE_MEDIA` 一致，
+ * 由 `support/mobile-breakpoints.ts` 在构建时校验。
+ */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
+  :root {
+    --header-height: 3.5rem;
+  }
 }
 
 /*

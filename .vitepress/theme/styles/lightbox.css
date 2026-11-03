@@ -569,9 +569,15 @@ a.lightbox__action {
   }
 }
 
-/* ---------- 移动端 ---------- */
+/* ---------- 移动端 ----------
+ *
+ * 条件必须与 `mobile.css` 的移动端判定完全一致（单一来源见
+ * `theme/support/device.ts`）。此前这里只写了 `max-width: 720px`，
+ * 于是横屏手机（宽度 > 720、高度 < 500）胶囊已经切成移动形态、
+ * 查看器却还是桌面形态：左右按钮和缩略图条都留在屏幕上。
+ */
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
   .lightbox__bar {
     height: 3rem;
     padding-inline: var(--space-3);

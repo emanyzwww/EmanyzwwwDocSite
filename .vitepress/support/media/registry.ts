@@ -29,6 +29,7 @@ import {
   MAX_ORIGIN_PIXELS,
   MEDIA_DIR,
   originFileName,
+  pickSrcWidth,
   planWidths,
   shortKey,
   SIZES,
@@ -288,9 +289,12 @@ export function markupOf(entry: MediaEntry): MediaMarkup {
     return { ...common, src: origin, srcset: '', sizes: '' }
   }
 
-  const preferred =
-    entry.variants.find((variant) => variant.width >= 672) ??
-    entry.variants[entry.variants.length - 1]
+  /*
+   * `src` 取「最接近 672 且不小于它」的档（规则在 `pickSrcWidth`，只有一份）：
+   * 不支持 `srcset` 的浏览器与 RSS 阅读器也拿到合理尺寸。
+   */
+  const widths = entry.variants.map((variant) => variant.width)
+  const preferred = entry.variants[widths.indexOf(pickSrcWidth(widths))]
 
   return {
     ...common,

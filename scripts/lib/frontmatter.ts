@@ -19,8 +19,6 @@
  * 没必要自己再写一个解析器）。
  */
 
-import matter from 'gray-matter'
-
 import { formatZonedIso } from './dates'
 import {
   DEPRECATED_FRONTMATTER_KEYS,
@@ -37,28 +35,6 @@ export interface FrontmatterStyleOptions {
   inlineArrays?: boolean
   /** 字符串是否一律加单引号。默认 **不加**，仅在该值有语法歧义时才加。 */
   quoteAllStrings?: boolean
-}
-
-/** 解析结果。 */
-export interface ParsedFrontmatter {
-  /** frontmatter 键值。 */
-  data: Record<string, unknown>
-  /** 正文（不含 frontmatter 分隔行）。 */
-  body: string
-  /** 原始键的出现顺序（保留作者书写顺序，`fix` 重排时用）。 */
-  keyOrder: string[]
-}
-
-/** 解析文本。 */
-export function parseFrontmatter(raw: string): ParsedFrontmatter {
-  const { data, content } = matter(raw)
-  const record = data as Record<string, unknown>
-
-  return {
-    data: record,
-    body: content,
-    keyOrder: Object.keys(record),
-  }
 }
 
 /**
@@ -311,14 +287,6 @@ export function typeOfValue(value: unknown): string {
   if (value instanceof Date) return 'Date'
   if (Array.isArray(value)) return 'array'
   return typeof value
-}
-
-/** 工具：把任意值转成展示用字符串。 */
-export function stringifyValue(value: unknown): string {
-  if (value instanceof Date) return value.toISOString()
-  if (Array.isArray(value)) return `[${value.map((item) => String(item)).join(', ')}]`
-  if (typeof value === 'string') return value
-  return String(value)
 }
 
 /** 仅供类型检查确保 key 类型被使用。 */

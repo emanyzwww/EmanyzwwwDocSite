@@ -16,7 +16,7 @@ import AppIcon from '../common/AppIcon.vue'
  * 图片查看器（全屏浮层）。
  *
  * 零 props / 零 emits：状态全在 `useImageViewer` 这个模块级单例里，
- * 打开入口是正文里的 `<a data-lightbox>`（事件委托在 `PageShell` 里装一次）。
+ * 打开入口是正文里的 `<a data-lightbox>`（事件委托在 `AppShell` 里装一次）。
  * 这样正文与查看器之间没有 prop 链，将来正文换成富文本组件也不用改这里。
  *
  * 交互约定：

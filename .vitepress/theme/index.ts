@@ -89,7 +89,7 @@ export default {
      * 它改的是 `router.onBeforeRouteChange` / `onAfterRouteChange`，
      * 是**路由级**能力：必须早于任何一次导航装好（`enhanceApp` 在
      * `app.mount()` 之前执行，正好），而且必须只有一份。
-     * 挂进 `PageShell` 会在每次组件重建时重复注册，后装的覆盖先装的。
+     * 挂进 `AppShell` 会在每次组件重建时重复注册，后装的覆盖先装的。
      */
     installRouteTransition(router)
     /*

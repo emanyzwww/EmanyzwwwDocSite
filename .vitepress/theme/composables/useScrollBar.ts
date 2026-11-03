@@ -74,7 +74,7 @@ export interface ScrollBarState {
   /**
    * 强制重测。
    *
-   * 路由切换后**必须**调用：`ScrollBar` 挂在常驻的 `PageShell` 上，
+   * 路由切换后**必须**调用：`ScrollBar` 挂在常驻的 `AppShell` 上，
    * 从长文章跳到短页面时，`scrollY` 可能一直是 0（没有 scroll 事件），
    * 唯一的变化是文档变短了。只靠 ResizeObserver 也能覆盖大部分情况，
    * 但那是「正文高度恰好变了」的副作用，不是显式契约。
