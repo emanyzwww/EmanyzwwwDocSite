@@ -645,7 +645,7 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 | 配色   | `support/markdown/code-theme.ts`  | Shiki 双主题色板 `CODE_PALETTE`；**token 色的唯一来源**                                     |
 | 视觉   | `theme/styles/content.css`        | 头部条 / Grid / 复制按钮 / 双主题桥接；底色与控件色来自 `tokens.css`                        |
 | RSS    | `support/feed-code.ts`            | `sanitizeFeedCode()`：把网页专用结构清成 feed-safe（在 `rss.ts` 的 `articleHtml()` 里调用） |
-| 打印   | `theme/styles/print.css`          | 去掉头部条底色与交互控件，保留路径行，强制浅底黑字                                          |
+| 打印   | `theme/styles/print.css`          | 隐藏交互控件、标题锚点与文末按钮，保留路径行，强制浅底黑字                                  |
 
 **写法与语言推断。** 在围栏信息里写 `ts [src/app.ts]`：`ts` 是语言，`[src/app.ts]` 是文件路径。
 只写路径（` ``` [src/app.ts] `）时按**最后一段的扩展名**推断语言——`EXTENSION_LANG` 只登记
@@ -683,7 +683,9 @@ github / link / figure / quote / columns / gallery）与 `index.ts`（`installDi
 已把它排在 `installDirectives` 之后。
 
 **打印与 RSS。** 打印去掉头部条的底色、语言标识、复制按钮与 tab 条，但**保留文件路径**
-作为纸面上的小标题；代码块换浅底黑字并允许换行。
+作为纸面上的小标题（没有路径的块不再印语言名——`c` 在纸上没有信息量）；代码块换浅底
+黑字、去圆角并允许换行。整页的纸面尺度（版心、字阶、段距、分页规则）都在 `print.css`
+里另定，不复用屏幕值，理由见 `DESIGN.md` §9.5。
 RSS 侧 `feed-code.ts` 删掉复制按钮、语言标识、头部 label、tab 条与 `<div class="language-…">`
 包装，有 `data-file` 的路径保留成 `<p><small>路径</small></p>`，`<pre>` 及其内部 span 的全部
 属性（含 `--shiki-*` 自定义属性）清空但文本与实体原样保留；对没有代码块的 HTML 必须恒等输出。

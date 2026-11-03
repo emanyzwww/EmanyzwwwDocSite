@@ -1,23 +1,61 @@
 /* =========================================================
    打印样式
+
+   纸面是另一种介质：没有交互、没有背景色、行宽由纸张决定。
+   所以这里不复用屏幕的视觉尺度（48px 主标题、20px 段距在纸上是浪费），
+   而是单独定一套「文档」尺度：10.5pt 正文、20pt 主标题、毫米级间距。
+
+   两点容易踩：
+   1. `@page` 只在打印对话框选「默认」页边距时生效；用户选「无」会覆盖它。
+   2. 深色主题下 token 是浅色的，纸面必须逐类压回黑字——
+      只靠 `body { color }` 不够，标题、链接、表格、代码都有各自的 token。
    ========================================================= */
 
+@page {
+  /* A4 下约 17cm 行宽；Letter 也落在安全边距内 */
+  margin: 18mm 20mm;
+}
+
 @media print {
+  /* ---------- 一、去掉所有交互与装饰 ---------- */
+
   .site-header,
   .site-footer,
   .layout__aside,
   .pagination,
   .post-nav,
-  /* 复制链接 / 分享：纸上没有剪贴板，也没有系统分享面板 */
-  .post-actions,
+  .post-actions, /* 复制链接 / 分享：纸上没有剪贴板与分享面板 */
+  .post-footer, /* 返回列表 / RSS：纸上点不了的胶囊按钮 */
   .skip-link,
   .reading-progress,
   .scrollbar,
+  .search,
+  .link-preview,
+  .lightbox,
+  .post-meta .icon, /* 装饰图标（aria-hidden），纸上只是排字里的灰点 */
+  /*
+   * 标题锚点必须整颗隐藏，**不能只留 opacity: 0**。
+   *
+   * 它是 `float: left` 的（见 content.css `.prose .header-anchor`），
+   * 而「外链补 URL」规则会命中这个 `<a>`：一段看不见的
+   * ` (#hello-world-的由来)` 把浮动盒撑宽，标题文字被挤到行中，
+   * 纸上看起来就像整个标题**居中了**。纸面上它本来就不可点。
+   */
+  .prose .header-anchor,
   .prose div[class*='language-'] > button.copy,
-  /* 代码块头部的语言标识与分组 tab 条：纸上没有交互，也不该有两条头 */
   .prose div[class*='language-'] > .lang,
   .prose .vp-code-group .tabs {
     display: none !important;
+  }
+
+  /* ---------- 二、版心与基础字 ---------- */
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000;
+    font-size: 10.5pt;
+    line-height: 1.65;
   }
 
   .layout,
@@ -26,43 +64,147 @@
     padding: 0;
   }
 
-  body {
-    background: #fff;
+  /* 深色主题下这些颜色都来自 token，逐类压回纸面可读的灰阶 */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  li,
+  dt,
+  dd,
+  blockquote,
+  td,
+  th,
+  .prose,
+  .prose p,
+  .prose li {
     color: #000;
-    font-size: 11pt;
   }
 
-  .prose a::after {
-    content: ' (' attr(href) ')';
-    font-size: 0.85em;
-    color: #555;
+  /* ---------- 三、文章头 ---------- */
+
+  .post-header {
+    margin-bottom: 5mm;
+  }
+
+  .post-header .page-title {
+    margin: 0 0 2.5mm;
+    font-size: 20pt;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+
+  .post-meta {
+    gap: 0 3mm;
+    font-size: 8.5pt;
+    color: #444;
+  }
+
+  .post-meta a {
+    color: #444;
+    text-decoration: none;
+  }
+
+  .post-header__lead {
+    margin-top: 3mm;
+    font-size: 10.5pt;
+    line-height: 1.7;
+    color: #333;
+  }
+
+  /* ---------- 四、正文节奏 ---------- */
+
+  .prose > * + *,
+  .prose > div > div > * + * {
+    margin-top: 2.6mm;
+  }
+
+  .prose ul,
+  .prose ol {
+    padding-left: 5mm;
+  }
+
+  .prose li + li {
+    margin-top: 1mm;
+  }
+
+  .prose h2 {
+    margin: 6mm 0 2mm;
+    padding-bottom: 1.5mm;
+    font-size: 14pt;
+    border-bottom: 0.5pt solid #bbb;
+  }
+
+  .prose h3 {
+    margin: 4.5mm 0 1.5mm;
+    font-size: 11.5pt;
+  }
+
+  .prose h4 {
+    margin: 3.5mm 0 1mm;
+    font-size: 10.5pt;
+  }
+
+  /* ---------- 五、链接：只给真正的外链补 URL ---------- */
+
+  .prose a {
+    color: #000;
+    text-decoration: underline;
+    text-decoration-thickness: 0.5pt;
+    text-underline-offset: 0.2em;
   }
 
   /*
-   * 图片链接不要往纸面上打 ` (https://…/orig/xxx.png)`。
-   *
-   * 这条必须写在 `.prose a::after` **之后**：两者特异性相同（0,2,1 vs 0,2,1），
-   * 靠顺序后者胜出。图片的地址对纸上读者没有意义，而且哈希文件名很长，
-   * 会直接把一行撑爆。
+   * 站内链接与锚点在纸上没有落脚点，补 URL 只是噪音；
+   * 只有外链值得让读者手抄。
    */
+  .prose a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.82em;
+    color: #666;
+    word-break: break-all;
+  }
+
+  /* 图片链接不要补 URL：哈希文件名会把一行撑爆 */
   .prose a.prose-media__link::after {
     content: none;
   }
 
-  /* 代码块在纸上必须浅底黑字，深色背景会浪费墨且看不清 */
-  .prose div[class*='language-'] {
-    background: #f5f5f5;
-    color: #000;
-    border: 1px solid #ddd;
-    box-shadow: none;
-    break-inside: avoid;
+  /* ---------- 六、图片 ---------- */
+
+  .prose figure {
+    margin: 4mm 0;
   }
 
-  /*
-   * 屏幕上的头部控件区在纸面上没有交互价值：底色条、复制按钮、语言标识都去掉，
-   * 只保留**文件路径**作为一行小标题——纸上读者同样需要知道「这是哪个文件」。
-   * 路径由构建期注入在 `.code-block__label` 里，没有路径的块显示语言名。
-   */
+  .prose img {
+    max-width: 100%;
+    border: 0.5pt solid #ddd;
+    /* 屏幕上 14px 的圆角在纸上没有意义，反而像没印好 */
+    border-radius: 0;
+  }
+
+  .prose figcaption {
+    margin-top: 1.5mm;
+    font-size: 8.5pt;
+    color: #555;
+  }
+
+  /* ---------- 七、代码块：浅底黑字、窄边框、无圆角 ---------- */
+
+  .prose div[class*='language-'] {
+    background: #f7f7f7;
+    border: 0.5pt solid #d4d4d4;
+    border-radius: 0;
+    box-shadow: none;
+    break-inside: avoid;
+    /* 用户关掉「背景图形」时，代码块仍要保留浅底 */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .code-block {
     display: block;
   }
@@ -73,17 +215,27 @@
 
   .code-block__label {
     display: block;
-    padding: 4px 12px;
-    border-bottom: 1px solid #ddd;
-    color: #333;
+    padding: 1.5mm 3mm;
+    border-bottom: 0.5pt solid #d4d4d4;
+    color: #555;
     font-family: var(--font-mono);
-    font-size: 9pt;
-    line-height: 1.5;
+    font-size: 8pt;
+    line-height: 1.4;
+    letter-spacing: 0.03em;
+  }
+
+  /* 没有文件路径的块只剩语言名（如 `c`），在纸上没有信息量 */
+  .code-block__label:not([data-file]) {
+    display: none;
   }
 
   .prose div[class*='language-'] > pre {
-    background: #f5f5f5 !important;
+    background: #f7f7f7 !important;
+    padding: 2.5mm 3mm;
+    font-size: 8.5pt;
+    line-height: 1.55;
     white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .prose div[class*='language-'] > pre > code,
@@ -91,20 +243,155 @@
     color: #000 !important;
   }
 
-  h2,
-  h3 {
-    break-after: avoid;
+  .prose :not(pre) > code {
+    padding: 0 0.8mm;
+    border: 0.5pt solid #e0e0e0;
+    border-radius: 0.8mm;
+    background: #f2f2f2;
+    font-size: 0.92em;
   }
 
-  img {
+  /* ---------- 八、表格、引用块、分隔线 ---------- */
+
+  .prose table {
+    display: table;
+    width: 100%;
+    font-size: 9pt;
+  }
+
+  .prose th,
+  .prose td {
+    padding: 1.4mm 2mm;
+    border: 0.5pt solid #ccc;
+  }
+
+  .prose th {
+    background: #f3f3f3;
+    color: #000;
+  }
+
+  .prose blockquote {
+    padding-left: 3mm;
+    border-left: 2pt solid #ccc;
+    color: #333;
+  }
+
+  .prose hr {
+    margin: 5mm 0;
+    border-top: 0.5pt solid #ccc;
+  }
+
+  .prose .custom-block {
+    padding: 2mm 3mm;
+    border: 0.5pt solid #d4d4d4;
+    border-left-width: 2pt;
+    background: #fafafa;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .prose .custom-block .custom-block-title {
+    color: #000;
+  }
+
+  /* ---------- 九、站点页与列表页 ---------- */
+
+  .page-header {
+    margin-bottom: 6mm;
+  }
+
+  /* 列表页/关于页与文章页共用一个主标题尺度，避免「文章 20pt、列表 28px」 */
+  .page-title {
+    font-size: 20pt;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+
+  .page-header--hero .page-title {
+    font-size: 24pt;
+  }
+
+  .page-description {
+    margin-top: 2mm;
+    font-size: 11pt;
+    color: #333;
+  }
+
+  .page-eyebrow {
+    font-size: 8pt;
+    color: #666;
+  }
+
+  /* 按钮是导航，纸上没有去处 */
+  .btn,
+  .post-list__more,
+  .tag-group__more {
+    display: none !important;
+  }
+
+  .post-card {
+    padding: 4mm;
+    border: 0.5pt solid #d0d0d0;
+    border-radius: 0;
     break-inside: avoid;
   }
 
-  /*
-   * 正文图片的放大角标：屏幕上提示"可点开放大"，纸上没有交互，
-   * 那个伪元素必须去掉，否则每张图右下角会多出一块深色方块。
-   */
-  .prose .prose-media__link::after {
-    display: none !important;
+  .post-card__title {
+    color: #000;
+    font-size: 12pt;
+  }
+
+  .post-card__summary {
+    color: #333;
+  }
+
+  .post-card__meta,
+  .tl__meta {
+    font-size: 8.5pt;
+    color: #555;
+  }
+
+  .tl__meta a,
+  .tl__tags a,
+  .post-card__meta a {
+    color: #555;
+  }
+
+  .tl__item,
+  .tag-group,
+  .cloud__item {
+    break-inside: avoid;
+  }
+
+  .tag-group {
+    border: 0.5pt solid #d0d0d0;
+    border-radius: 0;
+  }
+
+  /* ---------- 十、分页纪律 ---------- */
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  img,
+  figure,
+  pre,
+  .code-block,
+  tr,
+  .custom-block {
+    break-inside: avoid;
+  }
+
+  p,
+  li,
+  blockquote {
+    orphans: 3;
+    widows: 3;
   }
 }
