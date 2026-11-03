@@ -12,7 +12,6 @@ export const zhCN: Messages = {
   wordCount: '字',
   readingTime: '约 {count} 分钟',
   updatedOn: '更新于 {date}',
-  altLanguageVersion: '另有 {language} 版',
   backToPosts: '返回文章列表',
   allPosts: '查看全部文章',
   previousPost: '上一篇',

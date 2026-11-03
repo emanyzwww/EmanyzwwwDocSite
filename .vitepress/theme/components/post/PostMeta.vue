@@ -18,9 +18,6 @@ import AppIcon from '../common/AppIcon.vue'
  *
  * 图标的分工：日期 = 日历，阅读时长 = 时钟，**字数不带图标**（「504 字」本身
  * 已经说明了单位，再挂一个时钟会和阅读时长撞语义）。
- *
- * 默认插槽留给文章页塞「另一语言版本」的链接：它属于导航而不是文章事实，
- * 但视觉上必须留在这同一行里（`.post-meta` 是 `flex-wrap` 的，窄屏自然折行）。
  */
 const props = withDefaults(
   defineProps<{
@@ -85,7 +82,5 @@ const showDate = computed(() => props.variant !== 'timeline')
         <a :href="href(tag.url)">{{ tag.label }}</a>
       </template>
     </span>
-
-    <slot />
   </component>
 </template>

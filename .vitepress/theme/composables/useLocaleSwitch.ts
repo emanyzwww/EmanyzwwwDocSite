@@ -34,9 +34,6 @@ export interface LocaleOption {
   current: boolean
 }
 
-/** 当前页面真实存在的「另一语言版本」（不含当前语言）。 */
-export type LocaleVariant = Omit<LocaleOption, 'current'>
-
 /** 页面存在性索引（存的是编码后的 URL，与 `RawDoc.url` 一致）。 */
 const knownPages = new Set(pages.urls)
 
@@ -85,26 +82,7 @@ export function useLocaleSwitch() {
     })
   })
 
-  /**
-   * 当前页面**真实存在**的其它语言版本。
-   *
-   * 与 `options` 的区别：`options` 对「没有翻译」的页面会退到对方语言的列表页
-   * （语言切换必须永远可用），而这里只返回**真的有对应文章/页面**的语言——
-   * 文章页据此显示「另有 English 版」。拿一个跳过去是列表页的地址做提示，
-   * 等于骗读者，所以两者必须是两套数据。
-   */
-  const translations = computed<LocaleVariant[]>(() => {
-    const bare = stripLocale(stripRouteBase(route.path))
-    const key = pairKeyByUrl.get(encodeURI(bare)) ?? null
-    if (!key) return []
-
-    return LOCALE_CODES.filter((code) => code !== current.value).flatMap((code) => {
-      const url = translatedUrl(translationIndex, key, code)
-      return url ? [{ code, label: LOCALES[code].label, lang: LOCALES[code].lang, url }] : []
-    })
-  })
-
-  return { current, options, translations }
+  return { current, options }
 }
 
 /**

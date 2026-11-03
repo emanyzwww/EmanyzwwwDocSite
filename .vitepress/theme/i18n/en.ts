@@ -12,7 +12,6 @@ export const en: Messages = {
   wordCount: 'words',
   readingTime: '{count} min read',
   updatedOn: 'Updated {date}',
-  altLanguageVersion: 'Also in {language}',
   backToPosts: 'Back to posts',
   allPosts: 'View all posts',
   previousPost: 'Previous',

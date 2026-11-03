@@ -969,13 +969,12 @@ iOS 额外固定 body、解锁先用 `behavior: 'instant'` 归位再通知 `onSc
 
 ### 文章页要素（导语 / 元信息 / 文末动作条）
 
-一篇文章的页头到页尾由四样东西组成，改动前先看这张表——**每一行都只有一个数据来源**：
+一篇文章的页头到页尾由三样东西组成，改动前先看这张表——**每一行都只有一个数据来源**：
 
 | 要素                                 | 组件 / 位置                                            | 数据从哪来                                                                            | 开关                                 |
 | ------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------ |
 | 导语                                 | `DocPage` 的 `.post-header__lead`                      | `PostSummary.lead`（构建期在 `toPostSummary` 里算）                                   | 无（有值就显示）                     |
 | 日期 / 更新 / 阅读时长 / 字数 / 标签 | `PostMeta`（`full` / `compact` / `timeline` 三种形态） | `PostSummary` 的 `dateText` / `updatedText` / `readingMinutes` / `wordCount` / `tags` | `SITE.wordCount`、`SITE.readingTime` |
-| 另一语言版本                         | `DocPage` 塞进 `PostMeta` 的默认插槽                   | `useLocaleSwitch().translations`（`post.data.ts` 的配对索引）                         | 无（真有翻译才有值）                 |
 | 文末动作条                           | `PostActions`（复制链接 / 分享）                       | 运行时 `location.href` / `navigator.share`                                            | 无（分享按钮按能力渲染）             |
 
 **四条不能随手改的规则**：

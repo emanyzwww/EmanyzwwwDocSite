@@ -226,8 +226,6 @@ export interface Messages {
   readingTime: string
   /** 更新日期；`{date}` = 已格式化的更新日。 */
   updatedOn: string
-  /** 另一语言版本链接；`{language}` = 目标语言名（如 `English`）。 */
-  altLanguageVersion: string
   backToPosts: string
   allPosts: string
   previousPost: string
