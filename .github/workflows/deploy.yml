@@ -64,7 +64,7 @@ jobs:
       #
       # `pnpm audit` 刻意用 `--prod`：生产依赖树是空的（所有依赖都在
       # devDependencies），所以它必然是干净的；而裸 `pnpm audit` 会报
-      # vite/esbuild 的 dev-only 漏洞（2 high / 6 moderate），
+      # vite/esbuild 的 dev-only 漏洞（本次实测 1 high / 8 moderate / 1 low），
       # 那些只在 dev server 与构建期生效、不进产物、线上零影响，
       # 却会让 CI 永久红灯 —— 那等于把检查关掉。
       - name: Quality gate

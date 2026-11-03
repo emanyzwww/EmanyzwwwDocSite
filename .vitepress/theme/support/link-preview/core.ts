@@ -103,7 +103,7 @@ export function isPreviewableHref(href: string | null | undefined): boolean {
  * 同一 URL（含大小写差异、尾斜杠差异）只发一次请求。
  */
 export function previewCacheKey(providerId: string, url: string): string {
-  return `link-preview:${providerId}:${normalizeForCache(url)}`
+  return `${providerId}:${normalizeForCache(url)}`
 }
 
 /** 缓存归一化：小写 host、去尾斜杠、去常见跟踪参数。 */

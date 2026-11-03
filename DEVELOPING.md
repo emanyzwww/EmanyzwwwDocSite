@@ -128,7 +128,7 @@ Vue 组件 ──► HTML（图片已是 <figure>，点击由 useImageViewer 接
    │  ├─ pages/           六个页面级组件（Home/Posts/Doc/Tags/Tag/NotFound）
    │  ├─ layout/          外壳：AppShell（跨设备内核外壳）、TwoColumn、ThreeColumn
    │  ├─ desktop/         PC 专属：页头内容（DesktopHeader）
-   │  ├─ mobile/          PE 专属：页头内容 + 抽屉（MobileHeader / MobileNav）、悬浮胶囊（MobileDock）
+   │  ├─ mobile/          移动端专属：页头内容 + 抽屉（MobileHeader / MobileNav）、悬浮胶囊（MobileDock）
    │  ├─ site/            页头框架（SiteHeader）、页脚、导航、搜索面板、主题切换、语言切换
    │  ├─ post/            文章卡片、时间线、元信息、上下篇、分页
    │  ├─ tag/             标签云、标签分组、其他标签
@@ -179,7 +179,7 @@ scripts/                   ← 命令行脚本（内容侧工具，不参与构�
 
 media/                     ← 会换的图（头像等），走 Vite 指纹
 public/                    ← 原样拷贝：favicon、根路径语言跳转页
-.gitattributes             统一行尾 LF（见「加一个 npm 脚本」后的 fix 边界）
+.gitattributes             统一行尾 LF（见「`pnpm check` / `pnpm fix` 的边界」）
 ```
 
 带 ★ 的是**日常最常改的**。IDE / AI 辅助目录（`.idea/`、`.vscode/`、`.dsh/`）未列出。
@@ -509,7 +509,7 @@ fallback 之后，`req.url` 已被改写成 `/index.html`；函数体里 `req.ur
 缓存键包含：
 
 ```text
-源 sha256 | 宽度 | 参数(quality/effort) | PIPELINE_VERSION | platform | libvips 版本 | webp 版本
+源 sha256 | 宽度 | kind(位图/动图/矢量) | 参数(quality/effort) | PIPELINE_VERSION | platform | libvips 版本 | webp 版本
 ```
 
 **后三项不能省**：Windows 与 Linux 的 libvips 构建不同，少了平台/版本项，
@@ -924,7 +924,7 @@ frontmatter.layout === 'home'   → HomePage.vue    首页
   「设备差异」也会从外壳层漏进共享层；
 - **PC 专属**进 `components/desktop/`（目前只有 `DesktopHeader`：品牌 + 横向导航 +
   搜索入口 + 工具，⌘K / Ctrl K 平台判定也在这里）；
-- **PE 专属**进 `components/mobile/`（`MobileHeader` 品牌 + 汉堡并持有抽屉开关、
+- **移动端专属**进 `components/mobile/`（`MobileHeader` 品牌 + 汉堡并持有抽屉开关、
   `MobileNav` 抽屉、`MobileDock` 悬浮胶囊）；
 - 两边都要用的才放 `common/`（真正无关设备）或 `site/`（站点级共享）。
 
@@ -994,7 +994,7 @@ iOS 额外固定 body、解锁先用 `behavior: 'instant'` 归位再通知 `onSc
 
 1. `env(safe-area-inset-*)` 需要 `viewport-fit=cover`：`config.ts` 的 `head` 显式覆盖了
    viewport meta，`public/index.html` 里的那条必须同步，否则安全区恒为 0 且无报错；
-2. 停靠抬升只用 `--dock-lift` 一个变量，内部是 `max()` 不是相加；
+2. 停靠抬升只用 `--dock-lift` 一个变量，内部是「安全区高度 + `--dock-gap`」，不要再叠加工具栏补偿；
 3. 浮层必须 `Teleport to="body"`：祖先 `.site-header` 的 `backdrop-filter` 会为
    `position: fixed` 后代创建包含块，浮层会被裁成页头那么高；
 4. 抽屉里不能用下拉菜单（会被 `overflow-y: auto` 裁掉），语言用
@@ -1517,7 +1517,7 @@ GITHUB_TOKEN 权限执行上游代码）；升级通过 Dependabot 发 PR。权�
 
 ### 五个「看起来能改、其实会踩坑」的点
 
-安全区 meta、`--dock-lift` 的 `max()`、胶囊右边缘的 `transform` 百分比、浮层的
+安全区 meta、`--dock-lift` 的安全区相加、胶囊右边缘的 `transform` 百分比、浮层的
 `Teleport to="body"`、抽屉里只能用分段语言按钮——这五条与第五节「移动端」的硬约束是
 同一份清单。
 
@@ -1557,8 +1557,8 @@ scrollY；解锁先用 `behavior: 'instant'` 归位再通知 `onScrollLockReleas
 ### 滚动条：自绘，但只有页面级
 
 页面级滚动条自绘（`components/common/ScrollBar.vue`），原生条被隐藏。
-**完整规范见 [DESIGN.md](./DESIGN.md) 第十一节**（含自动隐藏的三个坑：初值必须
-`-Infinity`、跳过 touch 指针、进出揭示带不刷新活动时间戳），这里只记实现相关的几件事。
+**完整规范见 [DESIGN.md](./DESIGN.md) 第十一节**；自动隐藏的三个坑（初值必须
+`-Infinity`、跳过 touch 指针、进出揭示带不刷新活动时间戳）实现在 `theme/composables/useScrollBar.ts`，这里只记实现相关的几件事。
 
 **为什么不能挂进 `<header>`**：页头的 `backdrop-filter` 会为 fixed 后代创建包含块，
 把滚动条关进页头的层叠上下文，`z-index` 就压不住正文了；所以它和页头**平级**，
