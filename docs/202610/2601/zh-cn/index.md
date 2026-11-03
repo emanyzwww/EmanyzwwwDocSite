@@ -1,9 +1,9 @@
 ---
-title: Markdown 语法测试
-slug: Markdown-语法测试
+title: 'Markdown 语法测试'
+slug: 'Markdown-语法测试'
 date: 2026-10-26T10:36:06+08:00
 tags: ['本站']
-description: 一张逐条实测的语法对照表：前半部分测原生 Markdown（CommonMark 与 GFM），后半部分测本站独有的一层扩展——高亮、六种块级指令、图片管线与提示容器。
+description: '一张逐条实测的语法对照表：前半部分测原生 Markdown（CommonMark 与 GFM），后半部分测本站独有的一层扩展——高亮、六种块级指令、图片管线与提示容器。'
 draft: true
 outline: true
 ---
@@ -447,7 +447,7 @@ VitePress 默认允许正文直接写 HTML（本站没有关掉 `markdown.html`�
 - `:::github 缺少仓库名`（参数没写）
 
 **5. 裸露的 GitHub 仓库链接不再自动变卡**——现在它就是一条普通链接。
-要用卡片请写 `:::github owner/repo`，`pnpm check` 会提示残留的旧写法。
+要用卡片请写 `:::github owner/repo`，`pnpm doc check` 会提示残留的旧写法。
 
 ### 自检清单
 
@@ -457,4 +457,4 @@ VitePress 默认允许正文直接写 HTML（本站没有关掉 `markdown.html`�
 - [ ] 图片能点开全屏、能下载原图（`public/` 下的图不参与放大，属预期）
 - [ ] 卡片有仓库名与真链接（断网时也不该出现空盒子）
 - [ ] `pnpm build` 没有报错
-- [ ] `pnpm check` 没有新的 warn
+- [ ] `pnpm doc check` 没有新的 warn

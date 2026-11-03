@@ -1,6 +1,6 @@
 ---
-title: Markdown Syntax Test
-slug: markdown-syntax-test
+title: 'Markdown Syntax Test'
+slug: 'markdown-syntax-test'
 date: 2026-10-26T10:36:06+08:00
 tags: ['Site']
 description: 'A syntax cheat sheet you can actually run — the first half exercises plain Markdown (CommonMark and GFM), the second half the layer this site adds on top: highlight, six block directives, the image pipeline and the built-in containers.'
@@ -447,7 +447,7 @@ The fix is to give the outer one more colons than the inner one (short inside, l
 - `:::github is missing a repository name` (no argument)
 
 **5. A bare GitHub repository link no longer turns into a card**—it's just a normal link now.
-Write `:::github owner/repo` when you want the card; `pnpm check` reports leftovers in the old style.
+Write `:::github owner/repo` when you want the card; `pnpm doc check` reports leftovers in the old style.
 
 ### Self-Check List
 
@@ -457,4 +457,4 @@ After editing this page, walk through these in order:
 - [ ] Images open full screen and the original downloads (`public/` images are not zoomable, by design)
 - [ ] The cards show a repository name and a real link (no empty box, even offline)
 - [ ] `pnpm build` finishes without errors
-- [ ] `pnpm check` reports no new warnings
+- [ ] `pnpm doc check` reports no new warnings

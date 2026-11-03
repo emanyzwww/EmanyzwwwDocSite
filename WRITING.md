@@ -23,48 +23,59 @@
 
 ### 命令总览
 
-| 命令                                       | 作用                                                              |
-| ------------------------------------------ | ----------------------------------------------------------------- |
-| `pnpm new`                                 | 新建一篇文章（自动分配目录与当日序号）                            |
-| `pnpm posts [YYYYMMDD]`                    | 列出文章，默认隐藏草稿                                            |
-| `pnpm check`                               | 检查内容与 frontmatter，只报不改                                  |
-| `pnpm fix`                                 | 自动修 `check` 能修的项（重排字段、补可选字段、补时区、规范标签） |
-| `pnpm stats` / `pnpm tags`                 | 统计字数 / 列出标签及其文章数                                     |
-| `pnpm guide`                               | 命令总览；单个命令的选项看 `pnpm new --help`                      |
-| `pnpm dev` / `pnpm build` / `pnpm preview` | 本地预览 / 构建 / 预览构建产物                                    |
+所有内容操作都收在 `pnpm doc` 下：不带参数进交互菜单，带子命令直接执行。
 
-> `pnpm list` 与 `pnpm help` 是 pnpm 自己的内置命令，会在脚本启动前截获参数并报错。
-> 列文章用 `pnpm posts`，看帮助用 `pnpm guide`。
+| 命令                                       | 作用                                                    |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `pnpm doc`                                 | 交互主菜单（新建 / 列出 / 检查 / 修复 / 格式化 / 清理） |
+| `pnpm doc new [标题]`                      | 新建文章（自动分配目录与当日序号；不带参数进向导）      |
+| `pnpm doc list`                            | 列出文章，默认隐藏草稿；`-d` 过滤日期、`-t` 过滤标签    |
+| `pnpm doc list -t`                         | 标签视图（标签及文章数）                                |
+| `pnpm doc list --stats`                    | 内容统计                                                |
+| `pnpm doc check`                           | 检查内容与 frontmatter，只报不改                        |
+| `pnpm doc fix`                             | 自动修元字段（顺序、补字段、时区、标签、字符串引号）    |
+| `pnpm doc format`                          | 排版正文（空白、标题、列表），不动 frontmatter          |
+| `pnpm doc clean`                           | 清理构建产物与缓存                                      |
+| `pnpm doc help [命令]`                     | 命令总览 / 单命令帮助                                   |
+| `pnpm dev` / `pnpm build` / `pnpm preview` | 本地预览 / 构建 / 预览构建产物                          |
 
-`pnpm posts` 支持日期位置参数（`20261024`，匹配**目录日期**）、`-l/--lang`、`-t/--tags`、
-`--draft`（连草稿一起列）、`--compact` / `--json`。
+**全局参数**（`list/check/fix/format` 通用）：
 
-### 最快的方式：`pnpm new`
+| 参数                 | 含义                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `-l, --lang <codes>` | 语言：`zh-cn`、`en` 或 `zh-cn,en`（严格匹配，默认全部）                                         |
+| `-d, --date <spec>`  | 日期：`2026`、`202611`、`20261101`、`2026110101`、`202601..202606`、`202601,202603`（默认全部） |
+| `-t, --tag <tags>`   | 标签过滤，逗号分隔；`list` 裸用 `-t` 是标签视图                                                 |
+
+**什么时候交互**：`pnpm doc` 永远进菜单；`new / fix / format / clean` 不带任何参数时进向导；
+`list / check` 不带参数时直接按默认范围执行；**只要带了参数就一律非交互**，跑完即退。
+
+### 最快的方式：`pnpm doc new`
 
 ```powershell
-pnpm new                                 # 中文文章，标题与 slug 后补
-pnpm new -t="我的新文章" --tags=随笔,工具  # 带标题与标签
-pnpm new -l=en -t="My New Post"          # 英文文章
-pnpm new -t="补记" --date 20261024 -n=02  # 指定日期与当日序号
-pnpm new -l=en --into 202610/2401        # 给已有文章补英文版
-pnpm new -t="标题" --dry-run             # 只看会生成什么，不写盘
+pnpm doc new                                  # 向导：选语言、填标题、日期、标签
+pnpm doc new "我的新文章" -l=zh-cn -t=随笔,工具  # 中文文章，带标签
+pnpm doc new "My New Post" -l=en              # 英文文章
+pnpm doc new "补记" -d=20261024 -n=02          # 指定日期与当日序号
+pnpm doc new "Hi" -l=en --into 202610/2401     # 给已有文章补英文版
+pnpm doc new "标题" -l=zh-cn --try             # 只看会生成什么，不写盘
 ```
 
 它会：按**北京时间**取今天的日期，建 `docs/202610/2401/zh-cn/index.md` 这类路径
 （`202610/2401` = 2026 年 10 月 24 日第 01 篇；当天已有文章就往后取号、优先补空号，
-上限 99），并把 frontmatter 的**全部字段**一次补齐（含由标题推导的 `slug`，推不出时
-回退 `untitled`）。**一次只建当前语言**：英文版靠 `pnpm new -l=en --into <YYYYMM/DDNN>`
-补进同一个文章目录，`zh-cn/` 与 `en/` 因此天然配对。
+上限 99），并预填 frontmatter 的全部字段（`slug` 由标题推导，推不出时留空）。
+不写 `-l` 时**创建全部语言**（`zh-cn` + `en` 各一份 `index.md`，标题相同）；交互向导
+默认只勾中文。标题留空时 `title` / `slug` 写空串，`doc check` 会提示补齐。
 
 ```text
 docs/202610/2401/zh-cn/index.md
 → /zh-cn/202610/2401/我的新文章/
 ```
 
-其它选项：`-s/--slug` 直接指定 URL 段落、`-l/--lang` 选语言、`-d/--description` 写摘要、
-`--into <YYYYMM/DDNN>` 往已有文章目录里补语言版、`--draft` 建草稿、`--no-outline` 关右栏
-目录、`--dry-run` 不写盘，完整列表看 `pnpm new --help`。注意 `-n/--sequence` 必须是两位
-（`01`–`99`）。
+其它选项：`-t/--tag` 写标签、`-s/--slug` 指定 URL 段落、`--description` 写摘要、
+`-n/--sequence` 指定当日序号（`01`–`99`）、`--into <YYYYMM/DDNN>` 补语言版、`--draft`
+建草稿、`--no-outline` 关右栏、`--no-assets` 不建 `images/`、`--try` 不写盘。
+完整列表看 `pnpm doc new --help`。
 
 > **新建文章后要重启 `pnpm dev`。** 文章的 URL 由「目录 + `slug`」在启动时算出来，
 > 运行中的 dev 不会重新扫描文章目录（`pnpm build` 每次都会重算，线上无影响）。
@@ -101,7 +112,7 @@ docs/202610/1901/
 | 日与序号都必须是两位     | 1 日 = `01`，第 1 篇 = `01`；`2026/10/01` 这类写法不认                  |
 | 一个语言一个 `index.md`  | `<YYYYMM>/<DDNN>/<locale>/index.md`，不要再套一层标题命名的子目录       |
 | `shared/` 只放资源       | 跨语言共用的图片等放 `<YYYYMM>/<DDNN>/shared/`，里面**不放** `.md`      |
-| 目录日期与 `date` 同一天 | 不一致时 `pnpm check` 会 warn（不阻断构建，也不会替你搬目录）           |
+| 目录日期与 `date` 同一天 | 不一致时 `pnpm doc check` 会 warn（不阻断构建，也不会替你搬目录）       |
 | 目录名别轻易改           | 目录是文章的身份（跨语言配对、`check` 对账都看它）；改目录 = 换一篇文章 |
 
 **为什么把标题从目录名里拿掉**：目录名是给机器看的——排序、跨语言配对、和 `date`
@@ -113,7 +124,7 @@ docs/202610/1901/
 
 ```markdown
 ---
-title: 我的文章标题
+title: '我的文章标题'
 date: 2026-10-20T10:30:00+08:00
 ---
 
@@ -123,7 +134,7 @@ date: 2026-10-20T10:30:00+08:00
 ```
 
 只有 `title` 和 `date` 是必需的。`slug` 省略时由 `title` 按
-`.vitepress/support/slug.ts` 的规则推导；`pnpm new` 会把它显式写出来，更方便。
+`.vitepress/support/slug.ts` 的规则推导；`pnpm doc new` 会把它显式写出来，更方便。
 
 ### 写完怎么预览
 
@@ -146,20 +157,27 @@ pnpm preview  # 预览上次 build 的产物
 ## 二、frontmatter 全部字段
 
 frontmatter 是文件开头 `---` 之间的 YAML 区块。**本站支持的全部字段如下**
-（顺序建议照抄，`pnpm fix` 会按这个顺序重排）：
+（顺序建议照抄，`pnpm doc fix` 会按这个顺序重排）：
 
 ```yaml
 ---
-title: 文章标题
-slug: 文章标题
+title: '文章标题'
+slug: '文章标题'
 date: 2026-10-20T10:30:00+08:00
 # updated: 2026-10-28T09:00:00+08:00   # 可选：改过稿才写
 tags: ['随笔', '工具']
-description: 一句话摘要，显示在列表和搜索引擎里。
+description: '一句话摘要，显示在列表和搜索引擎里。'
 draft: false
 outline: true
 ---
 ```
+
+> 字符串字段（`title` / `slug` / `description`）与标签项**一律加单引号**，`doc fix` 会自动
+> 规范化；`date` 与布尔值保持裸值。
+
+写完可以顺手整理：`pnpm doc fix` 统一元字段（顺序、补字段、时区、标签、引号），
+`pnpm doc format` 只排版正文（空行、标题空格、列表符号），不碰 frontmatter 与代码块。
+两者都能先加 `--try` 预览。
 
 ### 逐字段说明
 
@@ -175,8 +193,8 @@ outline: true
 | `outline`     |      | 布尔       | `false` 时关掉右栏目录                                | 全局设置（默认开）                   |
 
 > 字段表的唯一事实来源是 `scripts/lib/frontmatter-schema.ts`（代码侧）。
-> `pnpm check` 按它校验，`pnpm new` / `pnpm fix` 按它生成与补齐。
-> `updated` 是**不会被 `pnpm new` 写进头部**的字段——没有改过稿时写一行空字段只是噪声。
+> `pnpm doc check` 按它校验，`pnpm doc new` / `pnpm doc fix` 按它生成与补齐。
+> `updated` 是**不会被 `pnpm doc new` 写进头部**的字段——没有改过稿时写一行空字段只是噪声。
 
 ### `date` 的写法
 
@@ -186,7 +204,7 @@ date: 2026-10-20 # 可以：按 UTC 零点解析，在站点时区里仍是同�
 ```
 
 站点固定用 `Asia/Shanghai` 显示日期，不带时区会被构建机按 UTC 解读，跨零点就显示成
-前一天。`pnpm check` 会提示，`pnpm fix` 能自动补全。
+前一天。`pnpm doc check` 会提示，`pnpm doc fix` 能自动补全。
 
 ### `updated`（更新日期，按需手写）
 
@@ -200,7 +218,7 @@ updated: 2026-10-28T09:00:00+08:00 # 写成与 date 相同的格式
 三条规则：
 
 1. **只有「更新日」晚于「发布日」才显示**——同一天改个错字不算更新（否则每篇刚发的
-   文章都会挂上「更新于」），写早了（早于 `date`）也不显示，`pnpm check` 会给 warn；
+   文章都会挂上「更新于」），写早了（早于 `date`）也不显示，`pnpm doc check` 会给 warn；
 2. 同年显示 `MM-DD`，跨年显示 `YYYY-MM-DD`（避免把 1 月 2 日读成去年的）；
 3. 它会进 RSS 的 `<atom:updated>`，并成为 sitemap 里该文章的 `lastmod`——改过稿的文章
    因此会被搜索引擎重新抓取。
@@ -234,9 +252,9 @@ docs/202610/1901/zh-cn/index.md + slug: 你好，世界
 [DEVELOPING.md 的「标签 URL 转英文」](./DEVELOPING.md#标签-url-转英文)。
 
 **改 `slug` = 改 URL**，属于破坏性操作——旧链接 404、RSS 订阅者看到的链接会变。
-`pnpm new` 会把推导值显式写进 frontmatter，所以之后改 `title` 不会牵动 URL；反过来，
+`pnpm doc new` 会把推导值显式写进 frontmatter，所以之后改 `title` 不会牵动 URL；反过来，
 一直省略 `slug` 时改标题就会改 URL。**slug 不可用**（含空格、`/`、`?`、`#` 等）时构建
-会回退到推导值，`pnpm check` 会报「slug 不可用」让你修。
+会回退到推导值，`pnpm doc check` 会报「slug 不可用」让你修。
 
 ### `description` 的取舍
 
@@ -257,8 +275,8 @@ docs/202610/1901/zh-cn/index.md + slug: 你好，世界
 RSS 与 sitemap——站点上没有它的任何痕迹，也不存在一个能打开的 URL。本地 `pnpm dev` 同样
 看不到它。
 
-发布时把 `draft` 改成 `false` 并重新构建，文章才会出现。`pnpm new --draft` 建出来的就是
-这种文件；`pnpm posts --draft` 能把草稿一起列出来。
+发布时把 `draft` 改成 `false` 并重新构建，文章才会出现。`pnpm doc new --draft` 建出来的就是
+这种文件；`pnpm doc list --drafts` 能把草稿一起列出来。
 
 ### `outline`（右栏目录）
 
@@ -267,7 +285,7 @@ H2/H3 的页面，即使不写也不会显示目录——右栏会自动换成�
 
 ### 不再支持的旧字段
 
-从 Hugo 迁移过来时，以下旧字段**已废弃**，写了不生效（`pnpm check` 会提示）：
+从 Hugo 迁移过来时，以下旧字段**已废弃**，写了不生效（`pnpm doc check` 会提示）：
 
 | 旧字段          | 现状                                                        |
 | --------------- | ----------------------------------------------------------- |
@@ -398,9 +416,9 @@ EXIF / GPS 全部剥掉、加载前先铺一层模糊占位）。**硬上限**�
 `true` 后同样要**重启 `pnpm dev`** 才生效（与新增文章、改 `slug` 需要重启是同一个原因：
 路由与排除清单在启动时算好）。
 
-写草稿：`pnpm new --draft` 直接建，或手写时在 frontmatter 加一行 `draft: true`。
-草稿文件本身仍会被 `pnpm check` 逐项检查、被 `pnpm posts --draft` 列出来；不带 `--draft`
-的 `pnpm posts` 不显示它们。发布：把 `draft` 改成 `false` 并重新构建。
+写草稿：`pnpm doc new --draft` 直接建，或手写时在 frontmatter 加一行 `draft: true`。
+草稿文件本身仍会被 `pnpm doc check` 逐项检查、被 `pnpm doc list --drafts` 列出来；不带
+`--drafts` 的 `pnpm doc list` 不显示它们。发布：把 `draft` 改成 `false` 并重新构建。
 
 ---
 
@@ -422,7 +440,7 @@ docs/202610/1901/en/index.md      →  /en/202610/1901/hello-world/
    各有一套，如 `随笔` / `Essay`）；
 3. 配图见[第三节「中英双语用同一张图」](#三图片)。
 
-**补英文版**：`pnpm new -l=en --into 202610/1901`（或 `--date 20261019 -n=01` 命中已有
+**补英文版**：`pnpm doc new -l=en --into 202610/1901`（或用 `-d=20261019 -n=01` 命中已有
 目录），它只往这个文章目录里加 `en/index.md`，不会另起一篇。
 
 **不写英文版也能正常工作**：缺 `en/index.md` 就是未翻译，语言按钮落到英文的**文章列表页**，
@@ -438,7 +456,7 @@ tags: ['工具', '效率']
 tags: [] # 空数组 = 没有标签，也能正常工作
 ```
 
-`pnpm check` 要求它是数组、元素都是字符串。加一个标签，构建时会自动：生成标签页
+`pnpm doc check` 要求它是数组、元素都是字符串。加一个标签，构建时会自动：生成标签页
 `/zh-cn/pages/tags/随笔/`（**不需要手写任何文件**）；在侧栏「标签」卡片按文章数倒序显示
 （最多 `profile.ts` 的 `tagsLimit` 个）；进入标签云（字号按文章数分 5 级）；出现在文章
 卡片、文章页元信息与时间线行内。标签页**只统计已发布文章**：只有草稿用着某个标签时，
@@ -447,7 +465,7 @@ tags: [] # 空数组 = 没有标签，也能正常工作
 ### 命名与改名
 
 标签**按字符串精确匹配**（`Git` 与 `git` 是两个标签），写之前先看一眼已有标签
-（`pnpm tags`）：
+（`pnpm doc list -t`）：
 
 | ✅ 好的   | ❌ 会产生两个标签                       |
 | --------- | --------------------------------------- |
@@ -514,11 +532,11 @@ date: 2026-10-20T10:30:00+08:00 # ← 只有这个决定位置
 ```
 
 想调整位置，改 `date` 即可——但目录的 `<YYYYMM>/<DDNN>` 要跟着改到同一天，
-否则 `pnpm check` 会提示「目录日期与 `date` 不一致」（它不会替你搬目录）。
+否则 `pnpm doc check` 会提示「目录日期与 `date` 不一致」（它不会替你搬目录）。
 
 ### 改标题 / 改 URL
 
-改 `title` 不影响 URL——前提是 `slug` 已显式写在 frontmatter 里（`pnpm new` 默认会写）；
+改 `title` 不影响 URL——前提是 `slug` 已显式写在 frontmatter 里（`pnpm doc new` 默认会写）；
 一直省略 `slug` 时改标题会连带改 URL。
 
 改 `slug` 就是**改 URL**，属于破坏性操作：旧链接全部 404、搜索引擎要重新收录、RSS
@@ -541,11 +559,11 @@ date: 2026-10-20T10:30:00+08:00 # ← 只有这个决定位置
 
 删文章：直接删掉那个 `<YYYYMM>/<DDNN>` 目录（含各语言版本与 `shared/` 里的配图）
 （`Remove-Item -Recurse docs/202610/1901`）。同一天只有这一篇时序号会空出来，
-`pnpm new` 下次会优先补这个空号；用过的标签如果只有它在用，标签页会自动消失。
+`pnpm doc new` 下次会优先补这个空号；用过的标签如果只有它在用，标签页会自动消失。
 
 补写旧文章：直接编辑 `<YYYYMM>/<DDNN>/<locale>/index.md`。`date` 保持原样 → 位置不变
 （推荐）；改 `date` → 会被挪到列表最前面，看起来像新文章，**同时要把目录的
-`<YYYYMM>/<DDNN>` 改成新日期**，否则 `pnpm check` 会提示不一致。想标「改过稿」就加
+`<YYYYMM>/<DDNN>` 改成新日期**，否则 `pnpm doc check` 会提示不一致。想标「改过稿」就加
 `updated`（规则见[第二节的 `updated`](#updated更新日期按需手写)），页面会显示「更新于」。
 
 ### 文章页的上下篇
@@ -579,7 +597,7 @@ date: 2026-10-20T10:30:00+08:00 # ← 只有这个决定位置
 ```
 
 **只有 H2 和 H3 进目录**。文章标题本身由 frontmatter 的 `title` 生成，
-**正文里不要再写 `#` 一级标题**，否则会出现两个大标题（`pnpm check` 会提示）。
+**正文里不要再写 `#` 一级标题**，否则会出现两个大标题（`pnpm doc check` 会提示）。
 
 ### 代码块
 
@@ -764,7 +782,7 @@ VitePress 默认允许正文写 HTML（本站没有关掉它），少用、但�
 所以卡片永远不会「卡在加载中」，也不会变成空盒子。
 
 > **旧的写法已失效**：以前直接粘一个独占一段的裸仓库链接就会自动变卡，现在**不会**了
-> ——裸链接就是普通链接。要用卡片请写 `:::github owner/repo`，`pnpm check` 会提示
+> ——裸链接就是普通链接。要用卡片请写 `:::github owner/repo`，`pnpm doc check` 会提示
 > 残留的旧写法。
 
 #### `:::link` —— 外部链接卡
@@ -899,12 +917,11 @@ VitePress 默认允许正文写 HTML（本站没有关掉它），少用、但�
 | ------------------------------------------------ | ----------------------------------------------------- |
 | 路径是不是 `docs/<YYYYMM>/<DDNN>/zh-cn/index.md` | 文章源文件只有这一种形态；位置不对就不是文章          |
 | `date` 写了没有、能不能解析                      | **date 缺失或解析不出来就不是文章**（按普通页面渲染） |
-| 目录日期和 `date` 是否同一天                     | 不一致时 `pnpm check` 提示；先改目录或 `date`         |
+| 目录日期和 `date` 是否同一天                     | 不一致时 `pnpm doc check` 提示；先改目录或 `date`     |
 | 是不是 `draft: true`                             | 草稿完全不构建，本地也看不到（改成 `false` 才出现）   |
 
-> `date` 写坏（`2026/10/20`、`2026-13-01`）时整篇会**静默**变成普通页面：
-> 默认的 `pnpm check` 不检查没有有效日期的文件，用 `pnpm check --all`
-> 才能看到「date 无法解析」。
+> 文章目录里的 Markdown 都会被检查（包括没有有效 `date` 的文件）：`date` 写成
+> `2026/10/20`、`2026-13-01` 这类无法解析的值会直接报 error，而不再是静默跳过。
 
 ### 2. 新建文章 / 改了 slug 后 dev 没反应
 
@@ -965,7 +982,7 @@ title: '重构: 一次彻底的改造'    # ✅
 □ 文章是 docs/<YYYYMM>/<DDNN>/zh-cn/index.md（DDNN = 两位日 + 两位序号）
 □ 目录日期与 frontmatter 的 date 是同一天
 □ title 写了
-□ slug 写了（或用 pnpm new 推导出的值），确认它就是想要的 URL 段落
+□ slug 写了（或用 pnpm doc new 推导出的值），确认它就是想要的 URL 段落
 □ date 写了，带 +08:00 时区
 □ description 写了（60–120 字，别指望自动摘要）
 □ tags 用了已有标签，没有大小写/空格不一致
@@ -973,7 +990,7 @@ title: '重构: 一次彻底的改造'    # ✅
 □ 本语言的图放 <locale>/images/ 用 ./images/ 引用
 □ 中英共用的图放 <YYYYMM>/<DDNN>/shared/images/ 用 ../shared/images/ 引用
 □ 需要目录的话，正文有 ## 或 ###
-□ 要发英文版就补 <YYYYMM>/<DDNN>/en/index.md（pnpm new -l=en --into）
+□ 要发英文版就补 <YYYYMM>/<DDNN>/en/index.md（pnpm doc new -l=en --into）
 □ 是草稿就写 draft: true，发布前改成 false 并重新构建
 □ 新建文章或改过 slug 后，重启过 pnpm dev
 □ 本地 pnpm dev 看过一遍效果
@@ -982,7 +999,7 @@ title: '重构: 一次彻底的改造'    # ✅
 发布前再确认：
 
 ```text
-□ pnpm check 没有 error（必要时 pnpm check --all）
+□ pnpm doc check 没有 error
 □ pnpm build 没有报错
 □ 文章出现在 /zh-cn/pages/posts/ 列表里
 □ 标签页能打开（/zh-cn/pages/tags/随笔/ 这类地址）

@@ -1,7 +1,7 @@
 /**
  * 北京时间（站点时区）的日期计算。
  *
- * `pnpm new` 要求的「以中国北京时间为准」有两个容易做错的点：
+ * `pnpm doc new` 要求的「以中国北京时间为准」有两个容易做错的点：
  *
  * 1. **不能用 `new Date().getFullYear()` 那一套。** 那些方法按**运行机器的本地时区**
  *    取值。这台机器上是对的，CI（UTC）与别人机器上就可能差一天，
@@ -71,7 +71,7 @@ export function splitZoned(date: Date, timeZone: string): ZonedParts {
  * 该时刻在指定时区的 UTC 偏移，形如 `+08:00`。
  *
  * 用 `longOffset` 而不是写死 `+08:00`：站点时区将来若改成别的地区，
- * `pnpm new` 生成的 `date` 会自动跟着正确，不需要再找一遍硬编码。
+ * `pnpm doc new` 生成的 `date` 会自动跟着正确，不需要再找一遍硬编码。
  */
 export function zonedOffset(date: Date, timeZone: string): string {
   const label = new Intl.DateTimeFormat('en-US', {
@@ -102,7 +102,7 @@ export function formatZonedIso(date: Date, timeZone: string): string {
   return `${year}-${month}-${day}T${hour}:${minute}:${second}${zonedOffset(date, timeZone)}`
 }
 
-/** `2026` + `10` + `24` → `20261024`（`pnpm posts 20261024` 的过滤格式）。 */
+/** `2026` + `10` + `24` → `20261024`（`pnpm doc list 20261024` 的过滤格式）。 */
 export function toCompactDate(parts: DateParts): string {
   return `${parts.year}${parts.month}${parts.day}`
 }
@@ -147,7 +147,7 @@ export function formatReadableDate(parts: DateParts): string {
  *
  * 不能用 `date.toISOString().slice(0, 10)`：那是 **UTC** 日期。
  * 北京时间 `2026-10-19 04:09` 的 ISO 串是 `2026-10-18T20:09Z`，
- * 截取会得到 `10-18` —— 实测 `pnpm posts` 就把文章显示成了前一天。
+ * 截取会得到 `10-18` —— 实测 `pnpm doc list` 就把文章显示成了前一天。
  * 这与 `.vitepress/support/format.ts` 里 `formatRfc822` 踩过的是同一个坑。
  */
 export function isoDateInZone(date: Date, timeZone: string): string {

@@ -3,7 +3,7 @@
  *
  * 为什么不用 `gray-matter` 自带的 `stringify()`：它会重新生成块状 YAML，
  * 把现有的单行数组 `tags: ['随笔']` 摊成多行、给所有字符串加引号，
- * 于是 `pnpm fix` 一跑就是满屏 diff，作者根本看不出改了什么。
+ * 于是 `pnpm doc fix` 一跑就是满屏 diff，作者根本看不出改了什么。
  *
  * 这里手写序列化，只为满足一个目标：**输出的字节与仓库现有文章一致**。
  * 现有的 `hello-world/index.md` 就是事实标准——
@@ -33,7 +33,12 @@ import { SITE_TIME_ZONE } from './site'
 export interface FrontmatterStyleOptions {
   /** 数组是否内联成 `['a', 'b']`（`true`，与现有文章一致）还是块状（`false`）。 */
   inlineArrays?: boolean
-  /** 字符串是否一律加单引号。默认 **不加**，仅在该值有语法歧义时才加。 */
+  /**
+   * 字符串是否一律加单引号。
+   *
+   * 默认 `true`：标题、slug、摘要、标签项统一带引号，方便解析、也避免
+   * `title: 标题: 副标题` 这类裸标量歧义。日期与布尔值仍写裸值。
+   */
   quoteAllStrings?: boolean
 }
 
@@ -127,7 +132,7 @@ function serializeString(value: string): string {
  * 序列化标签数组：默认内联 `['a', 'b']`，空数组写 `[]`。
  *
  * 标签**一律加单引号**，与仓库现有文章（`tags: ['随笔']`）保持一致。
- * 不加引号虽然也是合法 YAML，但会让 `pnpm fix` 与手写文件的风格分叉，
+ * 不加引号虽然也是合法 YAML，但会让 `pnpm doc fix` 与手写文件的风格分叉，
  * 每次改标签都产生无意义 diff。
  */
 function serializeTags(tags: readonly string[], inline: boolean): string {
@@ -205,7 +210,7 @@ export function stringifyFrontmatter(
 ): string {
   const style: Required<FrontmatterStyleOptions> = {
     inlineArrays: options.inlineArrays ?? true,
-    quoteAllStrings: options.quoteAllStrings ?? false,
+    quoteAllStrings: options.quoteAllStrings ?? true,
   }
 
   const lines: string[] = []
@@ -225,14 +230,19 @@ export function stringifyFrontmatter(
     if (value === undefined) continue
 
     if (Array.isArray(value)) {
-      const items = value.map((item) => serializeString(String(item)))
+      const items = value.map((item) =>
+        style.quoteAllStrings ? quote(String(item)) : serializeString(String(item)),
+      )
       lines.push(`${key}: [${items.join(', ')}]`)
     } else if (typeof value === 'boolean') {
       lines.push(`${key}: ${value ? 'true' : 'false'}`)
     } else if (value === null) {
       lines.push(`${key}:`)
     } else {
-      lines.push(`${key}: ${serializeString(String(value))}`)
+      const text = String(value)
+      lines.push(
+        `${key}: ${style.quoteAllStrings && text !== '' ? quote(text) : serializeString(text)}`,
+      )
     }
   }
 
@@ -242,7 +252,7 @@ export function stringifyFrontmatter(
    * 实测环境：仓库没有 .gitattributes，而 `core.autocrlf=true`，
    * 所以**工作区里的 Markdown 是 CRLF、仓库里存的是 LF**。
    * `gray-matter` 原样保留了正文的 CRLF，若这里固定用 `\n` 拼接，
-   * 就会得到混合行尾；若把正文的 `\r\n` 也一起改掉，`pnpm fix` 就会
+   * 就会得到混合行尾；若把正文的 `\r\n` 也一起改掉，`pnpm doc fix` 就会
    * 把整篇正文都标记成改动（125 行全红），作者根本看不出真正修了什么。
    *
    * 结论：跟随正文的现有风格。新建文件时正文由脚本生成（LF），
@@ -287,6 +297,64 @@ export function typeOfValue(value: unknown): string {
   if (value instanceof Date) return 'Date'
   if (Array.isArray(value)) return 'array'
   return typeof value
+}
+
+/**
+ * 需要「一律加引号」的字符串字段。
+ *
+ * `date` 不在此列：它必须是裸时间戳，`gray-matter` 才会解析成 `Date`；
+ * 布尔值同理。`tags` 的元素由序列化器单独处理。
+ */
+const QUOTED_STRING_KEYS = ['title', 'slug', 'description'] as const
+
+/**
+ * 找出文件里**没加引号**的字符串字段。
+ *
+ * `check` 据此提示、`fix` 据此把文件重写成统一带引号的风格。只看单行
+ * `key: value`，空值（`key:`）与已经带引号的值都跳过。
+ */
+export function unquotedStringFields(raw: string): string[] {
+  const block = rawFrontmatterBlock(raw)
+  if (block === '') return []
+
+  const found: string[] = []
+  for (const key of QUOTED_STRING_KEYS) {
+    for (const line of block.split(/\r?\n/)) {
+      const matched = new RegExp(`^${key}\\s*:\\s*(.*)$`).exec(line)
+      if (!matched) continue
+      const value = matched[1].trim()
+      if (value === '' || value.startsWith("'") || value.startsWith('"')) break
+      found.push(key)
+      break
+    }
+  }
+  return found
+}
+
+/**
+ * 把文件拆成「frontmatter 原文 + 正文」。
+ *
+ * 与 `gray-matter` 的 `matter()` 不同，这里保留 frontmatter 的**原始字节**
+ * （引号、字段顺序、行尾都不动），只让调用方替换正文——`doc format`
+ * 只排版正文，不能顺手把头部重新序列化。
+ *
+ * `header` 不含结尾换行；没有 frontmatter 时 `header` 为空串、`body` 是全文。
+ */
+export function splitFrontmatterRaw(raw: string): { header: string; body: string } {
+  const matched = /^(---\r?\n[\s\S]*?\r?\n---[ \t]*)(\r?\n|$)/.exec(raw)
+  if (!matched) return { header: '', body: raw }
+  return { header: matched[1], body: raw.slice(matched[0].length) }
+}
+
+/**
+ * 用新的正文拼回文件：frontmatter 原样保留，正文前保证恰好一个空行。
+ *
+ * `body` 应当已由 `formatMarkdownBody()` 规范化（无前导空行、末尾恰好一个换行）。
+ */
+export function joinFrontmatter(header: string, body: string): string {
+  if (header === '') return body
+  const eol = header.includes('\r\n') ? '\r\n' : '\n'
+  return `${header}${eol}${eol}${body}`
 }
 
 /** 仅供类型检查确保 key 类型被使用。 */

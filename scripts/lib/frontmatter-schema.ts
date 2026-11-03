@@ -39,12 +39,12 @@ export interface FrontmatterField {
   type: FrontmatterType
   /** 是否必填。必填字段缺失时 `check` 报错。 */
   required: boolean
-  /** 一句话说明（用于 `pnpm new --help` 与 `check` 的提示）。 */
+  /** 一句话说明（用于 `pnpm doc new --help` 与 `check` 的提示）。 */
   summary: string
   /** 省略该字段时会发生什么（与 `WRITING.md` 的表格保持一致）。 */
   fallback: string
   /**
-   * `pnpm new` 生成的占位值 / `pnpm fix` 补齐时写入的值。
+   * `pnpm doc new` 生成的占位值 / `pnpm doc fix` 补齐时写入的值。
    *
    * `date` 是空串：真实时刻必须由 `scripts/new.ts` 按北京时间算出来，
    * 塞一个假的默认值只会掩盖错误。
@@ -56,7 +56,7 @@ export interface FrontmatterField {
  * 全部字段，**顺序即写入 `index.md` 的顺序**。
  *
  * 必填在前、可选在后，与 `WRITING.md` 的表格、现有文章的头部完全一致，
- * 这样 `pnpm fix` 重排后不会产生无意义的大 diff。
+ * 这样 `pnpm doc fix` 重排后不会产生无意义的大 diff。
  */
 export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
   {
@@ -85,7 +85,7 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
   },
   {
     /*
-     * 更新时刻：**不写就是没更新过**，因此 `pnpm new` 不生成它。
+     * 更新时刻：**不写就是没更新过**，因此 `pnpm doc new` 不生成它。
      * 只有日期部分晚于 `date` 时，文章页才会显示「更新于 …」。
      */
     key: 'updated',

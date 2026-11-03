@@ -27,7 +27,7 @@ export { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE }
 /**
  * 站点时区。
  *
- * `pnpm new` 的「今天」、目录名的年/月/日、frontmatter 的 `date` 全部按它算。
+ * `pnpm doc new` 的「今天」、目录名的年/月/日、frontmatter 的 `date` 全部按它算。
  * 取 `site.ts` 的配置而不是写死 `Asia/Shanghai`：站点时区只有一个地方能改。
  */
 export const SITE_TIME_ZONE = SITE.timeZone

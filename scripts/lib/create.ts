@@ -80,12 +80,14 @@ export interface CreatePostOptions {
   now?: Date
   /** 内容根目录，默认仓库 `docs/`；可传入其它目录做临时验证。 */
   docsDir?: string
-  /** 只计算不落盘（`--dry-run` 用）。 */
+  /** 只计算不落盘（`--try` 用）。 */
   dryRun?: boolean
 }
 
 /** 新建结果。 */
 export interface CreatePostResult {
+  /** 这篇文章的语言版本。 */
+  locale: LocaleCode
   /** 相对 `docs/` 的源文件路径：`<YYYYMM>/<DDNN>/<lang>/index.md`。 */
   filePath: string
   /** 绝对路径。 */
@@ -221,8 +223,12 @@ function resolveSlug(slugOption: string | undefined, title: string): string {
     throw new Error(`slug 不可用：${explicit}（不能含空格、斜杠、方括号等会破坏 URL 的字符）`)
   }
 
-  const candidate = explicit !== '' ? explicit : slugify(title)
-  return isUsableSlug(candidate) ? candidate : 'untitled'
+  // 标题与 slug 都留空时，就写空串：作者先建骨架、稍后补标题，
+  // 构建期 `slugOf()` 会回退到 `untitled`，不会产出坏 URL。
+  if (explicit !== '' || title.trim() === '') return explicit
+
+  const derived = slugify(title)
+  return isUsableSlug(derived) ? derived : 'untitled'
 }
 
 /**
@@ -294,7 +300,7 @@ function resolveArticleDir(
  * 给已有文章补语言版本时，发布时刻必须继承同目录另一语言版本。
  *
  * 同一篇内容的各语言版本是同一时刻发布的：沿用「当前时刻」会让两边的
- * `date` 不同，`pnpm check` 会报「目录日期与 date 不一致」，RSS 里的先后
+ * `date` 不同，`pnpm doc check` 会报「目录日期与 date 不一致」，RSS 里的先后
  * 顺序也会和读者理解的「同一篇」矛盾。
  *
  * 读的是文件里的原始字面量（`rawScalarValue`），而不是 `gray-matter` 解析后的
@@ -320,7 +326,7 @@ function inheritedArticleDate(
  */
 export function createPost(options: CreatePostOptions): CreatePostResult {
   const now = options.now ?? new Date()
-  const title = options.title?.trim() || '未命名文章'
+  const title = options.title?.trim() ?? ''
   const docsDir = options.docsDir ?? DOCS_DIR
 
   const { month, daySeq, sequence, isNewArticleDir } = resolveArticleDir(options, docsDir)
@@ -360,6 +366,7 @@ export function createPost(options: CreatePostOptions): CreatePostResult {
   }
 
   return {
+    locale: options.locale,
     filePath,
     absolutePath,
     articleDir,
@@ -368,7 +375,8 @@ export function createPost(options: CreatePostOptions): CreatePostResult {
     daySeq,
     sequence,
     slug,
-    url: articleUrlPath(options.locale, month, daySeq, slug),
+    // 空 slug 在构建期会回退成 `untitled`，这里按同一口径展示，避免打印出坏路径
+    url: articleUrlPath(options.locale, month, daySeq, slug === '' ? 'untitled' : slug),
     content,
     written: !options.dryRun,
     existingLocales,

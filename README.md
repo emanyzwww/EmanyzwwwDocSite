@@ -17,20 +17,21 @@ pnpm build       # 构建到 .vitepress/dist
 pnpm preview     # 预览构建产物
 ```
 
-内容侧命令（写文章用）：
+内容侧命令（写文章用，全部收在 `doc` 下）：
 
 ```powershell
-pnpm new         # 新建文章（北京时间 + 当日序号 + 补全 frontmatter，只建当前语言）
-pnpm posts       # 列出文章（可带 20261024 只看某天）
-pnpm check       # 检查 frontmatter / 目录约定
-pnpm fix         # 自动修正
-pnpm stats       # 统计
-pnpm tags        # 标签清单
-pnpm clean       # 清理产物与缓存
-pnpm guide       # 全部命令的总览
+pnpm doc          # 交互主菜单：新建 / 列出 / 检查 / 修复 / 格式化 / 清理
+pnpm doc new      # 新建文章（不带参数进向导）
+pnpm doc list     # 列出文章；-d=2026 过滤日期、-t 看标签视图、--stats 统计
+pnpm doc check    # 检查元字段 / 目录约定
+pnpm doc fix      # 自动修正元字段
+pnpm doc format   # 排版正文
+pnpm doc clean    # 清理产物与缓存
+pnpm doc help     # 命令总览；pnpm doc help <命令> 看单条
 ```
 
-补另一语言版本：`pnpm new -l=en --into 202610/1901`（写进同一个文章目录，不分配新序号）。
+非交互示例：`pnpm doc new "你好，世界" -l=zh-cn -t=随笔`。
+补另一语言版本：`pnpm doc new -l=en --into 202610/1901`（写进同一个文章目录，不分配新序号）。
 
 本地检查：`pnpm lint` / `pnpm typecheck` / `pnpm format:check`
 （CI 在构建前跑 lint / typecheck / audit）。
@@ -77,7 +78,7 @@ pnpm guide       # 全部命令的总览
 ```text
 .vitepress/    配置（config.ts）+ 构建期工具（support/、shared/、data/）+ 运行期主题（theme/）
 docs/          内容：日期树 <YYYYMM>/<DDNN>/{zh-cn,en,shared}/ + 站点页面 site/<locale>/
-scripts/       内容侧命令行（不参与构建）：run.ts + new/posts/check/fix/stats/tags/clean
+scripts/       内容侧命令行（不参与构建）：doc.ts 入口 + commands/ 子命令 + lib/ 共用内核
 media/         会替换的图片（按内容指纹命名）
 public/        原样拷贝：favicon、根路径语言跳转页、占位图
 ```

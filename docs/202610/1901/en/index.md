@@ -1,9 +1,9 @@
 ---
-title: Hello, World
-slug: hello-world
+title: 'Hello, World'
+slug: 'hello-world'
 date: 2026-10-19T04:09:28+08:00
 tags: ['Essay']
-description: Every programmer starts somewhere, and for many, that beginning is a simple program that prints "Hello, World!"
+description: 'Every programmer starts somewhere, and for many, that beginning is a simple program that prints "Hello, World!"'
 draft: false
 outline: true
 ---

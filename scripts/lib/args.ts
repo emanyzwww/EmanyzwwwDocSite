@@ -1,19 +1,18 @@
 /**
  * 命令行参数解析。
  *
- * 刻意不引第三方库：本站只需要「位置参数 + 少量开关」，一个 60 行的解析器
- * 比多一个依赖更容易审。支持的写法（`pnpm <命令>` 会把参数原样透传）：
+ * 刻意不引第三方库：本站只需要「位置参数 + 少量开关」，一个几十行的解析器
+ * 比多一个依赖更容易审。支持的写法（`pnpm doc <子命令>` 会把参数原样透传）：
  *
- *   pnpm posts 20261024 -l=zh-cn
- *   pnpm posts 20261024 --lang zh-cn --tags=随笔 --json
- *   pnpm new --title="我的文章" -l=en --draft
+ *   pnpm doc list -d=20261024 -l=zh-cn
+ *   pnpm doc list -t=随笔 --compact
+ *   pnpm doc new "我的文章" -l=en --draft
  *
  * 两个必须处理的细节：
- * 1. pnpm 在某些场景下会把 `--` 一并传进来（实测 `pnpm posts -- --lang=en`
+ * 1. pnpm 在某些场景下会把 `--` 一并传进来（实测 `pnpm doc list -- --lang=en`
  *    得到的是 `['--', '--lang=en']`），因此这里先剥掉单独的 `--`；
- * 2. `pnpm list` 是 pnpm 的内置命令，会抢在脚本之前解析参数并直接报错
- *    （`unexpected argument '-l' found`）。所以对外统一用 `pnpm posts`，
- *    `list` 只作为 `pnpm run list` 的别名保留。
+ * 2. `pnpm doc list` 里的 `list` 是**子命令参数**，不会和 pnpm 内置的 `list`
+ *    命令冲突；入口只把第一个非选项 token 当子命令名。
  */
 
 /** 一个可接受的长/短选项。 */
@@ -24,6 +23,11 @@ export interface OptionSpec {
   short?: string
   /** 布尔开关：出现即为 true，不消费后面的参数。 */
   boolean?: boolean
+  /**
+   * 值可省略：裸用（如 `list -t`）得到 `true`；写成 `-t=随笔` 或
+   * `-t 随笔` 时得到字符串。只有 `list` 的 `-t` 用它切「标签视图」。
+   */
+  optionalValue?: boolean
 }
 
 /** 解析结果。 */
@@ -70,6 +74,22 @@ export function parseArgs(argv: string[], specs: OptionSpec[] = []): CliArgs {
       }
 
       if (spec.boolean) {
+        options.set(spec.name, true)
+        continue
+      }
+
+      if (spec.optionalValue) {
+        if (inlineValue !== undefined) {
+          options.set(spec.name, inlineValue)
+          continue
+        }
+        const next = argv[index + 1]
+        // 后一项是另一个选项（或以 - 开头）时按「裸用」处理
+        if (next !== undefined && !next.startsWith('-')) {
+          options.set(spec.name, next)
+          index += 1
+          continue
+        }
         options.set(spec.name, true)
         continue
       }

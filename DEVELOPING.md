@@ -157,19 +157,23 @@ docs/                      ← 只有内容
          └─ tags/[tag]/index.md            标签模板 + index.paths.ts
 
 scripts/                   ← 命令行脚本（内容侧工具，不参与构建）
-├─ run.ts                 统一入口：按命令名分发，提供统一的参数与错误出口
-├─ new.ts                 pnpm new    新建文章（北京时间 + 当日序号 + 补全 frontmatter）
-├─ posts.ts               pnpm posts  列出文章（按日期 / 语言 / 标签）
-├─ check.ts               pnpm check  检查 frontmatter 与路径规范
-├─ fix.ts                 pnpm fix    自动修可修的项（排序、补字段、日期规范化）
-├─ stats.ts               pnpm stats  统计文章数 / 字数 / 分布
-├─ tags.ts                pnpm tags   标签及文章数
-├─ clean.ts               pnpm clean  清理构建产物与缓存
-└─ lib/                   共享内核（纯函数）
+├─ doc.ts                 唯一入口：子命令路由、全局参数、交互主菜单
+├─ commands/              每个子命令一个文件
+│  ├─ new.ts              pnpm doc new      新建文章（向导 / 非交互）
+│  ├─ list.ts             pnpm doc list     列出 / 标签视图 / 统计
+│  ├─ check.ts            pnpm doc check    检查 frontmatter 与路径规范
+│  ├─ fix.ts              pnpm doc fix      自动修元字段
+│  ├─ format.ts           pnpm doc format   排版正文（不动 frontmatter）
+│  └─ clean.ts            pnpm doc clean    清理构建产物与缓存
+└─ lib/                   共享内核
+   ├─ cli.ts              命令元信息、全局参数、交互判定、帮助渲染
+   ├─ filters.ts          -l/-d/-t 的解析与文章过滤
+   ├─ prompt.ts           @clack/prompts 封装（取消处理、确认、多选）
+   ├─ markdown-format.ts  正文排版纯函数（可单测）
    ├─ site.ts             仓库路径、语言表、时区（从 .vitepress 再导出）
    ├─ dates.ts            北京时间的日期换算与 ISO 序列化
    ├─ frontmatter-schema.ts ★ frontmatter 字段表（唯一事实来源）
-   ├─ frontmatter.ts      frontmatter 的解析与序列化（保持仓库写作风格）
+   ├─ frontmatter.ts      frontmatter 的解析、序列化与引号规范化
    ├─ posts.ts            文章路径解析与收集（`<YYYYMM>/<DDNN>/`）
    ├─ create.ts           建目录、分配序号、写 frontmatter（含自动推导的 slug）
    ├─ args.ts             命令行参数解析
@@ -179,7 +183,7 @@ scripts/                   ← 命令行脚本（内容侧工具，不参与构�
 
 media/                     ← 会换的图（头像等），走 Vite 指纹
 public/                    ← 原样拷贝：favicon、根路径语言跳转页
-.gitattributes             统一行尾 LF（见「`pnpm check` / `pnpm fix` 的边界」）
+.gitattributes             统一行尾 LF（见「`pnpm doc check` / `pnpm doc fix` 的边界」）
 ```
 
 带 ★ 的是**日常最常改的**。IDE / AI 辅助目录（`.idea/`、`.vscode/`、`.dsh/`）未列出。
@@ -252,15 +256,15 @@ frontmatter 字段的权威定义在 `scripts/lib/frontmatter-schema.ts`。
 
 ### 已被删除的旧入口（别再去翻）
 
-| 旧路径 / 旧符号                                                       | 现状                                             |
-| --------------------------------------------------------------------- | ------------------------------------------------ |
-| `.vitepress/data/widgets.ts`、`widgets.data.ts`                       | 已删。侧栏没有「纯文本卡片」，只有注册表里的两张 |
-| `theme/components/aside/WidgetsCard.vue`、`LinksCard.vue`             | 已删                                             |
-| `theme/support/icons.ts`（兼容层）                                    | 已删，`shared/icons.ts` 是唯一图标表             |
-| `.vitepress/data/frontmatter.ts`                                      | 移到 `scripts/lib/frontmatter-schema.ts`         |
-| `scripts/lib/site.ts` 的 `articleRootDir` / `pagesDir` / `localeMeta` | 已删；目录与语言从 `.vitepress` 再导出           |
-| `SiteHeader` / `MobileDock` 上的 `data-mode` 调试属性                 | 已删；没有任何 CSS / JS 依赖它                   |
-| `package.json` 的 `list` 别名                                         | 已删；列文章用 `pnpm posts`，总览用 `pnpm guide` |
+| 旧路径 / 旧符号                                                       | 现状                                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------------ |
+| `.vitepress/data/widgets.ts`、`widgets.data.ts`                       | 已删。侧栏没有「纯文本卡片」，只有注册表里的两张       |
+| `theme/components/aside/WidgetsCard.vue`、`LinksCard.vue`             | 已删                                                   |
+| `theme/support/icons.ts`（兼容层）                                    | 已删，`shared/icons.ts` 是唯一图标表                   |
+| `.vitepress/data/frontmatter.ts`                                      | 移到 `scripts/lib/frontmatter-schema.ts`               |
+| `scripts/lib/site.ts` 的 `articleRootDir` / `pagesDir` / `localeMeta` | 已删；目录与语言从 `.vitepress` 再导出                 |
+| `SiteHeader` / `MobileDock` 上的 `data-mode` 调试属性                 | 已删；没有任何 CSS / JS 依赖它                         |
+| `package.json` 的 `list` 别名                                         | 已删；列文章用 `pnpm doc list`，总览用 `pnpm doc help` |
 
 本轮还清掉了一批死符号（`repoDisplayTitle`、`stripLocalePrefix`、`clearContentCache`、
 `clearRenderedContent`、`referencedSources`、`assertReadable`、`resetLightboxState`、
@@ -1184,45 +1188,48 @@ export const TAG_LABELS: Record<string, string> = {
 
 ### 命令行脚本体系
 
-写文章时用得最多的是 `pnpm new` 与 `pnpm posts`，它们**不是**各自独立的脚本，
-而是共享同一套内核。
-
-**为什么单入口 + 共享内核**：`package.json` 里所有自有命令都指向
-`tsx scripts/run.ts <命令>`：
+所有内容命令都收在 `pnpm doc` 下，唯一入口是 `scripts/doc.ts`：
 
 ```text
-pnpm new    →  tsx scripts/run.ts new
-pnpm posts  →  tsx scripts/run.ts posts
-pnpm check  →  tsx scripts/run.ts check
-pnpm guide  →  tsx scripts/run.ts --help
+pnpm doc            →  tsx scripts/doc.ts
+pnpm doc new ...    →  tsx scripts/doc.ts new ...
+pnpm doc list ...   →  tsx scripts/doc.ts list ...
+pnpm doc check ...  →  tsx scripts/doc.ts check ...
 ```
 
-`run.ts` 按命令名动态 `import` 对应模块，并统一负责参数透传与错误出口
-（业务代码只管 `throw new Error('人话')`，由它打印成一行 `✗ 原因` 并置非零退出码；
-`DEBUG=1` 时才打印堆栈）。
+入口只做三件事：子命令路由（`COMMANDS` 数组，按 `meta.name` 索引）、全局参数
+`-l/-d/-t` 的解析、交互判定。命令实现在 `scripts/commands/<name>.ts`，每个导出
+`meta`（帮助信息）与 `main(argv)`；`new / fix / format / clean` 另导出 `wizard()`
+供主菜单复用。**加一个命令** = 在 `commands/` 加文件 + 在 `doc.ts` 的 `COMMANDS`
+数组加一行，帮助会自动出现在 `pnpm doc help` 里。
 
-**为什么命令脚本要复用 `.vitepress` 里的定义**：
+**交互判定**（`lib/cli.ts`）：
 
-| 事实                  | 唯一来源                                       | 谁在用                      |
-| --------------------- | ---------------------------------------------- | --------------------------- |
-| 有哪些语言            | `.vitepress/data/site.ts`                      | 构建期、主题、**命令行**    |
-| 站点时区              | `.vitepress/data/site.ts`                      | RSS、日期格式化、**命令行** |
-| 文章 frontmatter 字段 | `scripts/lib/frontmatter-schema.ts`            | `new` / `check` / `fix`     |
-| 文件夹路径与通用换算  | `.vitepress/support/*` + `scripts/lib/site.ts` | 构建期路由、**命令行**      |
+- `stdout` 与 `stdin` 都是 TTY、且不在 CI 时才算交互；
+- `pnpm doc` 无参数 → 主菜单；非 TTY → 打印总帮助；
+- `new / fix / format / clean` 无任何参数 → 向导；`list / check` 无参数 → 按默认范围
+  直接执行；
+- 带任意参数 → 一律非交互，跑完即退。
 
-因此 `scripts/lib/` **不复制**这些定义，只做再导出。加一门语言或加一个
-frontmatter 字段时，改一处，构建与命令一起跟上。
+**共享内核与唯一来源**：
 
-**`pnpm list` 为什么不存在**：`list` 是 pnpm 的内置命令，会在执行脚本之前先解析参数
-并直接失败，脚本根本不会启动。所以对外统一用 `pnpm posts`；`list` 别名已删除。
-同理 `pnpm help` 也是内置命令，查看总帮助用 **`pnpm guide`**。
+| 事实                  | 唯一来源                                       | 谁在用                              |
+| --------------------- | ---------------------------------------------- | ----------------------------------- |
+| 有哪些语言            | `.vitepress/data/site.ts`                      | 构建期、主题、**命令行**            |
+| 站点时区              | `.vitepress/data/site.ts`                      | RSS、日期格式化、**命令行**         |
+| 文章 frontmatter 字段 | `scripts/lib/frontmatter-schema.ts`            | `new` / `check` / `fix`             |
+| 文件夹路径与通用换算  | `.vitepress/support/*` + `scripts/lib/site.ts` | 构建期路由、**命令行**              |
+| `-l/-d/-t` 的解析     | `scripts/lib/filters.ts`                       | `list` / `check` / `fix` / `format` |
 
-**`pnpm clean --help` 会被 pnpm 截获**：`--help` / `-h` 是 pnpm 的**全局**标志，
-在决定「跑哪个命令」之前就被消费掉了，`pnpm clean --help` 显示的是 pnpm 内置 clean
-的帮助。要看本项目的帮助，直接调脚本：`npx tsx scripts/run.ts clean --help`。
-其余命令没有这个问题。
+因此 `scripts/lib/` **不复制**这些定义，只做再导出。加一门语言、加一个 frontmatter
+字段或改一个全局参数时，改一处，构建与命令一起跟上。
 
-**`pnpm new` 的日期与序号**：
+**全局参数**：`-l/--lang` 严格匹配 `zh-cn` / `en`（可逗号并列，默认全部）；`-d/--date`
+支持 `2026`、`202611`、`20261101`、`2026110101`、区间 `202601..202606`、并集
+`202601,202603`（默认全部）；`-t/--tag` 过滤标签（`list` 裸用是标签视图，`new` 里是
+写入标签）。`-v/--version` 打印站点版本。
+
+**`pnpm doc new` 的日期与序号**：
 
 ```text
 docs/<YYYYMM>/<DDNN>/<locale>/index.md
@@ -1230,46 +1237,41 @@ docs/<YYYYMM>/<DDNN>/<locale>/index.md
 ```
 
 - 日期取**站点时区**（`Asia/Shanghai`），不是运行机器的本地时区；
+- `-d=YYYYMMDD` 或 `-d=YYYYMMDDNN`；只给日期时 frontmatter 的 `date` 也落在这一天
+  （时刻取当前），避免「目录日期与 date 不一致」；
 - 序号按「每天全局」分配：扫 `docs/<YYYYMM>/` 下 `^<日>\d{2}$` 的目录名，目录存在即占用
   （不看里面写了什么），`01`、`02`…自动递增，中间有空号时优先补空号；满 `99` 直接报错
   而不是变成三位。自动分配**永不复用已有目录**——那是「同一篇的另一语言版本」；
-- 一次只建当前语言的 `index.md`；补另一语言用 `--into <YYYYMM/DDNN>`（或 `--date` + `-n`
-  命中已有目录），此时不分配新序号；
+- `-l` 省略时创建**全部语言**；`--into <YYYYMM/DDNN>` 只补目标目录里还缺的语言版本，
+  此时不分配新序号，`date` 继承同目录已有版本；
 - frontmatter 的**全部常规字段**一次写全，字段表来自 `scripts/lib/frontmatter-schema.ts`；
-  `slug` 由标题按 `support/slug.ts` 推导后**显式写入**；`date` 写成带显式偏移的完整
-  ISO 串（`2026-10-24T22:49:28+08:00`），不用裸日期；**`updated` 故意不生成**——
-  没有改过稿时写空字段只是噪声，需要时手写一行；
-- 支持 `--date YYYYMMDD`、`-n/--sequence NN`、`--into YYYYMM/DDNN`、`-s/--slug`、`--draft`、
-  `--no-outline`、`--dry-run`。
+  `slug` 由标题按 `support/slug.ts` 推导后**显式写入**；字符串字段一律单引号；`date`
+  写成带显式偏移的完整 ISO 串，不用裸日期；**`updated` 故意不生成**；
+- 每个语言目录与 `shared/` 下会创建 `images/.gitkeep`（`--no-assets` 可关）；
+- 支持 `-n/--sequence NN`、`--draft`、`--no-outline`、`--try`。
 
-**`pnpm check` / `pnpm fix` 的边界**：`check` 只报告、不改文件，分 `error`
-（退出码 1）与 `warn`（退出码 0；`--strict` 时也失败）两级。检查项包括：必填字段、
-`title` 类型/空值、`date` 可解析且带时区（必须读**文件里的原始字面量**，`gray-matter`
-解析后信息就丢了）、`updated` 可解析且晚于 `date`（写早了只是 warn：页面不会显示
-「更新于」）、`tags` 类型、字段顺序、未知/废弃/未补齐字段、slug 可用性、
-目录日期与 frontmatter 日期一致、正文为空、正文 H1（查前先剔代码块，否则注释里的 `#`
-会误报）、独占一段的裸 GitHub 链接、有 `date` 却不在文章目录（旧布局残留提示）。
+**`check` / `fix` / `format` 的边界**：
 
-另有一组**目录级规则**（都是 warn）：`<YYYYMM>/<DDNN>` 下两种语言的 `index.md` 都缺、
-语言子目录存在却缺 `index.md`、`<YYYYMM>/<DDNN>` 下出现未知子目录、`shared/` 里放了 `.md`、
-`<locale>/` 根直接放非 `index.md` 的文件、`<YYYYMM>` / `<DDNN>` 数字越界（月 01–12、
-日 01–31、序号 01–99）、`index.md` 直接放在 `<YYYYMM>/<DDNN>` 根（漏了语言层）。
-
-`fix` 只做**安全**的修改：重排字段顺序、补齐可选字段（含按 title 推导 slug）、把裸日期
-补成带时区格式、规范化标签。它**不会**重命名/移动目录，也不改标题、正文、已有 slug，
-更不删废弃字段。
+- `check` 只报告不改；`error` 退出码 1，`warn` 退出码 0；目录级检查**始终全量**，
+  不受 `-l/-d/-t` 裁剪；检查项包含必填字段、日期可解析且带时区（必须读文件原始字面量）、
+  `updated`、标签类型、字段顺序、未知/废弃字段、slug 可用性、字符串引号、目录日期一致、
+  正文空/H1、裸 GitHub 链接、目录结构规则等；
+- `fix` 只做安全修改：重排字段顺序、补齐可选字段、日期补时区、标签去重、字符串加引号；
+  **不**重命名/移动目录，不改标题、正文、已有 slug，不删废弃字段；
+- `format` 只排版正文（空行、标题空格、列表符号），frontmatter 原样保留，代码围栏内与
+  `:::` 指令不碰；两者都支持 `--try` 预览。
 
 > `.gitattributes` 统一了行尾（`* text=auto eol=lf`），所以 `fix` 写回直接用 LF 是安全的，
 > 不需要再「跟随正文换行风格」。**不要再删这个文件**：删了之后 Windows 上
 > `core.autocrlf=true` 会让 `format:check` 在本地红、CI 绿。
 
-**`pnpm posts` 的日期过滤**：`pnpm posts 20261024` 按目录日期匹配（`202610` + `24`），
-不是按 slug；`-l` / `-t/--tags` / `--draft` / `--compact` / `--json` 可用，默认不含草稿
-（`--draft` 才列）。
+**`pnpm doc list` 的日期过滤**：按**目录日期** `<YYYYMM>/<DDNN>` 匹配（不是 slug）；
+默认隐藏草稿（`--drafts` 才列）；`-t` 裸用是标签视图，`--stats` 是统计视图，另有
+`--compact` / `--sort` / `--limit`。
 
-三个命令对草稿的口径**故意不同**：`pnpm check` 会逐篇检查草稿文件本身（它只是不构建，
-源文件还在仓库里）；`pnpm tags` 默认剔除草稿（`--drafts` 连草稿的标签一起算）；`pnpm stats`
-按**语言版本数**统计并**包含草稿**（另给一行「文章目录数」）。
+三个视图对草稿的口径**故意不同**：`check` 会逐篇检查草稿文件本身（它只是不构建，源文件
+还在仓库里）；`list` / 标签视图默认剔除草稿（`--drafts` 连草稿一起算）；统计视图按
+**语言版本数**统计并**包含草稿**（另给一行「文章目录数」）。
 
 ### 加一个动态路由
 
@@ -1327,30 +1329,29 @@ docs/site/zh-cn/pages/posts/page/[page]/index.paths.ts → ../../../../../../../
 - **加 CSS**：判断职责 → 对应 `styles/*.css` 末尾；只用 `var(--xxx)`；正文规则必须挂在
   `.prose` 下
 
-### 「加一个 npm 脚本」
+### 「加一个 npm 脚本 / doc 子命令」
 
 **先判断属于哪一类**：
 
-| 类型                  | 做法                                            | 例子                                |
-| --------------------- | ----------------------------------------------- | ----------------------------------- |
-| 第三方 CLI 的直接转发 | 直接写在 `package.json`，不要包一层             | `dev`、`build`、`typecheck`、`lint` |
-| 有自己的逻辑          | 在 `scripts/` 下加一个命令文件，走统一入口      | `new`、`posts`、`check`             |
-| 只是给已有命令起别名  | 在 `package.json` 里指向同一个 `scripts/run.ts` | 现在没有别名需要（`list` 已删）     |
+| 类型                  | 做法                                           | 例子                                |
+| --------------------- | ---------------------------------------------- | ----------------------------------- |
+| 第三方 CLI 的直接转发 | 直接写在 `package.json`，不要包一层            | `dev`、`build`、`typecheck`、`lint` |
+| 内容侧命令            | 在 `scripts/commands/` 加文件，注册到 `doc.ts` | `new`、`list`、`check`              |
+| 只是给已有命令起别名  | 在 `package.json` 里指向同一个入口             | 现在没有别名需要                    |
 
 第三方 CLI 不该包脚本：多一层转发不会带来任何共享逻辑，只多一个要维护的文件。
-有逻辑的命令按四步：
+内容侧命令按三步：
 
 ```text
-① scripts/xxx.ts 里 export default function main(argv: string[]): void
-② scripts/run.ts 的 COMMANDS 里加一行：xxx: 'xxx.ts'
-③ package.json 里加：  "xxx": "tsx scripts/run.ts xxx"
-④ 加进 scripts/run.ts 的 printHelp()，否则 pnpm guide 里看不到它
+① scripts/commands/xxx.ts 导出 meta（帮助信息）与 main(argv)
+② scripts/doc.ts 的 COMMANDS 数组加一行
+③ 需要交互向导时再导出 wizard()，主菜单会复用它
 ```
 
-命令之间**不要各自重写**：语言校验走 `scripts/lib/site.ts`、日期换算走 `dates.ts`、
+命令之间**不要各自重写**：语言校验走 `scripts/lib/cli.ts`、日期过滤走 `filters.ts`、
 frontmatter 字段表走 `frontmatter-schema.ts`、读写走 `frontmatter.ts`、文章路径/slug
 走 `.vitepress/support/article-path.ts` / `slug.ts`、参数解析走 `args.ts`、
-颜色/对齐/表格走 `ui.ts`。
+颜色/对齐/表格走 `ui.ts`、交互提示走 `prompt.ts`。
 
 ---
 
