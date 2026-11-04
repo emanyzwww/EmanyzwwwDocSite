@@ -12,6 +12,16 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /*
+   * 触屏点击高亮：全局关掉。
+   *
+   * 浏览器默认会在被点元素上盖一层半透明灰（iOS/Android 各自一个颜色），
+   * 与本系统的强调色完全不搭，短按一下整块卡片发灰。
+   * 关掉之后**必须**由 `:active` 自己给出按下反馈 —— 见 components.css /
+   * mobile.css 里的各个 `:active` 规则；否则触屏会变成「点了没反应」。
+   * 只在胶囊上关掉是旧写法，漏了正文里的链接、标签与分页。
+   */
+  -webkit-tap-highlight-color: transparent;
   /* 锚点跳转时给粘性页头留出空隙（与目录高亮的阅读线共用 --anchor-offset） */
   scroll-padding-top: var(--anchor-offset);
   /* 用 clip 而非 hidden：clip 不创建滚动容器，因此不会破坏 sticky。
@@ -90,6 +100,16 @@ h1 {
 
 p {
   margin: 0;
+  /*
+   * 中英混排的孤行控制（渐进增强）。
+   *
+   * 不支持 `text-wrap: pretty` 的浏览器忽略这一行，退回默认折行，
+   * 不会有任何副作用；支持的浏览器会避免「最后一行只剩一个字」
+   * （实测移动端导语的「程。」孤行就是这么来的）。
+   * 正文段落用它而不是 `balance`：balance 适合标题这种短行，
+   * 长段落用 balance 会把整段的行长拉平，反而破坏节奏。
+   */
+  text-wrap: pretty;
 }
 
 a {
@@ -114,6 +134,11 @@ a {
 a:hover {
   color: var(--accent-hover);
   text-decoration-color: currentColor;
+}
+
+/* 按下：再深一档。链接是最高频的可点元素，没有按下态等于没有触感 */
+a:active {
+  color: var(--accent-active);
 }
 
 img,
@@ -379,6 +404,20 @@ html::-webkit-scrollbar {
 .scrollbar__thumb:active {
   background: var(--scrollbar-thumb-active);
   cursor: grabbing;
+}
+
+/*
+ * 触屏隐藏自绘滚动条。
+ *
+ * 理由不是「手机上不需要进度」，而是它**会抢手势**：拇指贴在屏幕右缘，
+ * 手指从边缘起手时按在它身上（`touch-action: none`），页面不滚。
+ * 触屏本来就没有「悬停到轨道上」这个动作，一根看不见也拖不动的手柄
+ * 只剩下坏处；页内滚动进度由顶部阅读进度条表达（那才是手机该有的反馈）。
+ */
+@media (pointer: coarse) {
+  .scrollbar {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

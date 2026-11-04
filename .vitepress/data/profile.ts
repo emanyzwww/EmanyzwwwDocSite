@@ -23,17 +23,39 @@ export const PROFILE: Profile = {
 
   name: 'Emanyzwww',
 
-  // 名字下方的一行小字
+  // 名字下方的一行小字（默认语言）
   tagline: '余晏舟',
 
-  // 自我介绍，支持完整 Markdown
+  // 自我介绍，支持完整 Markdown（默认语言）
   bio: '你好，我是一个喜欢把想法写下来的人。',
+
+  /*
+   * 其它语言的文案。
+   *
+   * 为什么在这里而不是 i18n 表里：这是**内容**不是界面文案——
+   * 它由站长自己写、随时可能改，和 `navHome` 那种「界面用词」不是一类东西。
+   * bio 支持 Markdown，因此会在构建期为每种语言各渲染一份 HTML
+   * （见 `profile.data.ts`），组件按当前语言挑。
+   */
+  i18n: {
+    en: {
+      // 人名用拼音：中文名原样放在英文页里，读者既念不出也搜不到
+      tagline: 'Yu Yanzhou',
+      bio: "Hi, I'm someone who likes writing down ideas.",
+    },
+  },
 
   // 社交 / 联系方式。icon 可选：github / mail / rss / twitter / link
   links: [
     { label: 'GitHub', url: 'https://github.com/emanyzwww', icon: 'github' },
     { label: 'Twitter', url: 'https://x.com/emanyzwww', icon: 'twitter' },
-    { label: '邮箱', url: 'mailto:emanyzwww@gmail.com', icon: 'mail' },
+    {
+      label: '邮箱',
+      // 图标按钮没有可见文字，aria-label 就是它唯一的「名字」——必须跟语言走
+      labelI18n: { en: 'Email' },
+      url: 'mailto:emanyzwww@gmail.com',
+      icon: 'mail',
+    },
     { label: 'RSS', url: '/index.xml', icon: 'rss' },
   ],
 

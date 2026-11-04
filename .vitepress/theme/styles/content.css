@@ -45,9 +45,10 @@
   overflow-wrap: break-word;
 
   /* 正文宽度上限。
-     实测三栏布局下主栏本身只有 688px（82rem 容器 − 两侧 16rem 侧栏 − 间距），
-     已经小于 42rem = 672px，所以这条上限大部分时候刚好贴边；它真正的价值是
-     **兜底**：以后若加宽 --layout-max、或去掉某一侧栏，正文不会跟着无限变宽。 */
+     实测三栏布局下主栏有 688px（82rem 容器 − 两侧 16rem 侧栏 − 间距），
+     比 42rem = 672px 宽 16px —— 所以这条上限是**常驻生效**的，不是兜底：
+     没有它，正文会跟着主栏一路贴到 688px，和左侧卡片/右侧目录的节奏对不齐。
+     加宽 --layout-max 或去掉某一侧栏时，它同样兜住阅读行宽。 */
   max-width: var(--layout-measure);
 }
 
@@ -74,6 +75,22 @@
   margin-top: var(--space-5);
 }
 
+/*
+ * 紧接标题的那一个元素**必须**是 0 上间距。
+ *
+ * 上面那条兜底规则给每个元素都塞了 20px；标题有自己的 margin-bottom
+ * （h2/h3/h4 = 16/12/8），但相邻兄弟的 margin 会**合并取最大值**，
+ * 于是 48:16 实际变成 48:20、32:8 变成 32:20，DESIGN 5.2 的「上明显大于下」
+ * 就被抹平成接近 2:1。用 `margin-block-end` 改标题没用——合并看的是两个方向，
+ * 只能让下一个兄弟的 margin-top 归零，标题的下间距才真正落地。
+ *
+ * 特异性 (0,0,3) 高于上面的 (0,0,2)，且包着 `:where()` 不抢 `.prose h2` 的份。
+ */
+:where(.prose) > :is(h2, h3, h4) + *,
+:where(.prose) > div > div > :is(h2, h3, h4) + * {
+  margin-top: 0;
+}
+
 .prose h1,
 .prose h2,
 .prose h3,
@@ -81,6 +98,11 @@
   /* VitePress 会给标题注入锚点，滚动定位依赖 scroll-padding-top，
      这里只处理间距与层级 */
   margin-top: 0;
+  /*
+   * 折行均衡：窄屏上长标题容易出现「最后一行只剩一个字」。
+   * 这是渐进增强 —— 不支持的浏览器直接忽略该声明，断行退回默认算法。
+   */
+  text-wrap: balance;
 }
 
 /*
@@ -123,7 +145,14 @@
   letter-spacing: var(--tracking-normal);
 }
 
-/* 标题旁的自定义锚点：默认隐藏，悬停或聚焦时出现 */
+/*
+ * 标题旁的自定义锚点：默认隐藏，悬停或聚焦时出现。
+ *
+ * VitePress 生成的是 `<a class="header-anchor">\u200B</a>`（只有零宽字符），
+ * `#` 形状来自**默认主题**的 `--vp-header-anchor-symbol` + `.header-anchor::before`。
+ * 本站完全自定义主题、不引默认主题，所以必须自己补 content ——
+ * 否则 hover 时出现的是一个看不见、却带着手型光标与负 margin 的空链接。
+ */
 .prose .header-anchor {
   float: left;
   margin-left: -0.8em;
@@ -131,7 +160,17 @@
   color: var(--fg-subtle);
   opacity: 0;
   text-decoration: none;
-  transition: opacity var(--duration-fast) var(--ease-out);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.prose .header-anchor::before {
+  content: '#';
+  /* 只吃左侧负 margin 留出的那一格，不挤动标题文字 */
+  display: inline-block;
+  width: 0.6em;
+  text-align: center;
 }
 
 .prose h1:hover .header-anchor,
@@ -139,7 +178,13 @@
 .prose h3:hover .header-anchor,
 .prose h4:hover .header-anchor,
 .prose .header-anchor:focus-visible {
+  color: var(--accent);
   opacity: 1;
+}
+
+.prose .header-anchor:hover,
+.prose .header-anchor:focus-visible {
+  color: var(--accent);
 }
 
 .prose ul,
@@ -1117,8 +1162,19 @@
   box-shadow: none;
 }
 
-.prose div[class*='language-']:focus-within {
-  box-shadow: 0 0 0 3px var(--accent-border);
+/*
+ * 代码块焦点环：只在**代码本体 `pre` 自己**聚焦时画在容器上。
+ *
+ * 不能用 `:focus-within`：复制按钮在容器里，Tab 到按钮时它同样成立，
+ * 于是容器一层环 + 按钮自己的 `--ring-code` 双环叠成两圈（视觉噪音，
+ * 且违反 DESIGN §9.2「一个焦点只画一个环」）。`pre:focus-visible` 只在
+ * 键盘把焦点落到滚动容器本身时命中，两者互斥。
+ *
+ * 环用全局 `--ring`（2px 画布色挖空 + 2px 实色强调色），
+ * 不再用单层半透明装饰色 `--accent-border` —— 它对比度不足以当焦点指示。
+ */
+.prose div[class*='language-']:has(> pre:focus-visible) {
+  box-shadow: var(--ring);
 }
 
 .prose div[class*='language-'] > pre > code {
@@ -1308,6 +1364,67 @@
 
 .prose .custom-block > * + * {
   margin-top: var(--space-2);
+}
+
+/* ---------- `::: details` 折叠块 ----------
+ *
+ * VitePress 渲染成 `<details class="details custom-block"><summary>标题</summary>正文…`。
+ * 它会被上面的 `.custom-block` 规则带上 14px / `--fg-muted` —— 而它的内容
+ * 是**正文**，折叠只是收起方式，不是提示条。这里把它拉回正文口径：
+ * 17px、正文色、提示容器同款内距；summary 自己做可点的标题行。
+ */
+.prose details.custom-block {
+  padding: var(--space-3) var(--space-4);
+  color: var(--fg-default);
+  font-size: var(--text-md);
+  line-height: var(--leading-loose);
+}
+
+.prose details.custom-block > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* 整行都是点击热区，光标必须说明这一点 */
+  cursor: pointer;
+  color: var(--fg-default);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  /* 去掉浏览器默认的三角形，改用下面自绘的 chevron（两套内核都要关） */
+  list-style: none;
+}
+
+.prose details.custom-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Firefox 走标准 ::marker，必须单独关一次（只关 webkit 标记会留下两套三角） */
+.prose details.custom-block > summary::marker {
+  content: '';
+}
+
+.prose details.custom-block > summary::before {
+  content: '';
+  flex-shrink: 0;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  background-color: currentColor;
+  /* 复用 icons.ts 里 chevron-down 的形状（mask 只有形状，颜色取 currentColor） */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  /* 收起时指向右（"还有内容"），展开后转下 */
+  transform: rotate(-90deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.prose details.custom-block[open] > summary::before {
+  transform: rotate(0deg);
+}
+
+/* 折叠区内部按正文块间距排（`.custom-block` 的 8px 是提示条口径，太紧） */
+.prose details.custom-block > * + * {
+  margin-top: var(--space-4);
 }
 
 /* ---------- 代码分组（Tab） ----------

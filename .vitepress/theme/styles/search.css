@@ -31,7 +31,8 @@
   position: absolute;
   inset: 0;
   width: 100%;
-  background: rgb(0 0 0 / 0.5);
+  /* 模态遮罩的统一语义色（见 tokens.css 的 `--scrim`）；三处浮层共用一份 */
+  background: var(--scrim);
   border: 0;
   padding: 0;
   cursor: pointer;
@@ -66,7 +67,21 @@
    * 面板原本在别的地方；缩放是"从这一点长出来"，正是这里要表达的因果关系。
    */
   transform-origin: 50% 0%;
+  /*
+   * 编排：遮罩先出，面板晚 40ms 跟上。
+   *
+   * 两者同时起跑时，读者看到的是"一整块东西同时亮起来"，没有层次感；
+   * 让遮罩先压暗、面板再长出来，读者的眼睛才有「先是背景退后、再是
+   * 内容上前」的顺序。40ms 足够被感知，又不会让打开变慢。
+   *
+   * `fill-mode: backwards` 是必须的：延迟期间如果不套用第一帧，
+   * 面板会先以最终形态闪一下，再跳回 scale(0.96) 重播 —— 那是一个
+   * 比不做编排更明显的瑕疵。退出侧不做延迟（见下面 is-exiting 规则）：
+   * 关闭是「已经决定离开」，多等 40ms 就是拖沓（DESIGN §7.1）。
+   */
   animation: search-grow var(--duration-enter) var(--ease-spring);
+  animation-delay: 40ms;
+  animation-fill-mode: backwards;
 }
 
 .search.is-exiting .search__panel {
@@ -84,8 +99,8 @@
 }
 
 .search__field > svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: var(--icon-md);
+  height: var(--icon-md);
   color: var(--fg-subtle);
   flex-shrink: 0;
 }
@@ -125,9 +140,14 @@
   background: var(--bg-surface-alt);
 }
 
+.search__close:active {
+  color: var(--fg-default);
+  background: var(--bg-inset);
+}
+
 .search__close svg {
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 /* ---------- 结果列表 ---------- */
@@ -171,10 +191,30 @@
   padding: var(--space-3);
   border-radius: var(--radius-md);
   color: var(--fg-default);
+  /*
+   * 这是全站唯一一组「瞬切」的可点行：鼠标扫过去时背景直接跳变，
+   * 和正文里其他所有控件的 120ms 过渡都不一致，观感像"卡了一下"。
+   */
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
-.search__item.is-active {
+.search__item:hover {
   background: var(--bg-surface-alt);
+}
+
+.search__item:active {
+  background: var(--bg-inset);
+}
+
+/*
+ * 键盘选中（↑↓）用**强调色淡底**，与鼠标 hover 的灰底分开。
+ *
+ * 两者同色时，读者用键盘移动选中的同时鼠标可能正停在另一条上，
+ * 两条会一样亮 —— 分不清"我按 Enter 会打开哪一条"。
+ */
+.search__item.is-active {
+  background: var(--accent-soft);
 }
 
 .search__item-head {

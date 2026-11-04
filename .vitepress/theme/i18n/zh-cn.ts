@@ -30,7 +30,7 @@ export const zhCN: Messages = {
   totalPosts: '文章数',
   totalTags: '标签数',
   tagCloudHint: '标签越大，代表该主题下的文章越多',
-  taxonomyOverview: '全站共有 {count} 个标签，点击任意一个查看相关文章',
+  taxonomyOverview: '全站共有 {count} 个标签，点击任意一个查看相关文章。',
   otherTags: '其他标签',
   postsInTag: '该标签下的文章',
   recentPosts: '最近文章',
@@ -57,6 +57,8 @@ export const zhCN: Messages = {
   // 中文没有单复数变化，与复数形式保持一致即可（但键必须存在，类型会检查）
   termCountOne: '共 {count} 篇文章',
   taxonomyOverviewOne: '全站共有 {count} 个标签，点击任意一个查看相关文章',
+  yearCount: '{count} 篇',
+  yearCountOne: '{count} 篇',
 
   // ---------- 图片查看器 ----------
   imageViewer: '图片查看器',

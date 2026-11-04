@@ -99,11 +99,35 @@
   text-decoration: none;
 }
 
-/* 当前页：实色填充而不是淡色底 —— 导航里只有一个当前项，可以承受这点重量 */
-.site-nav a[aria-current='page'] {
+/*
+ * 按下：比 hover 再深一档（surface-alt → inset）。
+ *
+ * 导航是「点击后立刻跳走」的控件，按下反馈不需要位移，只要色阶再深一档
+ * 就足以让手指/鼠标确认「这一下点中了」。位移留给需要「被按下去」质感的
+ * 小按钮（见 .icon-button / .btn）。
+ */
+.site-nav a:active {
   color: var(--fg-default);
-  background: var(--bg-surface-alt);
+  background: var(--bg-inset);
+}
+
+/*
+ * 当前页：**强调色淡底 + 强调色文字**，而不是和 hover 同款的灰底。
+ *
+ * 之前两者都是 `--bg-surface-alt`，唯一的区别是字重 600 —— 读者把鼠标移到
+ * 导航上时，会看到两个几乎一样的胶囊，分不清「我在这一页」和「我指着这一页」。
+ * 现在：hover 是灰底（可去），current 是青底（已在此）。
+ */
+.site-nav a[aria-current='page'] {
+  color: var(--accent);
+  background: var(--accent-soft);
   font-weight: var(--weight-semibold);
+}
+
+/* 当前项同时被悬停时，不要退回灰底（否则当前态会被 hover 吃掉） */
+.site-nav a[aria-current='page']:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 /* ---------- 页头工具区 ---------- */
@@ -147,9 +171,23 @@
   background: var(--bg-surface-alt);
 }
 
+/*
+ * 按下：色阶再深一档（inset）+ 0.5px 下沉。
+ *
+ * 下沉量刻意只给 0.5px：这是「按钮壳体被按下去」的暗示，
+ * 给 1px 以上在 36px 的圆按钮上会看到明显跳动，反而脏。
+ * `transform` 不进 transition —— 按下必须跟手，补间会让它慢半拍。
+ */
+.icon-button:active {
+  color: var(--fg-default);
+  border-color: var(--fg-subtle);
+  background: var(--bg-inset);
+  transform: translateY(0.5px);
+}
+
 .icon-button svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: var(--icon-md);
+  height: var(--icon-md);
 }
 
 /* 主题切换按钮：按当前主题只显示对应图标 */
@@ -192,10 +230,17 @@
    * 与搜索面板同理（见 search.css 与 SearchPanel.vue 的 `origin`）。
    */
   transform-origin: top right;
+  /*
+   * **基础态 = 退出态**：100ms、`--ease-in`（慢起快收）。
+   *
+   * 之前这里进出共用一组 transition，退出和进入一样慢 —— 读者已经点走了，
+   * 菜单还在原地淡出，观感是「拖」。DESIGN §7.1 要求进入慢、退出快，
+   * 写法就是把退出时长放在基础态，进入时长放在展开态（见下一条规则）。
+   */
   transition:
-    opacity var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-spring),
-    visibility var(--duration-fast);
+    opacity 100ms var(--ease-in),
+    transform 100ms var(--ease-in),
+    visibility 100ms;
   z-index: var(--z-header);
 }
 
@@ -203,6 +248,11 @@
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
+  /* 进入：120ms、--ease-spring（从那颗按钮的位置轻微过冲地长出来） */
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-spring),
+    visibility var(--duration-fast);
 }
 
 .locale-switch__menu a,
@@ -216,6 +266,9 @@
   font-size: var(--text-sm);
   white-space: nowrap;
   text-decoration: none;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 .locale-switch__menu a:hover {
@@ -224,9 +277,21 @@
   text-decoration: none;
 }
 
+/* 按下：同导航，深一档即可（菜单项很小，位移会显得抖） */
+.locale-switch__menu a:active {
+  color: var(--fg-default);
+  background: var(--bg-inset);
+}
+
+/* 键盘：焦点环用全站双环，而不是浏览器默认 outline */
+.locale-switch__menu a:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
 .locale-switch__menu svg {
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   flex-shrink: 0;
 }
 
@@ -295,9 +360,17 @@
   background: var(--bg-surface);
 }
 
+/* 按下：从「白底」压回「灰底」再深一档，配合 0.5px 下沉 */
+.search-trigger:active {
+  border-color: var(--fg-subtle);
+  color: var(--fg-default);
+  background: var(--bg-inset);
+  transform: translateY(0.5px);
+}
+
 .search-trigger svg {
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   flex-shrink: 0;
 }
 
@@ -354,6 +427,10 @@
   text-underline-offset: 0.2em;
 }
 
+.site-footer__inner a:active {
+  color: var(--accent-active);
+}
+
 .site-footer__links {
   display: flex;
   gap: var(--space-5);
@@ -392,6 +469,14 @@
   text-decoration: none;
 }
 
+/* 按下：与 .icon-button 同一套「深一档 + 0.5px 下沉」 */
+.btn:active {
+  color: var(--fg-default);
+  border-color: var(--fg-subtle);
+  background: var(--bg-inset);
+  transform: translateY(0.5px);
+}
+
 /* 主按钮：实色填充、无描边、无阴影。重量来自填充而不是投影 */
 .btn--accent {
   background: var(--accent);
@@ -406,9 +491,19 @@
   border-color: transparent;
 }
 
+/*
+ * 主按钮的按下态用 `--accent-active`（浅色往深、深色往亮），
+ * 而不是复用 hover 色 —— 实色按钮上 hover 与按下同色时，读者会觉得「没反应」。
+ */
+.btn--accent:active {
+  background: var(--accent-active);
+  color: var(--fg-invert);
+  border-color: transparent;
+}
+
 .btn svg {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 /* ---------- 卡片 ----------
@@ -462,6 +557,13 @@
 .tag:hover {
   color: var(--accent);
   background: var(--accent-soft);
+  text-decoration: none;
+}
+
+/* 按下：强调色底再压一档（accent-soft → accent-border 的半透明感） */
+.tag:active {
+  color: var(--accent-active);
+  background: var(--accent-border);
   text-decoration: none;
 }
 

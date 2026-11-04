@@ -65,6 +65,19 @@ const closeButton = ref<HTMLButtonElement | null>(null)
 const avatar = computed(() => resolveMedia(profile.avatar))
 const displayName = computed(() => profile.name || SITE.name)
 
+/**
+ * 当前语言的资料文案（tagline / 已渲染的 bio）。
+ *
+ * 资料是站点级常量，构建期把每种语言各渲染了一份（见 `profile.data.ts`），
+ * 这里按当前页面语言挑 —— 否则英文站的抽屉里会露出中文简介。
+ */
+const copy = computed(() => profile.i18n[locale.value] ?? profile.i18n['zh-cn'])
+
+/** 图标链接的可读名：优先当前语言，缺省回退到默认标签。 */
+function linkLabel(link: (typeof profile.links)[number]): string {
+  return link.labelI18n?.[locale.value] ?? link.label
+}
+
 /** 社交链接：RSS 占位值替换成当前语言的 feed。 */
 function resolveLink(url: string): string {
   return href(url === '/index.xml' ? feedPath(locale.value) : url)
@@ -261,15 +274,15 @@ if (typeof window !== 'undefined') {
 
           <div class="m-nav__who">
             <span class="m-nav__name">{{ displayName }}</span>
-            <span v-if="profile.tagline" class="m-nav__tagline">{{ profile.tagline }}</span>
+            <span v-if="copy.tagline" class="m-nav__tagline">{{ copy.tagline }}</span>
           </div>
 
           <ul v-if="profile.links.length" class="m-nav__social">
             <li v-for="link in profile.links" :key="link.url">
               <a
                 :href="resolveLink(link.url)"
-                :title="link.label"
-                :aria-label="link.label"
+                :title="linkLabel(link)"
+                :aria-label="linkLabel(link)"
                 :target="isExternal(link.url) ? '_blank' : undefined"
                 :rel="isExternal(link.url) ? 'noopener noreferrer' : undefined">
                 <AppIcon :name="link.icon ?? 'link'" />

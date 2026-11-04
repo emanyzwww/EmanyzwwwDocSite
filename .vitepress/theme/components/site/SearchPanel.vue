@@ -227,12 +227,24 @@ watch(query, () => {
   activeIndex.value = 0
 })
 
+/**
+ * 打开前焦点在哪。
+ *
+ * 关闭时必须**还给打开它的那颗按钮**：否则焦点会落回 `<body>`，
+ * 键盘用户得从头 Tab 一遍才能回到页头。抽屉（MobileNav）与查看器
+ * （ImageViewer）都做了这件事，搜索面板漏了 —— 这是 DEVELOPING.md
+ * 里写明的浮层契约，不是可选优化。
+ */
+let previousFocus: HTMLElement | null = null
+
 watch(open, async (isOpen) => {
   if (typeof document === 'undefined') return
 
   if (isOpen) {
     query.value = ''
     activeIndex.value = 0
+    const active = document.activeElement
+    previousFocus = active instanceof HTMLElement ? active : null
     /*
      * 锁滚动用引用计数：抽屉也持有同一把锁。
      * 旧实现两处各自写 `body.style.overflow`，先开抽屉再开搜索、
@@ -251,6 +263,11 @@ watch(open, async (isOpen) => {
     releaseTrap?.()
     releaseTrap = null
     document.removeEventListener('keydown', onGlobalKeydown)
+
+    const restore = previousFocus
+    previousFocus = null
+    // `isConnected` 排除「因导航而关闭」的情形：触发按钮已被新页面替换
+    if (restore?.isConnected) restore.focus()
   }
 })
 

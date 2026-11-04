@@ -57,6 +57,8 @@ export const en: Messages = {
   // 英文必须区分单复数，否则会出现「1 posts」「1 tags」
   termCountOne: '{count} post',
   taxonomyOverviewOne: '{count} tag in total. Click it to see related posts.',
+  yearCount: '{count} posts',
+  yearCountOne: '{count} post',
 
   // ---------- 图片查看器 ----------
   imageViewer: 'Image viewer',

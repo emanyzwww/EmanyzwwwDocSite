@@ -53,9 +53,13 @@
  *    若被取消而我们已 promise 悬空，动画会永远停在"旧快照"上 ——
  *    表现为整个页面被一张静止截图盖住，页面看起来死了。所以有硬超时。
  * 2. **浏览器前进/后退（popstate）**：VitePress 的 popstate 处理**不走**
- *    `go()`，因此不会触发 `onBeforeRouteChange` —— 我们拿不到旧快照。
- *    这时不能启动过渡（`releaseUpdate` 为 null 就直接返回），
- *    退化成硬切，与改造前一致。
+ *    `go()`，因此不会触发 `onBeforeRouteChange` —— 拿不到旧快照就无法启动
+ *    过渡。但它的 popstate 处理器**会**在 `loadPage()` 之后调用
+ *    `onAfterRouteChange`（见 node_modules/vitepress 的 router.js）。
+ *    所以这里自己补一个 popstate 监听：VitePress 的处理器是 async 的，
+ *    在它 `await loadPage()` 期间 DOM 仍然是旧页，我们在同一个事件里
+ *    （注册更晚、执行更晚）启动过渡，旧快照拍到的就是旧页；
+ *    结算仍然交给 `onAfterRouteChange`，两条路径共用同一套「拍照—结算」。
  * 3. **`prefers-reduced-motion`**：整页交叉淡入是最大面积的运动，
  *    必须在 reduce 下**完全不启动**（不是把时长压到 0）。
  *
@@ -105,6 +109,8 @@ export function installRouteTransition(router: RouterLike): () => void {
   let releaseUpdate: (() => void) | null = null
   /** 保险超时的定时器 id（0 表示没有）。 */
   let settleTimer = 0
+  /** 上一次结算时的路径，用来区分「换页」与「只有 hash 变了」。 */
+  let settledPath = location.pathname
 
   /** 立即结束当前过渡并清理定时器。 */
   function settle(): void {
@@ -117,16 +123,14 @@ export function installRouteTransition(router: RouterLike): () => void {
     release?.()
   }
 
-  router.onBeforeRouteChange = (): void => {
-    /*
-     * 顺序很重要：先关浮层，再起过渡。
-     *
-     * 如果反过来，拍「旧」快照时搜索面板还盖在屏幕上 —— 于是过渡的
-     * 第一帧是"带着遮罩的旧页"，第二帧是"干净的新页"，
-     * 读起来像面板又闪了一下。先关掉，快照里就是读者期待看到的页面。
-     */
-    closeAllOverlays()
-
+  /**
+   * 拍「旧」快照并启动一次交叉淡入。
+   *
+   * 只负责起步：调用方必须先确保 DOM 还是旧页面（链接导航在
+   * `onBeforeRouteChange` 里，后退/前进在 popstate 监听里）。结束永远由
+   * `onAfterRouteChange` 结算 —— 两条入口共用同一套「拍照—结算」。
+   */
+  function startCrossfade(): void {
     if (!supportsViewTransition() || prefersReducedMotion()) return
 
     // 上一次尚未结束（极快的连续导航）：强制结算，避免两个过渡叠在一起
@@ -149,7 +153,40 @@ export function installRouteTransition(router: RouterLike): () => void {
     settleTimer = window.setTimeout(settle, SETTLE_TIMEOUT_MS)
   }
 
+  router.onBeforeRouteChange = (): void => {
+    /*
+     * 顺序很重要：先关浮层，再起过渡。
+     *
+     * 如果反过来，拍「旧」快照时搜索面板还盖在屏幕上 —— 于是过渡的
+     * 第一帧是"带着遮罩的旧页"，第二帧是"干净的新页"，
+     * 读起来像面板又闪了一下。先关掉，快照里就是读者期待看到的页面。
+     */
+    closeAllOverlays()
+    startCrossfade()
+  }
+
+  /**
+   * 浏览器前进/后退。
+   *
+   * VitePress 的 popstate 处理器会 `await loadPage()` 再调
+   * `onAfterRouteChange`，但**不触发** `onBeforeRouteChange`（见 router.js）。
+   * 我们注册得更晚、执行也更晚，此时它正卡在 `loadPage` 的 await 上，
+   * DOM 仍是旧页 —— 正好是拍旧快照的时机。结算走同一个 after 钩子。
+   */
+  function onPopState(event: PopStateEvent): void {
+    // 与 VitePress 保持一致：没有 state 的 popstate 不是本站的导航
+    if (event.state === null || event.state === undefined) return
+    // 只有 hash 变化：同一页内跳锚点，不该整页淡入（浏览器自己滚）
+    if (location.pathname === settledPath) return
+
+    closeAllOverlays()
+    startCrossfade()
+  }
+
+  window.addEventListener('popstate', onPopState)
+
   router.onAfterRouteChange = async (): Promise<void> => {
+    settledPath = location.pathname
     if (!releaseUpdate) return
 
     /*
@@ -170,6 +207,7 @@ export function installRouteTransition(router: RouterLike): () => void {
 
   return () => {
     settle()
+    window.removeEventListener('popstate', onPopState)
     router.onBeforeRouteChange = undefined
     router.onAfterRouteChange = undefined
   }

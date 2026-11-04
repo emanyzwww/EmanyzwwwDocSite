@@ -133,8 +133,8 @@
 }
 
 .m-burger svg {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
 }
 
 /* =========================================================
@@ -157,7 +157,8 @@
   position: absolute;
   inset: 0;
   width: 100%;
-  background: rgb(0 0 0 / 0.5);
+  /* 与搜索、目录 sheet 共用同一份遮罩语义色 */
+  background: var(--scrim);
   border: 0;
   padding: 0;
   cursor: pointer;
@@ -228,7 +229,13 @@
   box-shadow: var(--shadow-xl);
   /* 面板本身**不滚动**，滚动交给中部列表 */
   overflow: hidden;
+  /*
+   * 编排：遮罩先出、面板晚 40ms 滑入（与搜索、目录 sheet 同一套节奏）。
+   * `backwards` 让延迟期间就套用第一帧，否则会先闪一下最终位置再重播。
+   */
   animation: m-slide-in var(--duration-enter) var(--ease-out);
+  animation-delay: 40ms;
+  animation-fill-mode: backwards;
 }
 
 /* ---------- ① 顶部：品牌 + 关闭 ---------- */
@@ -268,8 +275,8 @@
 }
 
 .m-nav__close svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
 }
 
 /* ---------- ② 工具区：主题 + 语言（顶部固定，永远可见） ---------- */
@@ -313,7 +320,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 2.25rem;
+  /* 44px：分段按钮是抽屉里最高频的可点元素之一，不能低于触控目标 */
+  min-height: 2.75rem;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-full);
   color: var(--fg-muted);
@@ -325,6 +333,21 @@
     background-color var(--duration-fast) var(--ease-out);
 }
 
+/*
+ * 非当前语言那一段是真的链接，之前却没有任何 hover / active ——
+ * `transition` 声明了却没有状态依赖它（死过渡）。补上两态：
+ * hover 用表面色暗示「这一段可以点」，active 再深一档。
+ */
+.locale-seg__btn:hover {
+  color: var(--fg-default);
+  background: var(--bg-inset);
+}
+
+.locale-seg__btn:active {
+  color: var(--accent);
+  background: var(--bg-inset);
+}
+
 .locale-seg__btn.is-current {
   background: var(--bg-surface);
   color: var(--accent);
@@ -333,8 +356,8 @@
 }
 
 .locale-seg__btn svg {
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   flex-shrink: 0;
 }
 
@@ -389,8 +412,8 @@
 }
 
 .m-nav__link svg {
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   color: var(--fg-subtle);
   flex-shrink: 0;
 }
@@ -494,8 +517,8 @@
 }
 
 .m-nav__social svg {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 /* =========================================================
@@ -538,7 +561,8 @@
   position: absolute;
   inset: 0;
   width: 100%;
-  background: rgb(0 0 0 / 0.5);
+  /* 与搜索、抽屉共用同一份遮罩语义色（tokens.css 的 `--scrim`） */
+  background: var(--scrim);
   border: 0;
   padding: 0;
   cursor: pointer;
@@ -565,14 +589,34 @@
   max-height: 72dvh;
   display: flex;
   flex-direction: column;
-  /* 底部让出胶囊的位置：表末尾的项不该被浮起的胶囊挡住 */
-  padding: var(--space-4) var(--space-4) var(--dock-space);
+  /*
+   * 内边距**不**给胶囊留位置。
+   *
+   * 旧写法是 `padding-bottom: var(--dock-space)`，想的是「让出胶囊」；
+   * 但胶囊 `z-index: 102` 低于 sheet 的 120，被 sheet 完全盖住 ——
+   * 那 72px（真机安全区下约 106px）不是留白，是永远点不到的死区，
+   * 还会把目录列表顶短（横屏实测只剩 3 行）。
+   * 目录打开时读者在「跳转」而不是「读正文」，胶囊本来就不该可点；
+   * 关掉 sheet 后胶囊自然浮回来。
+   */
+  padding: var(--space-4) var(--space-4) var(--dock-lift);
   background: var(--bg-surface);
   border-top: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   box-shadow: var(--shadow-lg);
   overscroll-behavior: contain;
+  /*
+   * 编排：遮罩先出、sheet 晚 40ms 跟上（与搜索面板、导航抽屉同一套节奏）。
+   * `backwards` 让延迟期间就套用第一帧，否则会先闪一下最终形态再重播。
+   */
   animation: m-slide-up var(--duration-enter) var(--ease-out);
+  animation-delay: 40ms;
+  animation-fill-mode: backwards;
+}
+
+/* 面板自己是 `tabindex="-1"` 的焦点落点：容器不画焦点环 */
+.m-toc__sheet:focus {
+  outline: none;
 }
 
 /* 头部固定：标题 + 回到顶部，列表才是可滚区 */
@@ -598,15 +642,16 @@
 }
 
 .m-toc__title svg {
-  width: 1rem;
-  height: 1rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .m-toc__top {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  min-height: 2.25rem;
+  /* 44px 触控目标：与抽屉关闭按钮同级 */
+  min-height: 2.75rem;
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-full);
   color: var(--fg-muted);
@@ -614,13 +659,48 @@
 }
 
 .m-toc__top svg {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .m-toc__top:hover {
   color: var(--accent);
   background: var(--bg-surface-alt);
+}
+
+/*
+ * 关闭按钮。
+ *
+ * 之前目录 sheet 只能靠点遮罩或再点一次胶囊关掉 —— 抽屉与搜索都有显式关闭键，
+ * 三者是同一类浮层，不该有两种逃脱方式。规格与 `.m-nav__close` 完全一致。
+ */
+.m-toc__close {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: calc(var(--space-2) * -1);
+  border-radius: var(--radius-full);
+  color: var(--fg-subtle);
+  flex-shrink: 0;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.m-toc__close:hover {
+  color: var(--fg-default);
+  background: var(--bg-surface-alt);
+}
+
+.m-toc__close:active {
+  color: var(--fg-default);
+  background: var(--bg-inset);
+}
+
+.m-toc__close svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
 }
 
 .m-toc__list {
@@ -641,6 +721,14 @@
   color: var(--fg-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
+  /* 目录项是导航，不是正文链接：全局那条细下划线在列表里会连成一片 */
+  text-decoration: none;
+  /* 左侧留出「当前节」的竖线位置，避免高亮时文字左右跳一下 */
+  border-left: 2px solid transparent;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 /* H3 缩进 + 弱化：手机屏幕窄，层级只能靠这两点区分 */
@@ -650,10 +738,27 @@
   color: var(--fg-subtle);
 }
 
-.m-toc__list a:hover,
-.m-toc__list a:active {
+.m-toc__list a:hover {
   color: var(--accent);
   background: var(--bg-surface-alt);
+}
+
+.m-toc__list a:active {
+  color: var(--accent);
+  background: var(--bg-inset);
+}
+
+/*
+ * 当前节：与桌面目录同一套语言（强调色文字 + 强调色竖线 + 淡底）。
+ *
+ * 手机目录之前完全没有「我在哪」的提示 —— 桌面有 aria-current 与阅读线，
+ * 手机什么都没有，读者只能靠记忆。类名由 `MobileDock.vue` 写入。
+ */
+.m-toc__list a.is-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+  font-weight: var(--weight-semibold);
 }
 
 /* ---------- 窄屏 / 触屏启用 ---------- */
@@ -813,8 +918,8 @@
   }
 
   .m-dock__item svg {
-    width: 1.15rem;
-    height: 1.15rem;
+    width: var(--icon-md);
+    height: var(--icon-md);
   }
 
   /* ---------- 收起态：那颗圆 ---------- */
@@ -836,8 +941,8 @@
   }
 
   .m-dock__mini svg {
-    width: 1.3rem;
-    height: 1.3rem;
+    width: var(--icon-lg);
+    height: var(--icon-lg);
   }
 
   .m-dock__mini:active {

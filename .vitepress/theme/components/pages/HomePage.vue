@@ -62,6 +62,6 @@ const allPostsUrl = computed(() => href(postListPath(locale.value)))
       </div>
     </template>
 
-    <EmptyState v-else :text="m.noPostsYet" />
+    <EmptyState v-else :text="m.noPostsYet" icon="list" />
   </TwoColumn>
 </template>

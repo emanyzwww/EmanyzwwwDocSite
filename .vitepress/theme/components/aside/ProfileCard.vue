@@ -21,6 +21,19 @@ const avatar = computed(() => resolveMedia(profile.avatar))
 const displayName = computed(() => profile.name || SITE.name)
 
 /**
+ * 当前语言的资料文案（tagline / 已渲染的 bio）。
+ *
+ * 构建期每种语言各渲染一份（见 `profile.data.ts`）——个人资料是站点级常量，
+ * 数据加载器拿不到页面语言，只能把各语言都准备好、这里按 locale 挑。
+ */
+const copy = computed(() => profile.i18n[locale.value] ?? profile.i18n['zh-cn'])
+
+/** 图标链接的可读名：优先当前语言（`邮箱` / `Email`）。 */
+function linkLabel(link: (typeof profile.links)[number]): string {
+  return link.labelI18n?.[locale.value] ?? link.label
+}
+
+/**
  * 链接地址本地化。
  *
  * `profile.ts` 是一份中英共用的配置，写不出「当前语言」，因此约定：
@@ -56,17 +69,17 @@ function resolveLink(url: string): string {
       人名不是页面结构的标题，只是卡片里的标识。
     -->
     <p class="profile__name">{{ displayName }}</p>
-    <p v-if="profile.tagline" class="profile__tagline">{{ profile.tagline }}</p>
+    <p v-if="copy.tagline" class="profile__tagline">{{ copy.tagline }}</p>
 
     <!-- eslint-disable-next-line vue/no-v-html — 内容来自本地 profile.ts，构建期渲染 -->
-    <div v-if="profile.bioHtml" class="profile__bio" v-html="profile.bioHtml" />
+    <div v-if="copy.bioHtml" class="profile__bio" v-html="copy.bioHtml" />
 
     <ul v-if="profile.links.length" class="profile__links">
       <li v-for="link in profile.links" :key="link.url">
         <a
           :href="resolveLink(link.url)"
-          :title="link.label"
-          :aria-label="link.label"
+          :title="linkLabel(link)"
+          :aria-label="linkLabel(link)"
           :target="isExternal(link.url) ? '_blank' : undefined"
           :rel="isExternal(link.url) ? 'noopener noreferrer' : undefined">
           <AppIcon :name="link.icon ?? 'link'" />

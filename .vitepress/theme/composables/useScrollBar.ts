@@ -248,6 +248,16 @@ export function useScrollBar(pageHeader: () => HTMLElement | null): ScrollBarSta
   function startDrag(event: PointerEvent): void {
     // 只响应主键；右键/中键不该拖动滚动条
     if (event.button !== 0) return
+    /*
+     * 触屏不拖拇指。
+     *
+     * 手机上滚动条只在「刚滚过一下」时短暂可见，而它恰好贴在屏幕右缘 ——
+     * 手指从右缘起手本来想滚页面，却按在了拇指上（拇指 `touch-action: none`
+     * 会吃掉这次滚动），表现为「页面卡住不滚，反而出现一根条」。
+     * 触屏的滚动条只作指示，不作拖拽手柄；观感上也不需要它。
+     * CSS 侧还有一道 `@media (pointer: coarse)` 的隐藏（见 base.css）。
+     */
+    if (event.pointerType === 'touch') return
     if (thumb.value.maxScroll <= 0) return
 
     // 阻止文本选择与原生拖拽（滚动条不在选区语义里）

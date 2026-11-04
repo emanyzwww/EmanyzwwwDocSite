@@ -343,9 +343,20 @@ export const NAV = {
 
 ### `data/profile.ts` —— 个人信息
 
-`PROFILE` 只有头像文件名（`media/` 下）、名字、tagline、支持 Markdown 的 `bio`、
-社交 `links`（`icon` 可选值见 `IconName`）与 `tagsLimit`。头像通过 `media/` 的资源导入
-拿到带指纹的 URL；加新图标要改 `shared/icons.ts`（见第五节）。
+`PROFILE` 只有头像文件名（`media/` 下）、名字、默认语言 `tagline`、支持 Markdown 的 `bio`、
+`i18n`（其它语言的 tagline / bio 覆盖）、社交 `links`（`icon` 可选值见 `IconName`；
+`labelI18n` 按语言覆盖可读名）与 `tagsLimit`。头像通过 `media/` 的资源导入拿到带指纹的 URL；
+加新图标要改 `shared/icons.ts`（见第五节）。
+
+**为什么 bio 要按语言各渲染一份（`RenderedProfile.i18n`）**：两组约束同时成立——
+① 数据加载器（`profile.data.ts`）在构建期运行，拿不到「当前页面语言」；
+② Markdown 只能在构建期渲染（客户端没有渲染器）。所以只能把每种语言的文案各渲染一份 HTML，
+组件按 `locale` 挑（`profile.i18n[locale] ?? profile.i18n['zh-cn']`）。资料是站点级常量，
+多渲染一次 Markdown 的成本可以忽略；换成运行时按需渲染反而要往包里塞 Markdown 渲染器。
+
+**为什么图标链接要 `labelI18n`**：图标按钮没有可见文字，`title` / `aria-label` 就是它唯一的「名字」。
+中文「邮箱」出现在英文页里，读屏会中英混读、hover 提示也看不懂——所以这个名字必须跟语言走
+（缺省回退到 `label`）。加语言时在 `PROFILE.i18n` / `links[].labelI18n` 各补一份即可。
 
 ### `config.ts` —— 构建行为
 
@@ -730,6 +741,21 @@ CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 标题上方间距明显大于下方、圆角只用六档且嵌套守同心圆规则。
 逐条理由见 DESIGN.md §3–§6。
 
+### 状态分档（hover / 按下 / 当前）
+
+**可点元素必须有三态：默认 → hover → active；「当前项」是另一套，不能复用 hover 的样式。**
+这条在本轮被反复踩到，三处同模式（导航 / 目录 / 搜索结果）：
+
+- **hover** 只表示「可以点」：`--bg-surface-alt` 灰底或 `--accent` 文字；
+- **active（按下）** 表示「已经按了」：`--accent-active` 或 `--bg-inset`，按钮类再叠 `transform: translateY(0.5px)`
+  （0.5px 是「壳体被按下去」的暗示，1px 以上在 36px 圆按钮上会明显跳动；`transform` 不进 transition，按下必须跟手）；
+- **当前项** 表示「你在这里」：`--accent-soft` 底 + `--accent` 字 + 600 字重（对比度见 DESIGN §9.1）。
+
+三处的实现：`.site-nav a[aria-current='page']`（components.css）、`.toc__list a.is-active`（posts.css）、
+`.search__item.is-active`（search.css）。**只靠颜色不够**——浅色主题下「强调色落在 accent-soft 上」只有 4.90:1，
+刚好过线，所以当前项同时加 600 字重。`-webkit-tap-highlight-color` 已全局关闭（base.css），
+漏掉 `:active` 的控件在触屏上就是「点了没反应」。
+
 ### 样式分三层：共用两层，独立一层
 
 ```text
@@ -751,8 +777,8 @@ CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 | 文件                   | 管什么                                                                                                | 什么时候进这里改             |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
 | `tokens.css`           | 全部设计变量（含 z 轴阶梯、浮层色、动效时长曲线、安全区；`--header-height` 的唯一来源，含移动端覆盖） | 换色、换圆角、换字号、换间距 |
-| `base.css`             | 重置、body、a、图标尺寸、自绘滚动条、焦点环、跳转链接                                                 | 调基础排版、改滚动条         |
-| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点                                                                   | 改整体骨架、侧栏宽度         |
+| `base.css`             | 重置、body、a（含 `:active`）、触屏点击高亮、折行（`text-wrap`）、自绘滚动条、焦点环、跳转链接        | 调基础排版、改滚动条         |
+| `layout.css`           | 容器、两栏/三栏网格、粘性侧栏、断点；两栏主列收口到 `--layout-measure`                                | 改整体骨架、侧栏宽度         |
 | `components.css`       | 页头、页脚、导航、搜索入口、按钮、卡片、标签、徽章、空状态                                            | 改页头页脚、按钮样式         |
 | `content.css`          | **正文专属**：标题、段落、列表、引用、表格、代码块（含头部控件区与双主题桥接）、图片、嵌入块          | 改文章正文观感               |
 | `posts.css`            | 时间线、文章卡片、文章头尾、目录、分页、上下篇、进度条、404                                           | 改列表和文章页               |
@@ -770,6 +796,17 @@ CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 >
 > **`mobile.css` 在 `lightbox.css` 之前**：查看器的移动端规则要压过 mobile 的通用规则。
 > **`route-transition.css` 在 `print.css` 之前**：打印不需要页面过渡。
+
+### 两栏主列为什么收口到测量宽
+
+两栏网格把左栏之外的 **976px** 全给主内容，而 `--layout-measure` 是 **672px**。此前只有卡片摘要与
+列表正文**内部**收了 672px，卡片与列表行本身仍是 976px —— 卡片右侧空出约 300px 的「洞」，
+时间线的元信息被推到离摘要很远的位置，同一站里出现两种阅读行宽。
+
+`layout.css` 末尾那条 `.layout:not(.layout--three) .layout__main { max-width: var(--layout-measure) }`
+把主列本身收到测量宽：标题、卡片、列表、正文四条右缘对齐，多出来的空间成为版面留白，而不是容器里的空洞。
+**三栏页不收**：它的主列是 688px，文章头（`.post-header` 自带 `max-width`）与正文已各自对齐到 672px；
+给主列收口只会把右栏目录挤近。
 
 ### 响应式断点
 
@@ -835,6 +872,9 @@ CSS 只消费 Shiki 输出的 `--shiki-light` / `--shiki-dark`。
 | 页头高度   | `--header-height`（改后注意 `scrollOffset`）                                     |
 | 层级       | `--z-*` 命名阶梯，**禁止** `calc(var(--z-header)+N)`                             |
 | 滚动条色   | `--scrollbar-thumb*`（三档：静止/悬停/拖拽）                                     |
+| 图标大小   | `--icon-sm/md/lg/xl`（16 / 18 / 20 / 24px，见 DESIGN §3.5）                      |
+| 按下色     | `--accent-active`（浅色 teal-800 / 深色 teal-200）                               |
+| 模态遮罩   | `--scrim`（搜索 / 抽屉 / 目录 sheet 共用）                                       |
 | 代码块配色 | `code-theme.ts` 的 `CODE_PALETTE` + `tokens.css` 的 `--bg-code*`（两套都要复算） |
 
 ### 明暗主题的机制
@@ -852,20 +892,39 @@ VitePress 通过给 `<html>` 加 `.dark` 类切换。**用语义变量，两套�
 | ------------ | -------------------------------------------- | ----------------------------------------------------------------- |
 | 进出状态机   | `composables/usePresence.ts`                 | `v-if` 不能挂在业务开关上（否则退出动画没地方播），改挂 `present` |
 | 导航前关浮层 | `support/overlay.ts` 的 `closeAllOverlays()` | 修过「点搜索结果后面板不关、滚不动」的 bug                        |
-| 页面过渡     | `support/route-transition.ts`                | 接在 VitePress router 钩子上，所有导航方式统一                    |
+| 页面过渡     | `support/route-transition.ts`                | 链接导航接 router 钩子；**popstate 自己监听 `window`**（见下）    |
 | 主题过渡     | `support/theme-transition.ts`                | View Transitions 只在「切换那一刻」拍快照，无常驻过渡代价         |
 
 **给新浮层加进出动画的步骤**：`usePresence(open)` 拿 `present` / `exiting` → 模板
 `v-if="present"` + `:class="{ 'is-exiting': exiting }"`（进入动画挂基础选择器、退出挂
-`.is-exiting` 后裔）→ 滚动锁与焦点归还移到 `watch(present)` → `registerOverlayCloser()`
+`.is-exiting` 后裔）→ **进入编排**（遮罩 0ms、面板 `animation-delay: 40ms` + `fill-mode: backwards`，
+见下）→ 滚动锁与焦点归还移到 `watch(present)` → `registerOverlayCloser()`
 登记（客户端 only）→ `prefers-reduced-motion` 下把进入与退出两条都列 `animation: none`。
 
-**两条最容易踩的坑：**
+**浮层焦点契约**：打开时焦点进浮层，关闭时**归还给触发元素**（`isConnected` 检查——因导航而关闭时
+触发按钮已被新页面替换，不能再 `focus()`）。三处现状：
+
+- 搜索面板：`SearchPanel.vue` 打开时记 `document.activeElement`，关闭时 `restore?.isConnected && restore.focus()`；
+- 目录 sheet：落点是 **sheet 本身**（`tabindex="-1"`，`MobileDock.vue` 里 `tocSheet.focus()`），
+  **不要送第一条目录项**——焦点环会套在「当前节」的强调色高亮上，同一行两套绿色信号打架；
+- 抽屉 / 查看器一直这么做，别在新浮层里省掉。
+
+**四条最容易踩的坑：**
 
 - `EXIT_MS`（`usePresence.ts`，当前 160）必须等于 `--duration-exit`（`tokens.css`）。
   CSS 决定动画多长，TS 决定 DOM 留多久；改一处必须同步另一处。
 - **不要给元素加 `view-transition-name`**。名字必须全局唯一，本站列表页会有多个
   `.page-title`，重名会让浏览器**静默放弃整次过渡**。
+- **popstate 要自己监听**。VitePress 的 popstate 处理器不触发 `onBeforeRouteChange`，
+  只在 `await loadPage()` 之后调 `onAfterRouteChange`；`route-transition.ts` 因此在
+  `window` 上自己加一个 popstate。**注册顺序是契约**：它比 VitePress 的监听注册得晚，
+  所以执行也晚——VitePress 正卡在 `loadPage()` 的 await 上、DOM 仍是旧页，这一刻拍到的才是旧快照。
+  别把这段监听挪到 router 初始化之前，也别改成 `await` 后再拍。`event.state` 为空、
+  或 `location.pathname === settledPath`（只有 hash 变了）时直接跳过；结算仍走 `onAfterRouteChange`。
+- **进入编排只做进入侧**。遮罩 0ms、面板 / 抽屉 / sheet 晚 40ms（`animation-delay: 40ms`），
+  且必须带 `animation-fill-mode: backwards`——缺了它，延迟期间会先按最终形态画一帧再跳回去重播
+  （「先闪一下再出现」，比不编排更糟）。退出不加延迟：`EXIT_MS` 只管 DOM 存活，关闭已经决定离开，
+  多等就是拖沓。
 
 ### 加一个样式文件
 
@@ -892,6 +951,11 @@ frontmatter.layout === 'home'   → HomePage.vue    首页
 **加一个新页面类型**：在 `components/pages/` 新建 `XxxPage.vue` → `Layout.vue` 的
 `switch` 加 `case` → Markdown 里写 `layout: xxx`。不需要碰路由配置，VitePress 按文件路径
 自动生成路由。
+
+**标签总览页的两处页面级约定**：① 页面描述之后的系统统计不再用 `.page-description`
+（18px 主文案），改用 `.page-meta-line`（14px / `--fg-subtle` / 上距 12px）——作者写的话与机器算的数
+属于两类信息，不能贴成一段；② 只有一个标签时不渲染 `TagCloud`（分级字号此时恒为最小档，
+而「标签越大代表文章越多」的提示在只有 1 个标签时是自反的），分组卡已经完整表达了同一件事。
 
 ### 页面组件的标准结构
 
@@ -959,7 +1023,9 @@ frontmatter.layout === 'home'   → HomePage.vue    首页
 手机由胶囊的「搜索」唤起。纯前端「小写包含」+ 打分：标题命中 100、标题开头 +50、
 标签 30、描述 20、正文 5，取前 12 条；不引入模糊匹配库。`↑` `↓` 循环选择、`Enter` 用
 `router.go()` 客户端跳转（**不要** `location.href`，否则鼠标点和键盘走会得到两种观感）、
-`Esc` 关闭。面板打开即聚焦；`Teleport to="body"`、`role="dialog"`、焦点陷阱、引用计数
+`Esc` 关闭。面板打开即聚焦、**关闭把焦点还给触发按钮**（打开时记 `document.activeElement`，
+关闭时 `isConnected` 才 `focus()`——因导航而关闭时按钮已被新页面替换）；`Teleport to="body"`、
+`role="dialog"`、焦点陷阱、引用计数
 滚动锁；退出动画期间**保持锁**，`watch(present)` 里才释放。桌面端按触发按钮位置算
 `transform-origin`，移动端恒为顶部中央。
 
@@ -1004,7 +1070,12 @@ iOS 额外固定 body、解锁先用 `behavior: 'instant'` 归位再通知 `onSc
 4. 抽屉里不能用下拉菜单（会被 `overflow-y: auto` 裁掉），语言用
    `LocaleSwitch variant="segmented"` 分段按钮；
 5. 胶囊外层是 `height: 100dvh` 的固定层，浏览器工具栏收放由合成器跟随，
-   **不要**再写 JS 逐帧算视口（`AppShell` 里没有视口补偿代码）。
+   **不要**再写 JS 逐帧算视口（`AppShell` 里没有视口补偿代码）；
+6. **目录 sheet 内不要为胶囊预留高度**：胶囊 `z-index: 102` 低于 sheet 的 `120`，会被完全盖住——
+   旧写法给它留的 `--dock-space`（真机约 106px）不是留白，是永远点不到的死区，还会把目录列表顶短
+   （横屏实测只剩 3 行）。sheet 的 `padding-bottom` 只给 `--dock-lift`（安全区）；关掉 sheet 后胶囊自然浮回来。
+   同理：sheet 里的「当前节高亮」由 `useActiveAnchor` 提供（与桌面目录同一口径），
+   `.m-toc__list a.is-active` 与 hover 分档（见第四节「状态分档」）。
 
 **手机上隐藏了哪些桌面内容，去哪找**：
 
@@ -1077,8 +1148,9 @@ const REGISTRY = { profile: ProfileCard, tags: TagsCard } as const
 
 两步：在 `ICONS` 加条目 → 在 `types.ts` 的 `IconName` 加字面量。之后运行期用
 `<AppIcon name="star" />`（组件直接 import `shared/icons`），构建期（块级指令）用
-`renderIcon()` 拼字符串。尺寸与颜色统一由 CSS（`.icon` + `currentColor`）控制，
-构建期产物的 `aria-hidden` / `focusable` 与 `AppIcon` 一致。
+`renderIcon()` 拼字符串。颜色统一由 `currentColor` 控制；**尺寸用 `--icon-sm/md/lg/xl` 四档**
+（16 / 18 / 20 / 24px，见 DESIGN §3.5）——直接在 CSS 里写 `width: 1.05rem` 又会把
+「同一行三种图标尺寸」的旧问题带回来。构建期产物的 `aria-hidden` / `focusable` 与 `AppIcon` 一致。
 
 ### 加文案（界面文字）
 
@@ -1494,6 +1566,7 @@ GITHUB_TOKEN 权限执行上游代码）；升级通过 Dependabot 发 PR。权�
 | 标签页用动态路由 + `paths()`                                 | 新增标签无需手写文件，是静态博客最容易腐化的地方                                                                                                                                                                                                                           |
 | 侧栏用注册表 + 联合类型                                      | 只有 profile/tags 两张；名字拼错在 typecheck 报错，而不是悄悄少渲染                                                                                                                                                                                                        |
 | 搜索自建（构建期索引）                                       | 不引入 Algolia 的第三方请求、查询词外发与前端 API key；纯前端匹配对博客量级足够                                                                                                                                                                                            |
+| 页面过渡：链接走 router 钩子、popstate 自己监听              | VitePress 的 popstate 不触发 `onBeforeRouteChange`，但「旧快照」只有在 DOM 还是旧页时才拍得到；自监听利用它 `await loadPage()` 的窗口，结算复用 `onAfterRouteChange`，两条入口一套逻辑（见第四节「动效层」）                                                               |
 | 嵌入块「构建期只出链接，运行期补数据」                       | 构建期零网络、产物可复现；断网 / 禁 JS / 限流时仍是一条真链接                                                                                                                                                                                                              |
 | `.vitepress` 放仓库根                                        | 配置/主题与内容分离；`srcDir`/`outDir`/`cacheDir` 显式声明即可                                                                                                                                                                                                             |
 | 中文也带 `/zh-cn/` 前缀                                      | 与 `docs/site/zh-cn/` 一一对应，两种语言完全对称，无隐式映射；根路径只做语言分发                                                                                                                                                                                           |
@@ -1516,11 +1589,12 @@ GITHUB_TOKEN 权限执行上游代码）；升级通过 Dependabot 发 PR。权�
 滚动判定——会出现「页头藏了胶囊没缩」这类不一致。常量与滞回逻辑见第五节
 「移动端：断点与 Dock 状态机」。
 
-### 五个「看起来能改、其实会踩坑」的点
+### 六个「看起来能改、其实会踩坑」的点
 
 安全区 meta、`--dock-lift` 的安全区相加、胶囊右边缘的 `transform` 百分比、浮层的
-`Teleport to="body"`、抽屉里只能用分段语言按钮——这五条与第五节「移动端」的硬约束是
-同一份清单。
+`Teleport to="body"`、抽屉里只能用分段语言按钮、**目录 sheet 内不要为胶囊预留高度**——
+这六条与第五节「移动端」的硬约束是同一份清单。最后一条最容易「好心办坏事」：
+胶囊被 sheet 盖住（z 102 < 120），预留出来的空间不是让位，是永远点不到的死区。
 
 ### z 轴阶梯（一句话）
 
@@ -1560,6 +1634,12 @@ scrollY；解锁先用 `behavior: 'instant'` 归位再通知 `onScrollLockReleas
 页面级滚动条自绘（`components/common/ScrollBar.vue`），原生条被隐藏。
 **完整规范见 [DESIGN.md](./DESIGN.md) 第十一节**；自动隐藏的三个坑（初值必须
 `-Infinity`、跳过 touch 指针、进出揭示带不刷新活动时间戳）实现在 `theme/composables/useScrollBar.ts`，这里只记实现相关的几件事。
+
+**触屏（`pointer: coarse`）整层隐藏，且 JS 也拒绝 touch 拖拽。** 它不是「手机上不需要」，
+而是会在屏幕右缘**抢滚动手势**：手指贴边起手时按在拇指上（`touch-action: none`），页面不滚、
+反而冒出一根条。CSS 在 `base.css` 里 `@media (pointer: coarse) { .scrollbar { display: none } }`，
+`startDrag` 里 `if (event.pointerType === 'touch') return`；两道都要有——只藏 CSS，开发者工具切
+回桌面指针时仍可能触发拖拽逻辑。手机上的阅读进度由顶部阅读进度条承担。
 
 **为什么不能挂进 `<header>`**：页头的 `backdrop-filter` 会为 fixed 后代创建包含块，
 把滚动条关进页头的层叠上下文，`z-index` 就压不住正文了；所以它和页头**平级**，

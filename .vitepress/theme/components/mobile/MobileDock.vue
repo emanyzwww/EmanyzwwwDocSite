@@ -3,6 +3,7 @@ import { useData } from 'vitepress'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { SITE } from '../../../data/site'
+import { useActiveAnchor } from '../../composables/useActiveAnchor'
 import { useDockState } from '../../composables/useDockState'
 import { usePresence } from '../../composables/usePresence'
 import { useI18n } from '../../i18n'
@@ -88,6 +89,15 @@ const tocOpen = ref(false)
 const tocSheet = ref<HTMLElement | null>(null)
 let releaseTrap: (() => void) | null = null
 
+/**
+ * 当前正在读的章节。
+ *
+ * 桌面目录（`OutlineCard`）一直有「阅读线 + aria-current」，手机目录此前
+ * 什么都没有 —— 读者打开 sheet 后只能靠记忆判断自己在哪一节。
+ * 复用同一个 composable，保证两端的判定口径（含阅读线偏移）完全一致。
+ */
+const { activeId: tocActiveId } = useActiveAnchor()
+
 /** 进出状态机：关闭时先播退出动画再摘 DOM（见 usePresence）。 */
 const { present: tocPresent, exiting: tocExiting } = usePresence(tocOpen)
 
@@ -117,8 +127,14 @@ watch(tocOpen, (isOpen) => {
   if (isOpen) {
     acquireScrollLock()
     releaseTrap = trapFocus(() => tocSheet.value)
-    // 等渲染完再移焦点
-    requestAnimationFrame(() => tocSheet.value?.querySelector('a')?.focus())
+    /*
+     * 焦点落在**面板本身**，不落在第一条目录项上。
+     *
+     * 落在第一项时，键盘焦点环会套在「当前节」的强调色高亮上 —— 同一行
+     * 出现两套绿色信号，既吵又分不清哪个是「我在读」哪个是「焦点在这」。
+     * 面板有 `tabindex="-1"`，聚焦它不会产生可见焦点环；读者按 Tab 才进第一项。
+     */
+    requestAnimationFrame(() => tocSheet.value?.focus())
   } else {
     releaseTrap?.()
     releaseTrap = null
@@ -302,7 +318,7 @@ onBeforeUnmount(() => {
       :aria-label="m.openToc">
       <button class="m-toc__scrim" type="button" :aria-label="m.closeToc" @click="closeToc" />
 
-      <div ref="tocSheet" class="m-toc__sheet">
+      <div ref="tocSheet" class="m-toc__sheet" tabindex="-1">
         <div class="m-toc__head">
           <p class="m-toc__title">
             <AppIcon name="toc" />
@@ -312,6 +328,13 @@ onBeforeUnmount(() => {
             <AppIcon name="arrow-up" />
             {{ m.backToTop }}
           </button>
+          <!--
+            显式关闭键：抽屉与搜索都有，只有目录 sheet 要读者去点遮罩 ——
+            三者是同一类浮层，逃脱方式不该有两种。
+          -->
+          <button class="m-toc__close" type="button" :aria-label="m.closeToc" @click="closeToc">
+            <AppIcon name="close" />
+          </button>
         </div>
 
         <!--
@@ -320,7 +343,13 @@ onBeforeUnmount(() => {
         -->
         <ul class="m-toc__list vp-raw">
           <li v-for="item in flatOutline" :key="item.slug" :data-level="item.level">
-            <a :href="`#${item.slug}`" @click.prevent="goTo()">{{ item.title }}</a>
+            <a
+              :href="`#${item.slug}`"
+              :class="{ 'is-active': tocActiveId === item.slug }"
+              :aria-current="tocActiveId === item.slug ? 'true' : undefined"
+              @click.prevent="goTo()"
+              >{{ item.title }}</a
+            >
           </li>
         </ul>
       </div>

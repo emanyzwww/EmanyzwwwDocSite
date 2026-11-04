@@ -147,8 +147,23 @@ export type IconName =
 /** 个人资料中的一条社交链接。 */
 export interface ProfileLink {
   label: string
+  /**
+   * 按语言覆盖的可读名称（`title` / `aria-label`）。
+   *
+   * 图标按钮没有可见文字，读屏与 hover 提示是它唯一的「名字」——
+   * 所以这个名字必须跟当前语言走。缺省回退到 `label`。
+   */
+  labelI18n?: Partial<Record<LocaleCode, string>>
   url: string
   icon?: IconName
+}
+
+/** 资料卡里随语言变化的那部分文案。 */
+export interface ProfileCopy {
+  /** 名字下方的一行小字。 */
+  tagline: string
+  /** 自我介绍，支持 Markdown（构建期渲染）。 */
+  bio: string
 }
 
 /** 个人资料（数据源：`data/profile.ts`，构建期渲染 bio 后下发）。 */
@@ -156,17 +171,30 @@ export interface Profile {
   /** `media/` 下的文件名；留空则不显示头像。 */
   avatar: MediaFile
   name: string
+  /** 默认语言（`zh-cn`）的 tagline，同时是其它语言缺省时的回退值。 */
   tagline: string
-  /** 支持 Markdown。 */
+  /** 默认语言（`zh-cn`）的 bio，支持 Markdown。 */
   bio: string
+  /**
+   * 其它语言的覆盖文案。
+   *
+   * 为什么不用一份「按语言取值」的函数：本文件同时被构建期与浏览器使用，
+   * 而 bio 需要在构建期渲染成 HTML —— 只能把所有语言各渲染一份、让组件按
+   * 当前语言挑（见 `RenderedProfile.i18n`）。个人资料是站点级常量，
+   * 多渲染一次 Markdown 的成本可以忽略。
+   */
+  i18n?: Partial<Record<LocaleCode, ProfileCopy>>
   links: ProfileLink[]
   /** 侧栏标签卡最多显示几个标签。 */
   tagsLimit: number
 }
 
-/** 渲染后的个人资料（bio 已转为 HTML）。 */
-export interface RenderedProfile extends Omit<Profile, 'bio'> {
+/** 渲染后的个人资料（每种语言的 bio 都已转为 HTML）。 */
+export interface RenderedProfile extends Omit<Profile, 'bio' | 'i18n'> {
+  /** 默认语言（`zh-cn`）的 bio HTML，保留给不关心语言的调用方。 */
   bioHtml: string
+  /** 每种语言一份；`zh-cn` 始终存在，其它语言缺省时回退到它。 */
+  i18n: Record<LocaleCode, { tagline: string; bioHtml: string }>
 }
 
 /** 侧栏组件名。 */
@@ -292,6 +320,15 @@ export interface Messages {
    */
   termCountOne: string
   taxonomyOverviewOne: string
+  /**
+   * 时间线年份分组后面的数量。
+   *
+   * 只有一个裸数字（`2026  1`）读者不知道 1 是什么，必须带单位；
+   * 中文「{count} 篇」/英文「{count} posts」。
+   */
+  yearCount: string
+  /** 单数形式；中文与复数同句，英文必须区分（否则「1 posts」）。 */
+  yearCountOne: string
 
   // ---------- 图片查看器 ----------
   /** 查看器的无障碍名（dialog 的 aria-label）。 */

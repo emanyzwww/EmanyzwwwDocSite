@@ -57,6 +57,6 @@ const urlOf = (page: number): string => postListUrl(locale.value, page)
       <Pagination :current="slice.current" :total="slice.totalPages" :url-of="urlOf" />
     </template>
 
-    <EmptyState v-else :text="m.noPostsYet" />
+    <EmptyState v-else :text="m.noPostsYet" icon="list" />
   </TwoColumn>
 </template>

@@ -4,7 +4,7 @@ import { computed } from 'vue'
 
 import { useTaxonomy } from '../../composables/useTaxonomy'
 import { format, useI18n } from '../../i18n'
-import { decodePath } from '../../support/paths'
+import { decodePath, postListUrl } from '../../support/paths'
 import RecentPostsCard from '../aside/RecentPostsCard.vue'
 import StatsCard from '../aside/StatsCard.vue'
 import EmptyState from '../common/EmptyState.vue'
@@ -20,11 +20,14 @@ import TagSuggest from '../tag/TagSuggest.vue'
  */
 
 const { params } = useData()
-const { m } = useI18n()
+const { locale, m } = useI18n()
 const { tags, findTag } = useTaxonomy()
 
 /** 当前标签的 slug（归一成原文，与 `TagRef.slug` 同一形式）。 */
 const slug = computed(() => decodePath(String(params.value?.tag ?? '')))
+
+/** 空态出口：这个标签下没有文章时，读者还可以去全站列表（本站没有空的标签页）。 */
+const allPostsUrl = computed(() => postListUrl(locale.value))
 
 const tag = computed(() => findTag(slug.value))
 
@@ -56,7 +59,11 @@ const countText = computed(() => {
       </div>
     </template>
 
-    <EmptyState v-else :text="m.noPostsInTerm" />
+    <EmptyState
+      v-else
+      :text="m.noPostsInTerm"
+      icon="tag"
+      :action="{ label: m.allPosts, href: allPostsUrl }" />
 
     <TagSuggest v-if="others.length" :tags="others" />
 

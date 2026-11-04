@@ -405,6 +405,20 @@ function measureStage(): void {
 let flipAnimation: Animation | null = null
 
 /**
+ * 是否要求减少动效。
+ *
+ * **CSS 的 `prefers-reduced-motion` 管不到这里**：`element.animate()` 走的是
+ * Web Animations，不参与样式系统的 `animation: none` 覆盖。而 FLIP 是全站
+ * 最大的一处运动（260ms 把缩略图铺满全屏、再缩回去），恰恰最该被关掉。
+ * 所以必须自己判断：reduce 下跳过 FLIP，只留 lightbox.css 的淡入淡出。
+ */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false
+}
+
+/**
  * 当前这张图在正文里的屏幕矩形（退出用）。
  *
  * 找不到时返回 null（例如读者已经滚走、或图片被 CSS 隐藏）——
@@ -478,6 +492,8 @@ function playFlipIn(): void {
   const image = imageEl.value
   const from = origin.value
   if (!image || !from) return
+  // reduce 下不做「飞行」，图片直接出现在舞台中央（CSS 淡入仍在跑）
+  if (prefersReducedMotion()) return
   const to = fittedRect()
   if (!to) return
 
@@ -493,6 +509,8 @@ function playFlipIn(): void {
 function playFlipOut(): void {
   const image = imageEl.value
   if (!image) return
+  // 退出同样跳过：reduce 下遮罩淡出即可，不要再来一次整屏缩放
+  if (prefersReducedMotion()) return
   const to = triggerRect()
   if (!to) return
   const from = fittedRect()

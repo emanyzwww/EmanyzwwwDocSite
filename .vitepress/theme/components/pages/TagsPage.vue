@@ -4,6 +4,7 @@ import { computed } from 'vue'
 
 import { useTaxonomy } from '../../composables/useTaxonomy'
 import { format, useI18n } from '../../i18n'
+import { href, withLocale } from '../../support/paths'
 import RecentPostsCard from '../aside/RecentPostsCard.vue'
 import StatsCard from '../aside/StatsCard.vue'
 import EmptyState from '../common/EmptyState.vue'
@@ -19,7 +20,7 @@ import TagGroups from '../tag/TagGroups.vue'
  */
 
 const { page, frontmatter } = useData()
-const { m } = useI18n()
+const { locale, m } = useI18n()
 const { tags } = useTaxonomy()
 
 /** 页面大标题用 `page.title`，不含站点名后缀。 */
@@ -31,6 +32,9 @@ const overview = computed(() =>
     count: tags.value.length,
   }),
 )
+
+/** 空态出口：一个标签都没有时，首页是唯一还有内容的落点。 */
+const homeLink = computed(() => href(withLocale('/', locale.value)))
 </script>
 
 <template>
@@ -38,17 +42,26 @@ const overview = computed(() =>
     <header class="page-header">
       <h1 class="page-title">{{ heading }}</h1>
       <p v-if="frontmatter.description" class="page-description">{{ frontmatter.description }}</p>
-      <p v-if="tags.length" class="page-description">
+      <p v-if="tags.length" class="page-meta-line">
         {{ overview }}
       </p>
     </header>
 
     <template v-if="tags.length">
-      <TagCloud :tags="tags" />
+      <!--
+        只有一个标签时不渲染标签云：分级字号此时恒为最小档，
+        而「标签越大代表文章越多」的提示在一屏里只有 1 个标签时是自反的。
+        分组卡已经完整表达了同一件事。
+      -->
+      <TagCloud v-if="tags.length > 1" :tags="tags" />
       <TagGroups :tags="tags" />
     </template>
 
-    <EmptyState v-else :text="m.noTerms" />
+    <EmptyState
+      v-else
+      :text="m.noTerms"
+      icon="tag"
+      :action="{ label: m.backHome, href: homeLink }" />
 
     <template #aside>
       <StatsCard />

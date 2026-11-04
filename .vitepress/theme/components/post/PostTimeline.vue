@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import type { PostSummary } from '../../../types'
+import { format, useI18n } from '../../i18n'
 import { href } from '../../support/paths'
 import PostMeta from './PostMeta.vue'
 
@@ -16,6 +17,18 @@ import PostMeta from './PostMeta.vue'
  */
 
 const props = defineProps<{ posts: PostSummary[] }>()
+
+const { m } = useI18n()
+
+/**
+ * 年份后面的数量文案。
+ *
+ * 裸数字「2026 1」读不出 1 是什么；单位必须走 i18n（中文「篇」、
+ * 英文还要区分 posts/post），不能硬编码。
+ */
+function countText(count: number): string {
+  return format(count === 1 ? m.value.yearCountOne : m.value.yearCount, { count })
+}
 
 interface YearGroup {
   year: string
@@ -38,7 +51,7 @@ const groups = computed<YearGroup[]>(() => {
     <section v-for="group in groups" :key="group.year" class="tl-year">
       <h2 class="tl-year__label">
         <span>{{ group.year }}</span>
-        <span class="tl-year__count">{{ group.posts.length }}</span>
+        <span class="tl-year__count">{{ countText(group.posts.length) }}</span>
       </h2>
 
       <ul class="tl-list">

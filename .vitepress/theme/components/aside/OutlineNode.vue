@@ -23,8 +23,8 @@ defineProps<{
 <template>
   <li>
     <!--
-      `title` 用来补全被 CSS 省略号截断的长标题：
-      目录项固定单行（见 posts.css），悬停时仍能看到完整文字。
+      `title` 补全被两行截断的超长标题（见 posts.css 的 `.toc__list a`）：
+      目录项最多两行，再长的部分用 `-webkit-line-clamp` 收掉，悬停仍能看到全文。
     -->
     <a
       :href="`#${node.slug}`"

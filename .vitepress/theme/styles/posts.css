@@ -19,12 +19,28 @@
   font-weight: var(--weight-bold);
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tighter);
+  /* 折行均衡：长标题在窄屏上不要出现「末行只剩一个字」 */
+  text-wrap: balance;
 }
 
 .page-description {
   margin: 0;
   color: var(--fg-muted);
   font-size: var(--text-lg);
+  line-height: var(--leading-normal);
+}
+
+/*
+ * 页面描述之后的系统统计行（/tags/ 总览：作者描述 + 标签统计）。
+ *
+ * 之前两段都是 `.page-description` 且 `margin: 0`，精确贴在一起，
+ * 读起来像同一句换了口气；而它其实是另一类信息（机器算的计数）。
+ * 降一档字号与颜色，让"作者的话"和"系统的账"分开。
+ */
+.page-meta-line {
+  margin: var(--space-3) 0 0;
+  color: var(--fg-subtle);
+  font-size: var(--text-sm);
   line-height: var(--leading-normal);
 }
 
@@ -55,8 +71,26 @@
   text-transform: uppercase;
 }
 
+/*
+ * 文章头。
+ *
+ * 宽度上限与 `.prose` 对齐：三栏主栏是 688px，正文自己收到 672px；
+ * 不补这一行，标题/元信息/导语会比正文右缘多出 16px（实测 688 vs 672），
+ * 长标题折行时右边界参差。
+ */
 .post-header {
+  max-width: var(--layout-measure);
   margin-bottom: var(--space-10);
+}
+
+/*
+ * 有导语时，头与正文的距离由导语承担（DESIGN 10.2：导语与正文块间距 16px）。
+ *
+ * 无导语的元信息本来就要和正文拉开 40px；一旦有导语，40px 会把导语推成
+ * 「副标题」，读起来与正文断成两块。用 :has() 只在这类文章上收口。
+ */
+.post-header:has(.post-header__lead) {
+  margin-bottom: var(--space-4);
 }
 
 .post-header .page-title {
@@ -104,12 +138,16 @@
  * 只有「与正文首段不同」时才渲染（构建期在 `toPostSummary` 里判断）——
  * 否则同一句话会在标题下出现两次。字号与首页/页面描述同档（`--text-lg`），
  * 颜色降一档：它是「要不要读」的提示，不是正文的一部分。
+ *
+ * 行高 1.75（不是 `--leading-normal` 的 1.6）：导语紧邻 17px/1.9 的正文，
+ * 1.6 会让这一段成为全页最紧的行距，和第二段衔接时"先紧后松"很跳。
  */
 .post-header__lead {
   margin: var(--space-4) 0 0;
   color: var(--fg-muted);
   font-size: var(--text-lg);
-  line-height: var(--leading-normal);
+  line-height: var(--leading-relaxed);
+  text-wrap: pretty;
 }
 
 /*
@@ -188,7 +226,13 @@
   list-style: none;
 }
 
+/*
+ * 整行可点：行内只有标题是链接，但 hover 挂在整行上（见下）。
+ * 单纯让标题可点的结果是「看起来整行是链接、点摘要却没反应」——
+ * 用一个铺满整行的伪元素把点击热区补全，同时只保留标题这一个 Tab 焦点。
+ */
 .tl__item {
+  position: relative;
   display: grid;
   grid-template-columns: 4.25rem minmax(0, 1fr) auto;
   align-items: baseline;
@@ -209,8 +253,14 @@
   white-space: nowrap;
 }
 
+/*
+ * 正文列（标题 + 摘要）收在正文 measure 内：大屏上主栏有 800+px，
+ * 不约束的话列表行宽会明显长于文章正文，同一站里出现两种阅读行宽。
+ * 只约束这一列，右侧元信息仍贴右。
+ */
 .tl__main {
   min-width: 0;
+  max-width: var(--layout-measure);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -228,6 +278,13 @@
   transition:
     color var(--duration-fast) var(--ease-out),
     text-decoration-color var(--duration-fast) var(--ease-out);
+}
+
+/* 拉伸热区到整行；与 PostCard 的同样做法保持一致 */
+.tl__title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
 }
 
 /* 整行悬停只让标题变色加下划线，不铺整块灰底 */
@@ -252,6 +309,12 @@
   color: var(--fg-subtle);
   font-size: var(--text-xs);
   white-space: nowrap;
+}
+
+/* 整行热区的拉伸伪元素会盖住同一行里的标签链接：抬一层让它们各自可点 */
+.tl__meta a {
+  position: relative;
+  z-index: 1;
 }
 
 /* 条件与 `mobile.css` 的移动端判定一致：含手机横屏（触屏 + 高度不足 500px）。
@@ -325,11 +388,14 @@
 
 .post-card__title {
   margin: 0 0 var(--space-2);
+  /* 卡片有 976px 宽，标题/摘要不受约束就会比正文行宽长出一大截 */
+  max-width: var(--layout-measure);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
   color: var(--fg-default);
   line-height: var(--leading-snug);
   letter-spacing: var(--tracking-snug);
+  text-wrap: balance;
 }
 
 .post-card:hover .post-card__title {
@@ -345,6 +411,7 @@
 
 .post-card__summary {
   margin: 0 0 var(--space-4);
+  max-width: var(--layout-measure);
   color: var(--fg-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
@@ -375,7 +442,17 @@
   height: 0.9rem;
 }
 
+/*
+ * 标签链接必须能单独点击。
+ *
+ * `.post-card__link::after` 是绝对定位的拉伸链接，绘制层与命中测试都在
+ * 普通流内容之上 —— 不给 meta 里的链接抬层，鼠标点在标签上实际命中的是
+ * 整卡链接（跳文章），而键盘 Tab 却能到标签（跳标签页）：两种输入方式行为不一致。
+ * 只抬 `<a>`：日期等非链接文字仍属于整卡热区。
+ */
 .post-card__meta a {
+  position: relative;
+  z-index: 1;
   color: var(--fg-muted);
   text-decoration: none;
 }
@@ -396,8 +473,15 @@
 /* 与移动端判定一致（含手机横屏）：横屏可视高度只有 ~390px，
    大标题会吃掉正文首屏，同样需要缩小 */
 @media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
-  .page-title {
-    font-size: var(--text-2xl);
+  /*
+   * 字号用 clamp 而不是写死一档：首页 hero 的 44px 来自
+   * `.page-header--hero .page-title`（特异性 0,2,0），会压过下面这条
+   * 单类规则 —— 必须把 hero 选择器一起写进来才收得住。
+   * 390px 下约 29–30px（长标题不再一行撑满），到 720px 仍可长到 44px。
+   */
+  .page-title,
+  .page-header--hero .page-title {
+    font-size: clamp(1.875rem, 7.5vw, 2.75rem);
   }
 
   /* h2 在手机上也要收：28px 在 375px 宽上折行太多 */
@@ -447,7 +531,7 @@
 }
 
 .toc__list a {
-  display: block;
+  display: -webkit-box;
   padding: var(--space-1) var(--space-3);
   /* 左侧竖线是目录的层级指示器，2px 宽度足以在 14px 文字旁被看见 */
   border-left: 2px solid var(--border-subtle);
@@ -455,16 +539,20 @@
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   text-decoration: none;
+  overflow: hidden;
+  overflow-wrap: break-word;
   transition:
     color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out);
 
-  /* 目录项固定单行：右栏只有 16rem，长标题折行会把整块撑高、
-     还会让扫视节奏变乱。超出部分用省略号，完整标题在 title 属性里
-     （见 OutlineNode.vue），悬停即可看到。 */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /*
+   * 目录项最多两行。之前是单行 + 省略号：右栏只有 16rem，长中文标题
+   * 折成两行才能看出「这是哪一节」；单行截断后一列目录看起来全一样，
+   * 读者只能靠 hover 的 title 提示猜。两行是「可扫视」与「不撑高」的折中。
+   */
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* 深层标题弱化：H3/H4 字号更小、颜色更淡，避免三级目录挤成一片 */
@@ -472,10 +560,22 @@
   font-size: var(--text-xs);
 }
 
-.toc__list a:hover,
+/*
+ * hover 与 active 必须分档（DESIGN 里的状态梯子）。
+ *
+ * hover 只表示「移动到这里」：文字变主色即可。
+ * active 是「你正在读这一节」：要同时有竖线、淡底和字重三种信号，
+ * 且不随鼠标离开而消失。两态同款时，鼠标划过别的条目会出现两条「当前项」。
+ */
+.toc__list a:hover {
+  color: var(--accent);
+}
+
 .toc__list a.is-active {
   color: var(--accent);
   border-left-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: var(--weight-semibold);
 }
 
 /* ---------- 分页 ---------- */
@@ -659,4 +759,31 @@
   margin: var(--space-4) 0 var(--space-8);
   color: var(--fg-muted);
   font-size: var(--text-lg);
+}
+
+/* ---------- 空状态 ----------
+ *
+ * 基础形态（`.empty`：居中 / 降色）在 components.css；这里给「图标 + 说明
+ * + 可选出口」这套结构补排版。和 404 一样是页面的终态，所以视觉上要有
+ * 一个「落点」，而不是一行无处安放的小字。
+ */
+
+.empty__icon {
+  display: block;
+  width: var(--icon-xl);
+  height: var(--icon-xl);
+  margin: 0 auto var(--space-3);
+  color: var(--fg-subtle);
+}
+
+.empty__text {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+/* 出口按钮：与内容拉开足够距离，避免被读成说明的一部分 */
+.empty__action {
+  margin-top: var(--space-5);
 }
