@@ -1,25 +1,28 @@
-# ---------- DSH ----------
-.dsh/
-!.dsh/skills/
+# AI
+/.dsh/*
+!/.dsh/skills/
 
-# ---------- 依赖 ----------
+# IDEs
+/.idea/
+/.vscode/
+/.openidea/
+
+# OS
+/.DS_Store
+/Thumbs.db
+/desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+
+# Dependencies
 /node_modules/
 /.pnpm-store/
 /.npm-cache/
 
-# ---------- VitePress 产物与缓存 ----------
+# VitePress build artifacts
 .vitepress/dist/
 .vitepress/cache/
 .vitepress/.temp/
-
-# ---------- IDE / 系统 ----------
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# ---------- 日志与临时文件 ----------
-*.log
-*.tmp
-*.bak
