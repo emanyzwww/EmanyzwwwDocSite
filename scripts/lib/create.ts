@@ -17,8 +17,8 @@
  * 3. **指定目录**（`--into 202610/1901`）：不分配序号，直接在已有文章目录里
  *    写当前语言版本（补翻译的主要用法）。
  *
- * 默认**只建当前语言**：另一语言的 `index.md` 由作者按需补（`--into`），
- * `shared/` 也只在真的需要跨语言共享资源时才由作者创建。
+ * 本函数一次只写**一种语言**：多语言版本由 `commands/new.ts` 依次调用，
+ * 文章目录与各语言 / `shared/` 下的资源目录同样由它统一建好。
  *
  * slug 只写进 frontmatter，**不再参与目录名**：标题与 URL 段落解耦后，
  * 改标题/改 URL 不需要移动文件（URL 由 `rewrites` 从目录 + slug 拼出）。
@@ -266,6 +266,9 @@ function resolveArticleDir(
   if (options.sequence !== undefined) {
     if (!/^\d{2}$/.test(options.sequence)) {
       throw new Error(`序号需要两位数字，例如 01，收到：${options.sequence}`)
+    }
+    if (Number(options.sequence) < 1 || Number(options.sequence) > MAX_SEQUENCE) {
+      throw new Error(`序号只能是 01–${MAX_SEQUENCE}，收到：${options.sequence}`)
     }
 
     /*

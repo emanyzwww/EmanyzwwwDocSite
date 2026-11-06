@@ -39,6 +39,14 @@ const COMMANDS: readonly CommandModule[] = [
 /** 按名字索引。 */
 const BY_NAME = new Map(COMMANDS.map((command) => [command.meta.name, command]))
 
+/**
+ * 裸调（不带参数）时本应进向导的命令。
+ *
+ * 非 TTY（CI、管道、重定向）里没有向导可走，若继续按默认值执行就会
+ * 「空标题建全部语言」「不确认就写盘 / 删产物」；因此统一改为打印帮助。
+ */
+const BARE_WIZARD_COMMANDS: ReadonlySet<string> = new Set(['new', 'fix', 'format', 'clean'])
+
 /** 主菜单项。 */
 type MenuAction = 'new' | 'list' | 'check' | 'fix' | 'format' | 'clean' | 'help' | 'exit'
 
@@ -149,6 +157,22 @@ async function main(argv: string[]): Promise<void> {
   const command = BY_NAME.get(first)
   if (!command) {
     throw new Error(`未知命令：${first}（可选：${[...BY_NAME.keys()].join('、')}）`)
+  }
+
+  // pnpm 有时会透传一个单独的 `--`，它不算参数
+  const effectiveRest = rest.filter((token) => token !== '--')
+  if (
+    effectiveRest.length === 0 &&
+    !isInteractive() &&
+    BARE_WIZARD_COMMANDS.has(command.meta.name)
+  ) {
+    printCommandHelp(command.meta)
+    console.log('')
+    console.log(
+      `${c.yellow('!')} 当前不是 TTY：向导不可用，请带上参数` +
+        `（如 pnpm doc ${command.meta.name} --try 先预览）`,
+    )
+    return
   }
 
   await command.main(rest)

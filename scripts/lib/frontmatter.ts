@@ -249,11 +249,11 @@ export function stringifyFrontmatter(
   /*
    * 换行风格必须与正文一致，否则会写出「frontmatter 用 LF、正文用 CRLF」的混合文件。
    *
-   * 实测环境：仓库没有 .gitattributes，而 `core.autocrlf=true`，
-   * 所以**工作区里的 Markdown 是 CRLF、仓库里存的是 LF**。
-   * `gray-matter` 原样保留了正文的 CRLF，若这里固定用 `\n` 拼接，
-   * 就会得到混合行尾；若把正文的 `\r\n` 也一起改掉，`pnpm doc fix` 就会
-   * 把整篇正文都标记成改动（125 行全红），作者根本看不出真正修了什么。
+   * 仓库的 `.gitattributes` 已统一 `* text=auto eol=lf`（见 DEVELOPING.md），
+   * 正常情况下正文就是 LF；但历史文件或个别编辑器仍可能留下 CRLF。
+   * 若这里固定用 `\n` 拼接，CRLF 正文就会得到混合行尾；若把正文的 `\r\n`
+   * 也一起改掉，`pnpm doc fix` 就会把整篇正文都标记成改动（125 行全红），
+   * 作者根本看不出真正修了什么。
    *
    * 结论：跟随正文的现有风格。新建文件时正文由脚本生成（LF），
    * 因此新文件也是 LF，正好符合 `.oxfmtrc.json` 的 `endOfLine: "lf"`。
@@ -303,7 +303,7 @@ export function typeOfValue(value: unknown): string {
  * 需要「一律加引号」的字符串字段。
  *
  * `date` 不在此列：它必须是裸时间戳，`gray-matter` 才会解析成 `Date`；
- * 布尔值同理。`tags` 的元素由序列化器单独处理。
+ * 布尔值同理。`tags` 是内联数组，元素单独检查（见 `unquotedStringFields`）。
  */
 const QUOTED_STRING_KEYS = ['title', 'slug', 'description'] as const
 
@@ -311,7 +311,9 @@ const QUOTED_STRING_KEYS = ['title', 'slug', 'description'] as const
  * 找出文件里**没加引号**的字符串字段。
  *
  * `check` 据此提示、`fix` 据此把文件重写成统一带引号的风格。只看单行
- * `key: value`，空值（`key:`）与已经带引号的值都跳过。
+ * `key: value`，空值（`key:`）与已经带引号的值都跳过；`tags: [随笔, 工具]`
+ * 的内联数组元素也逐项检查——否则只有标签没加引号时 `fix` 不会做任何事，
+ * 文档里「标签项一律加单引号，doc fix 会自动规范化」就不成立。
  */
 export function unquotedStringFields(raw: string): string[] {
   const block = rawFrontmatterBlock(raw)
@@ -328,6 +330,21 @@ export function unquotedStringFields(raw: string): string[] {
       break
     }
   }
+
+  // 内联标签数组：`tags: [随笔, '工具']` → 至少一个元素没引号就提示 tags
+  for (const line of block.split(/\r?\n/)) {
+    const matched = /^tags\s*:\s*\[(.*)\]\s*$/.exec(line)
+    if (!matched) continue
+    const items = (matched[1] ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item !== '')
+    if (items.some((item) => !item.startsWith("'") && !item.startsWith('"'))) {
+      found.push('tags')
+    }
+    break
+  }
+
   return found
 }
 

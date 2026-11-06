@@ -83,6 +83,15 @@ function checkPost(post: PostFile, findings: Finding[]): void {
   const file = post.path.filePath
   const data = post.data
 
+  // ---------- TOML 风格的分隔符（只给专门提示，后面还会报缺字段） ----------
+  if (post.raw.startsWith('+++')) {
+    findings.push({
+      level: 'warn',
+      file,
+      message: '检测到 `+++` 分隔符：本站只支持 YAML 的 `---`，TOML 的 `+++` 不会被解析',
+    })
+  }
+
   // ---------- 必填字段 ----------
   for (const key of REQUIRED_FRONTMATTER_KEYS) {
     const value = data[key]
@@ -122,7 +131,7 @@ function checkPost(post: PostFile, findings: Finding[]): void {
       findings.push({
         level: 'warn',
         file,
-        message: `date 建议写成带时区的完整格式：${dateLiteral} → 2026-10-24T22:49:28+08:00`,
+        message: `date 建议写成带时区的完整格式：${dateLiteral} → 如 2026-10-24T22:49:28+08:00`,
       })
     }
   }
@@ -142,6 +151,20 @@ function checkPost(post: PostFile, findings: Finding[]): void {
         file,
         message: 'updated 与 date 同一天或更早，文章页不会显示「更新于」',
       })
+    }
+
+    // 与 date 同一口径：必须读原始字面量才能看出「有没有写时区」
+    const updatedLiteral = rawScalarValue(post.raw, 'updated')
+    if (updatedLiteral !== undefined && updatedLiteral !== '') {
+      const hasTime = /T\d{2}:\d{2}/.test(updatedLiteral)
+      const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/.test(updatedLiteral)
+      if (!hasTime || !hasOffset) {
+        findings.push({
+          level: 'warn',
+          file,
+          message: `updated 建议写成带时区的完整格式：${updatedLiteral} → 如 2026-10-28T09:00:00+08:00`,
+        })
+      }
     }
   }
 
@@ -284,7 +307,7 @@ function checkCustomSyntax(prose: string, file: string, findings: Finding[]): vo
       level: 'warn',
       file,
       message:
-        `第 ${index + 1} 行是独占一段的裸 GitHub 链接（不会自动变卡）。` +
+        `正文（已剔除代码块）第 ${index + 1} 行是独占一段的裸 GitHub 链接（不会自动变卡）。` +
         '要卡片请写成：:::github owner/repo',
     })
   }

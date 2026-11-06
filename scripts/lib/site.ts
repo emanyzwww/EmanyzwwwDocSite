@@ -32,24 +32,9 @@ export { DEFAULT_LOCALE, LOCALE_CODES, LOCALES, SITE }
  */
 export const SITE_TIME_ZONE = SITE.timeZone
 
-/** 判断一个字符串是否是合法语言代码。 */
+/** 判断一个字符串是否是合法语言代码（`-l` 的严格匹配口径）。 */
 export function isLocaleCode(value: string): value is LocaleCode {
   return (LOCALE_CODES as readonly string[]).includes(value)
-}
-
-/**
- * 把用户输入的 `--lang` 收窄成 `LocaleCode`。
- *
- * 与 `site.ts` 的 `asLocale` 不同：那里「不认识就回退默认」，适合构建期的宽输入；
- * 命令行必须**报错**，否则 `-l=zn-cn` 这种手滑会静默生成到中文目录里。
- */
-export function parseLocale(value: string | undefined): LocaleCode {
-  if (value === undefined || value === '') return DEFAULT_LOCALE
-  const normalized = value.toLowerCase()
-  if (!isLocaleCode(normalized)) {
-    throw new Error(`不支持的语言：${value}（可选：${LOCALE_CODES.join('、')}）`)
-  }
-  return normalized
 }
 
 /**

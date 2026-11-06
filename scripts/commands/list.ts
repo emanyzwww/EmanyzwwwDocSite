@@ -54,9 +54,8 @@ export const meta: CommandMeta = {
   summary: '列出文章；-t 看标签视图，--stats 看统计',
   usage: 'list [参数]',
   options: [
-    { flag: '-t, --tag', description: '不带值：标签汇总视图；带值：按标签过滤' },
-    { flag: '--stats', description: '内容统计视图' },
-    { flag: '--drafts', description: '把草稿也列出来（默认隐藏）' },
+    { flag: '--stats', description: '内容统计视图（含草稿；与列表视图口径不同）' },
+    { flag: '--drafts', description: '把草稿也列出来（默认隐藏；统计视图不受影响）' },
     { flag: '--compact', description: '紧凑模式：每行一篇，不分组' },
     { flag: '--sort <field>', description: '排序：date（默认）/ title / words' },
     { flag: '--limit <n>', description: '最多显示 N 篇' },
@@ -440,7 +439,11 @@ export async function wizard(): Promise<void> {
       ? { mode: 'none' as const }
       : { mode: 'some' as const, tags: parseTagList(tagText) }
 
-  const drafts = await askConfirm('包含草稿？', false)
+  /*
+   * `--stats` 的口径是「按语言版本数统计并包含草稿」（见 DEVELOPING.md），
+   * 与列表 / 标签视图的「默认隐藏草稿」不同，所以统计视图不问这个问题。
+   */
+  const drafts = view === 'stats' ? false : await askConfirm('包含草稿？', false)
 
   const scope: Scope = { locales: localeScope, date, tag }
   const options: ListOptions = { drafts, compact: false, sort: 'date', limit: undefined }

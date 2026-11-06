@@ -449,7 +449,10 @@ VitePress 的 `404.html` 是纯 SPA 空壳（禁用 JS / 抓取预览时是一�
 
 图片源的放置位置是 `<YYYYMM>/<DDNN>/<locale>/images/`（只属于某一语言版本）与
 `<YYYYMM>/<DDNN>/shared/images/`（中英共用）。`audio/`、`video/`、`files/` 是同类资源目录，
-本期只做归置，还没有转码管线；播放仍可用原生 `<video>`，需要固定 URL 的仍放 `public/`。
+语言目录与 `shared/` 下各有四个（`pnpm doc new` 默认建齐，`--no-assets` 跳过），但本期
+**只做归置**：它们不走任何构建管线，相对路径不会被打包 / 拷贝进产物（`./audio/x.mp3`
+在构建里不报错，页面上却 404）。要在页面里播放 / 下载，文件放 `public/` 用绝对路径，
+或用外链。
 
 ### 两段式设计（这是整套实现的核心约束）
 
@@ -1319,7 +1322,8 @@ docs/<YYYYMM>/<DDNN>/<locale>/index.md
 - frontmatter 的**全部常规字段**一次写全，字段表来自 `scripts/lib/frontmatter-schema.ts`；
   `slug` 由标题按 `support/slug.ts` 推导后**显式写入**；字符串字段一律单引号；`date`
   写成带显式偏移的完整 ISO 串，不用裸日期；**`updated` 故意不生成**；
-- 每个语言目录与 `shared/` 下会创建 `images/.gitkeep`（`--no-assets` 可关）；
+- 每个语言目录与 `shared/` 下会创建 `images/`、`audio/`、`video/`、`files/` 四个目录
+  （各放一个 `.gitkeep`；`--no-assets` 可关）；
 - 支持 `-n/--sequence NN`、`--draft`、`--no-outline`、`--try`。
 
 **`check` / `fix` / `format` 的边界**：
@@ -1330,12 +1334,13 @@ docs/<YYYYMM>/<DDNN>/<locale>/index.md
   正文空/H1、裸 GitHub 链接、目录结构规则等；
 - `fix` 只做安全修改：重排字段顺序、补齐可选字段、日期补时区、标签去重、字符串加引号；
   **不**重命名/移动目录，不改标题、正文、已有 slug，不删废弃字段；
-- `format` 只排版正文（空行、标题空格、列表符号），frontmatter 原样保留，代码围栏内与
-  `:::` 指令不碰；两者都支持 `--try` 预览。
+- `format` 只排版正文（空行、标题空格、列表符号），frontmatter 原样保留，代码围栏内
+  不碰；`:::` 指令行本身不动，块内正文仍按普通 Markdown 排版；两者都支持 `--try` 预览。
 
-> `.gitattributes` 统一了行尾（`* text=auto eol=lf`），所以 `fix` 写回直接用 LF 是安全的，
-> 不需要再「跟随正文换行风格」。**不要再删这个文件**：删了之后 Windows 上
-> `core.autocrlf=true` 会让 `format:check` 在本地红、CI 绿。
+> `.gitattributes` 统一了行尾（`* text=auto eol=lf`），正常情况下正文都是 LF；`fix` 写回
+> 仍会**跟随正文现有换行风格**，只是为兼容历史 CRLF 文件，不是为了抵消 autocrlf。
+> **不要再删这个文件**：删了之后 Windows 上 `core.autocrlf=true` 会让 `format:check`
+> 在本地红、CI 绿。
 
 **`pnpm doc list` 的日期过滤**：按**目录日期** `<YYYYMM>/<DDNN>` 匹配（不是 slug）；
 默认隐藏草稿（`--drafts` 才列）；`-t` 裸用是标签视图，`--stats` 是统计视图，另有
@@ -1343,7 +1348,7 @@ docs/<YYYYMM>/<DDNN>/<locale>/index.md
 
 三个视图对草稿的口径**故意不同**：`check` 会逐篇检查草稿文件本身（它只是不构建，源文件
 还在仓库里）；`list` / 标签视图默认剔除草稿（`--drafts` 连草稿一起算）；统计视图按
-**语言版本数**统计并**包含草稿**（另给一行「文章目录数」）。
+**语言版本数**统计并**包含草稿**（另给一行「文章目录数」，`--drafts` 对它无影响）。
 
 ### 加一个动态路由
 

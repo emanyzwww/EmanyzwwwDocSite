@@ -18,7 +18,7 @@ import {
   type TagFilter,
   type TagOption,
 } from './filters'
-import { LOCALE_CODES } from './site'
+import { isLocaleCode, LOCALE_CODES } from './site'
 import { c, helpLines, padEnd } from './ui'
 
 /** 全局选项：所有内容命令都认识。 */
@@ -37,7 +37,7 @@ const COMMON_HELP = [
   },
   {
     flag: '-d, --date <spec>',
-    description: '日期：2026 / 202611 / 20261101 / 202601..202606（默认全部）',
+    description: '日期：new 用 YYYYMMDD / YYYYMMDDNN；其余为 2026 / 202611 / 20261101 等',
   },
   {
     flag: '-t, --tag <tags>',
@@ -128,7 +128,7 @@ export function parseLang(value: string): LocaleCode[] {
   }
 
   for (const part of parts) {
-    if (!(LOCALE_CODES as readonly string[]).includes(part)) {
+    if (!isLocaleCode(part)) {
       throw new Error(`不支持的语言：${part}（只接受 ${LOCALE_CODES.join('、')}，区分大小写）`)
     }
   }
@@ -204,6 +204,7 @@ export function printOverview(commands: readonly CommandMeta[]): void {
   for (const item of COMMON_HELP) {
     console.log(`  ${item.flag.padEnd(24)}${item.description}`)
   }
+  console.log(c.dim('  clean 只清理产物与缓存，不接受 -l/-d/-t'))
   console.log('')
   console.log(c.dim('日期写法'))
   console.log('  2026             2026 全年')

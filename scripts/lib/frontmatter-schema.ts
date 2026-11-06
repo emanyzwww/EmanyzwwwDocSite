@@ -4,8 +4,9 @@
  * 这个文件是「有哪些字段」的唯一事实来源，`new` / `check` / `fix` 都从这里取，
  * 谁也不许再自己列一遍：
  *
- * 1. 新建：`scripts/new.ts` 按这张表生成**完整**的头部（一个字段都不漏）；
- * 2. 校验与修复：`scripts/check.ts` / `scripts/fix.ts` 按这张表判断缺字段、排顺序、补默认值。
+ * 1. 新建：`scripts/commands/new.ts` 按这张表生成**完整**的头部（一个字段都不漏）；
+ * 2. 校验与修复：`scripts/commands/check.ts` / `scripts/commands/fix.ts` 按这张表判断
+ *    缺字段、排顺序、补默认值。
  *
  * 之前字段定义散落在两处：`WRITING.md` 的表格和 `content.ts` 里的 `doc.data.x`。
  * 两边一旦不同步，就会出现「文档写了这个字段、代码根本不认」或者反过来。
@@ -43,13 +44,6 @@ export interface FrontmatterField {
   summary: string
   /** 省略该字段时会发生什么（与 `WRITING.md` 的表格保持一致）。 */
   fallback: string
-  /**
-   * `pnpm doc new` 生成的占位值 / `pnpm doc fix` 补齐时写入的值。
-   *
-   * `date` 是空串：真实时刻必须由 `scripts/new.ts` 按北京时间算出来，
-   * 塞一个假的默认值只会掩盖错误。
-   */
-  placeholder: string | readonly string[] | boolean
 }
 
 /**
@@ -64,8 +58,7 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     type: 'string',
     required: true,
     summary: '文章标题，显示在列表、文章页与浏览器标签',
-    fallback: '构建报错',
-    placeholder: '未命名文章',
+    fallback: '`doc check` 报 error；构建时用文件路径兜底',
   },
   {
     key: 'slug',
@@ -73,7 +66,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: false,
     summary: 'URL 段落（/…/YYYYMM/DDNN/<slug>/）；省略时由 title 推导',
     fallback: '由 title 按 `support/slug.ts` 的规则推导',
-    placeholder: '',
   },
   {
     key: 'date',
@@ -81,7 +73,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: true,
     summary: '完整时刻（带 +08:00 时区），决定排序、上下篇与时间线分组',
     fallback: '不会被当成文章，按普通页面渲染',
-    placeholder: '',
   },
   {
     /*
@@ -93,7 +84,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: false,
     summary: '最后更新时刻（格式同 date）；只有晚于 date 才在页面显示「更新于」',
     fallback: '不显示更新日期',
-    placeholder: '',
   },
   {
     key: 'tags',
@@ -101,7 +91,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: false,
     summary: '标签数组，自动生成标签页并进入标签云',
     fallback: '无标签',
-    placeholder: [],
   },
   {
     key: 'description',
@@ -109,7 +98,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: false,
     summary: '一句话摘要，用于列表卡片、RSS 与 SEO 描述',
     fallback: '自动取正文第一段，截断 160 字',
-    placeholder: '',
   },
   {
     key: 'draft',
@@ -117,7 +105,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: false,
     summary: 'true = 不构建该文章（不生成页面，不进列表、标签、RSS、搜索）',
     fallback: 'false（正常构建）',
-    placeholder: false,
   },
   {
     key: 'outline',
@@ -125,7 +112,6 @@ export const FRONTMATTER_FIELDS: readonly FrontmatterField[] = [
     required: false,
     summary: '是否显示右栏目录；false 时强制关掉',
     fallback: '跟随站点全局设置（默认开）',
-    placeholder: true,
   },
 ]
 
