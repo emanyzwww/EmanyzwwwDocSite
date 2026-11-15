@@ -15,18 +15,18 @@
     "format:check": "oxfmt --check docs .vitepress scripts README.md WRITING.md DEVELOPING.md DESIGN.md --ignore-path .oxfmtignore"
   },
   "devDependencies": {
-    "@clack/prompts": "1.8.1",
+    "@clack/prompts": "1.9.0",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.13.1",
     "gray-matter": "^4.0.3",
     "markdown-it": "^14.1.0",
-    "oxfmt": "^0.73.0",
-    "oxlint": "^1.89.0",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
     "sharp": "0.35.5",
     "tsx": "^4.23.15",
     "typescript": "^5.7.3",
     "vitepress": "1.6.4",
-    "vue": "^3.5.13",
+    "vue": "^3.5.45",
     "vue-tsc": "^2.2.0"
   },
   "engines": {
